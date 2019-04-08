@@ -1234,3 +1234,33 @@ private:
 
     uint32_t reach_wp_time_ms = 0;  // time since vehicle reached destination (or zero if not yet reached)
 };
+
+#if FRAME_CONFIG == HELI_FRAME
+#if MODE_AUTOROTATE_ENABLED == ENABLED
+class ModeAutorotate : public Mode {
+
+public:
+    // inherit constructor
+    //ModeAutorotate(Copter &copter) : Copter::Mode(copter) { }
+    using Copter::Mode::Mode;
+
+    bool init(bool ignore_checks) override;
+    void run() override;
+
+    bool is_autopilot() const override { return false; }
+    bool requires_GPS() const override { return false; }
+    bool has_manual_throttle() const override { return true; }
+    bool allows_arming(bool from_gcs) const override { return true; };
+
+protected:
+
+    const char *name() const override { return "AUTOROTATE"; }
+    const char *name4() const override { return "AROT"; }
+
+    void get_pilot_desired_angle_rates(int16_t roll_in, int16_t pitch_in, int16_t yaw_in, float &roll_out, float &pitch_out, float &yaw_out);
+
+private:
+
+};
+#endif
+#endif
