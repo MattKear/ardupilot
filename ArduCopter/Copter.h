@@ -925,10 +925,8 @@ private:
 #if MODE_ZIGZAG_ENABLED == ENABLED
     ModeZigZag mode_zigzag;
 #endif
-#if FRAME_CONFIG == HELI_FRAME
 #if MODE_AUTOROTATE_ENABLED == ENABLED
     ModeAutorotate mode_autorotate;
-#endif
 #endif
 
     // mode.cpp
