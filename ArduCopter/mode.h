@@ -1244,7 +1244,7 @@ public:
     //ModeAutorotate(Copter &copter) : Copter::Mode(copter) { }
     using Copter::Mode::Mode;
 
-    bool init(bool ignore_checks) override;
+    //bool init(bool ignore_checks) override;
     void run() override;
 
     bool is_autopilot() const override { return false; }
