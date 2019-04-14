@@ -1244,7 +1244,7 @@ public:
     //ModeAutorotate(Copter &copter) : Copter::Mode(copter) { }
     using Copter::Mode::Mode;
 
-    //bool init(bool ignore_checks) override;
+    bool init(bool ignore_checks) override;
     void run() override;
 
     bool is_autopilot() const override { return false; }
@@ -1257,9 +1257,12 @@ protected:
     const char *name() const override { return "AUTOROTATE"; }
     const char *name4() const override { return "AROT"; }
 
-    void get_pilot_desired_angle_rates(int16_t roll_in, int16_t pitch_in, int16_t yaw_in, float &roll_out, float &pitch_out, float &yaw_out);
-
 private:
+
+    float _inital_vel_x;  //record of velocity on mode initialisation
+    float _inital_vel_y;
+    float _last_vel_x;
+    float _last_vel_y;
 
 };
 #endif
