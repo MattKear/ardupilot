@@ -1261,9 +1261,24 @@ private:
 
     float _inital_vel_x;  //record of velocity on mode initialisation
     float _inital_vel_y;
-    float _last_vel_x;
-    float _last_vel_y;
 
+    
+    enum _recovery_phase {
+        INITIATE,
+        RECOVERY,
+        SS_GLIDE,
+        FLARE,
+        TOUCH_DOWN } phase_switch;
+
+    float flare_aggression; // This is a scalable and tuneable value that denotes the aggressivenes sof the response required by the flare phase
+    float z_flare; // The altitude that the flare will be initialised at
+    float v_z_ss; // The target vertical velocity for the steady-state glide phase of the autorotation
+    float t_flare_initiate;  //the time stamp in which the flare phase was initiated
+    bool flare_initial;
+    
+    float now = 0;
+    float last = 0;
+    float dt = 0;
 };
 #endif
 #endif
