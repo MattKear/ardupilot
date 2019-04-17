@@ -1274,11 +1274,20 @@ private:
     float z_flare; // The altitude that the flare will be initialised at
     float v_z_ss; // The target vertical velocity for the steady-state glide phase of the autorotation
     float t_flare_initiate;  //the time stamp in which the flare phase was initiated
+    bool recovery_initial;
+    bool ss_glide_initial;
     bool flare_initial;
+    bool touch_down_initial;
     
     float now = 0;
     float last = 0;
     float dt = 0;
+    
+    
+    //temporary for debuging
+    uint16_t message_counter = 0;
+    
+    
 };
 #endif
 #endif

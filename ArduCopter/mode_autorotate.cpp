@@ -12,19 +12,30 @@
 bool Copter::ModeAutorotate::init(bool ignore_checks)
 {
 
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    gcs().send_text(MAV_SEVERITY_INFO, "Autorotation initiated");
+#endif
+
      phase_switch = INITIATE;
      
-     //set inial flare setting
-     flare_initial = 1;
+     //set inial switches
+    recovery_initial = 1;
+    ss_glide_initial = 1;
+    flare_initial = 1;
+    touch_down_initial = 1;
+
      
 
     //Increase Z velocity limit in position controller to allow for high descent rates sometimes required for steady-state autorotation
-    pos_control->set_max_speed_z(-2000, 500); //speed in cm/s
+    pos_control->set_max_speed_z(-20000, 500); //speed in cm/s
 
     //Record current x,y velocity to maintain initially
     _inital_vel_x = inertial_nav.get_velocity().x;
     _inital_vel_y = inertial_nav.get_velocity().y;
 
+
+
+    message_counter = 0;
 
     return true;
 }
@@ -33,7 +44,9 @@ void Copter::ModeAutorotate::run()
 {
     // current time
     now = millis(); //milliseconds
-    dt = (last - now)/1000;  //delta time in seconds
+    
+    
+    //checked and dt does vary a little range 0.001 -0.007, mean 0.003
     
     // Cut power by setting HeliRSC channel to min value  <--- need to check effect on gas engine aircraft (i.e. dont want to shut down engines)
     SRV_Channels::set_output_scaled(SRV_Channel::k_heli_rsc, SRV_Channel::SRV_CHANNEL_LIMIT_MIN);
@@ -79,6 +92,7 @@ void Copter::ModeAutorotate::run()
     //                                   true,
     //                                   g.throttle_filt);
 
+   //gcs().send_text(MAV_SEVERITY_INFO, "Vz %.4f",inertial_nav.get_position().z);
 
 
 
@@ -90,7 +104,7 @@ switch (phase_switch) {
     
     case INITIATE:
      
-     flare_aggression = 0.125; //0.12 a little too soft, 0.15 does react quick enough, 0.13 seems close but there is an agressive bounce back on touch down
+     flare_aggression = 0.15; //
      
      //Calculate recovery scaling values
      v_z_ss = -830; //(cm/s)
@@ -105,8 +119,20 @@ switch (phase_switch) {
     
     
     case RECOVERY:
-    //calculate flare height  <--- needs at least two loops of this mode to calc dt
-    z_flare = (dt*v_z_ss)/(exp(-flare_aggression*dt));  //There is a risk here if dt changes later in the flare, it could lead to over/under shot flare
+    
+    if (recovery_initial == 1) {
+        
+        //calculate flare height  <--- needs at least two loops of this mode to calc dt
+        dt = (last - now)/1000;  //delta time in seconds
+        z_flare = (dt*v_z_ss)/(exp(-flare_aggression*dt)) * 1000.0f;  //(mm)  //There is a risk here if dt changes later in the flare, it could lead to over/under shot flare
+    
+        #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+            gcs().send_text(MAV_SEVERITY_INFO, "recovery");
+            gcs().send_text(MAV_SEVERITY_INFO, "flare height %.3f",z_flare);
+        #endif
+
+        recovery_initial = 0;
+    }
     
     // set target vert descent speed for steadystate autorotation
     pos_control->set_desired_velocity_z(v_z_ss);
@@ -119,6 +145,10 @@ switch (phase_switch) {
         //low altitude skip to flare
         phase_switch = FLARE;
     }
+    
+
+    
+    
     break;
     
     
@@ -130,6 +160,14 @@ switch (phase_switch) {
     if (inertial_nav.get_position().z <= z_flare){
         //low altitude skip to flare
         phase_switch = FLARE;
+    }
+    
+    if (ss_glide_initial == 1) {
+        #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+            gcs().send_text(MAV_SEVERITY_INFO, "steady state glide");
+        #endif
+
+        ss_glide_initial = 0;
     }
     
     break;
@@ -144,16 +182,24 @@ switch (phase_switch) {
         flare_initial = 0;
         
         //v_z_ss remains unchanged for one more loop to prevent jerks in pos control velocity when exp(0) below.
+        
+        //message to ground control station to inform that flare has engaged
+        #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+            gcs().send_text(MAV_SEVERITY_INFO, "Flare initiated");
+        #endif
     } else {
 
         //calculate z velocity for flare trajectory
-        v_z_ss = -flare_aggression * z_flare * exp(-flare_aggression * (now - t_flare_initiate)/1000) * 100;  //cms
+        v_z_ss = -flare_aggression * z_flare * exp(-flare_aggression * (now - t_flare_initiate)/1000.0f);  //cms
+        
+
     }
     
     // set target vert speed for flare phase
     pos_control->set_desired_velocity_z(v_z_ss);
     
-    if (abs(v_z_ss) <= 100) {
+    if (v_z_ss >= -150) {
+        v_z_ss = -150;
         phase_switch = TOUCH_DOWN;
     }
 
@@ -162,7 +208,15 @@ switch (phase_switch) {
 
     case TOUCH_DOWN:
      // set target vert speed for landing complete.
-    pos_control->set_desired_velocity_z(-100);
+    pos_control->set_desired_velocity_z(v_z_ss);
+    
+    if (touch_down_initial == 1) {
+        #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+            gcs().send_text(MAV_SEVERITY_INFO, "touch down");
+        #endif
+
+        touch_down_initial = 0;
+    }
 
     break;
 
@@ -183,6 +237,15 @@ switch (phase_switch) {
     last = now;
 
 
+    if (message_counter == 300) {
+        gcs().send_text(MAV_SEVERITY_INFO, "Desired Vel %.2f",v_z_ss);
+        gcs().send_text(MAV_SEVERITY_INFO, "Actual Vel %.2f",inertial_nav.get_velocity().z);
+        gcs().send_text(MAV_SEVERITY_INFO, "Actual Height %.2f",inertial_nav.get_position().z);
+        gcs().send_text(MAV_SEVERITY_INFO, "Flare time %.4f",now - t_flare_initiate);
+        gcs().send_text(MAV_SEVERITY_INFO, "--- --- --- ---");
+        message_counter = 0;
+    }
+    message_counter++;
 }
 
 #endif
