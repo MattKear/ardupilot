@@ -280,8 +280,9 @@ void AP_MotorsHeli_Single::calculate_armed_scalars()
     }
 
     _main_rotor.set_governor_disengage(_rsc_governor_disengage*0.01f);
-    _main_rotor.set_governor_droop_setting(_rsc_governor_droop_setting*0.01f);
-    _main_rotor.set_governor_setpoint(_rsc_governor_setpoint);
+    _main_rotor.set_governor_droop_response(_rsc_governor_droop_response*0.01f);
+    _main_rotor.set_governor_reference(_rsc_governor_reference);
+    _main_rotor.set_governor_range(_rsc_governor_range);
     _main_rotor.set_governor_tc(_rsc_governor_tc*0.01f);
 }
 

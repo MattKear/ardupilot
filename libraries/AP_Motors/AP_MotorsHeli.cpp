@@ -196,28 +196,28 @@ const AP_Param::GroupInfo AP_MotorsHeli::var_info[] = {
     AP_GROUPINFO("ACRO_COL_MIN",   25, AP_MotorsHeli, _acro_col_min, 0),
 
     // @Param: RSC_GOV_SET
-    // @DisplayName: Governor RPM Setting
+    // @DisplayName: Governor RPM Reference Setting
     // @Description: Main rotor rpm setting that governor maintains when engaged
     // @Range: 800 3500
     // @Increment: 10
     // @User: Standard
-    AP_GROUPINFO("RSC_GOV_SET", 26, AP_MotorsHeli, _rsc_governor_setpoint, AP_MOTORS_HELI_RSC_GOVERNOR_SET_DEFAULT),
-    
+    AP_GROUPINFO("RSC_GOV_SET", 26, AP_MotorsHeli, _rsc_governor_reference, AP_MOTORS_HELI_RSC_GOVERNOR_SET_DEFAULT),
+
     // @Param: RSC_GOV_DISGAG
     // @DisplayName: Throttle Percentage for Governor Disengage
     // @Description: Percentage of throttle where the governor will disenage to allow return to flight idle power
     // @Range: 0 50
     // @Increment: 1
     // @User: Standard
-    AP_GROUPINFO("RSC_GOV_DISGAG", 27, AP_MotorsHeli, _rsc_governor_disengage, AP_MOTORS_HELI_RSC_GOVERNOR_DISENGAGE),
+    AP_GROUPINFO("RSC_GOV_DISGAG", 27, AP_MotorsHeli, _rsc_governor_disengage, AP_MOTORS_HELI_RSC_GOVERNOR_DISENGAGE_DEFAULT),
 
     // @Param: RSC_GOV_DROOP
-    // @DisplayName: Governor Droop Setting
+    // @DisplayName: Governor Droop Response Setting
     // @Description: Governor droop response under load, 0-100%. Higher value is quicker response but may cause surging
     // @Range: 0 100
     // @Increment: 1
     // @User: Standard
-    AP_GROUPINFO("RSC_GOV_DROOP", 28, AP_MotorsHeli, _rsc_governor_droop_setting, AP_MOTORS_HELI_RSC_GOVERNOR_DROOP_DEFAULT),
+    AP_GROUPINFO("RSC_GOV_DROOP", 28, AP_MotorsHeli, _rsc_governor_droop_response, AP_MOTORS_HELI_RSC_GOVERNOR_DROOP_DEFAULT),
 
     // @Param: RSC_GOV_TC
     // @DisplayName: Governor Throttle Curve Gain
@@ -225,7 +225,15 @@ const AP_Param::GroupInfo AP_MotorsHeli::var_info[] = {
     // @Range: 50 100
     // @Increment: 1
     // @User: Standard
-    AP_GROUPINFO("RSC_GOV_TC", 29, AP_MotorsHeli, _rsc_governor_tc, AP_MOTORS_HELI_RSC_GOVERNOR_TC),
+    AP_GROUPINFO("RSC_GOV_TC", 29, AP_MotorsHeli, _rsc_governor_tc, AP_MOTORS_HELI_RSC_GOVERNOR_TC_DEFAULT),
+
+    // @Param: RSC_GOV_RANGE
+    // @DisplayName: Governor Operational Range
+    // @Description: RPM range +/- governor rpm reference setting where governor is operational. If speed sensor fails or rpm falls outside of this range, the governor will disengage and return to throttle curve. Recommended range is 100
+    // @Range: 50 200
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("RSC_GOV_RANGE", 30, AP_MotorsHeli, _rsc_governor_range, AP_MOTORS_HELI_RSC_GOVERNOR_RANGE_DEFAULT),
 
     AP_GROUPEND
 };
