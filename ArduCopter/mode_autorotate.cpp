@@ -124,7 +124,7 @@ switch (phase_switch) {
         
         //calculate flare height  <--- needs at least two loops of this mode to calc dt
         dt = (last - now)/1000;  //delta time in seconds
-        z_flare = (dt*v_z_ss)/(exp(-flare_aggression*dt)) * 1000.0f;  //(mm)  //There is a risk here if dt changes later in the flare, it could lead to over/under shot flare
+        z_flare = (dt*v_z_ss)/(expf(-flare_aggression*dt)) * 1000.0f;  //(mm)  //There is a risk here if dt changes later in the flare, it could lead to over/under shot flare
     
         #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
             gcs().send_text(MAV_SEVERITY_INFO, "recovery");
@@ -190,7 +190,7 @@ switch (phase_switch) {
     } else {
 
         //calculate z velocity for flare trajectory
-        v_z_ss = -flare_aggression * z_flare * exp(-flare_aggression * (now - t_flare_initiate)/1000.0f);  //cms
+        v_z_ss = -flare_aggression * z_flare * expf(-flare_aggression * (now - t_flare_initiate)/1000.0f);  //cms
         
 
     }
