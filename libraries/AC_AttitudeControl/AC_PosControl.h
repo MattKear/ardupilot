@@ -150,7 +150,12 @@ public:
     // get_leash_down_z, get_leash_up_z - returns vertical leash lengths in cm
     float get_leash_down_z() const { return _leash_down_z; }
     float get_leash_up_z() const { return _leash_up_z; }
-
+    
+    //convert acceleration to throttle and set throttle out
+    void acceleration_to_throtte();
+    
+    void set_accel_z(float accel_target_z){_accel_target.z = accel_target_z;}
+    
     ///
     /// xy position controller
     ///

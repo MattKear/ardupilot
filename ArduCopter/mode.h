@@ -1264,7 +1264,6 @@ private:
 
     
     enum _recovery_phase {
-        INITIATE,
         RECOVERY,
         SS_GLIDE,
         FLARE,
@@ -1272,7 +1271,12 @@ private:
 
     float flare_aggression; // This is a scalable and tuneable value that denotes the aggressivenes sof the response required by the flare phase
     float z_flare; // The altitude that the flare will be initialised at
-    float v_z_ss; // The target vertical velocity for the steady-state glide phase of the autorotation
+    float desired_v_z; // The target vertical velocity
+    float v_z_error;
+    float des_z; // The target vertical postion
+    float des_z_last;
+    float required_accel_z;
+    float accel_target_z;
     float t_flare_initiate;  //the time stamp in which the flare phase was initiated
     bool recovery_initial;
     bool ss_glide_initial;
@@ -1280,8 +1284,6 @@ private:
     bool touch_down_initial;
     
     float now = 0;
-    float last = 0;
-    float dt = 0;
     
     
     //temporary for debuging
