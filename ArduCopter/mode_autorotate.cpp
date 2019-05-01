@@ -50,6 +50,9 @@ void Copter::ModeAutorotate::run()
 {
     //initialise local variables
     
+    // initialize vertical speeds and acceleration///<-----------------------
+    pos_control->set_max_speed_z(-2000, 500);///<-----------------------
+    pos_control->set_max_accel_z(200000);///<-----------------------
     
     // current time
     now = millis(); //milliseconds
@@ -104,6 +107,13 @@ switch (phase_switch) {
             
             z_flare = (-G_Dt*desired_v_z)/(expf(-flare_aggression*G_Dt)) * 1000.0f;  //(mm)  //There is a risk here if dt changes later in the flare, it could lead to over/under shot flare
     
+            //Check z_flare has not been driven to be very small due to erronious G_Dt values
+            if (z_flare < 400) {
+                z_flare = 400;
+                gcs().send_text(MAV_SEVERITY_INFO, "flare height adjusted");
+            }
+    
+    
             #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
                 gcs().send_text(MAV_SEVERITY_INFO, "recovery");
                 gcs().send_text(MAV_SEVERITY_INFO, "flare height %.3f",z_flare);
@@ -120,14 +130,11 @@ switch (phase_switch) {
         des_z = curr_alt + desired_v_z*G_Dt;
     
         //set inital acceleration
-        required_accel_z = (desired_v_z - curr_vel_z)/G_Dt;
+        required_accel_z += (desired_v_z - curr_vel_z)/G_Dt;  //<------- ff added here
           //may need to apply check to prevent +accelerations????
     
         //apply forced recovery collective???
     
-    
-        // set target vert descent speed for steadystate autorotation<---defunct
-        //pos_control->set_desired_velocity_z(desired_v_z);
     
         if ((desired_v_z - curr_vel_z)/desired_v_z < 0.02) {  //if descent velocity is within 2% of desired ss vel then switch
             //Steady-State Glide velocity achieved
@@ -156,12 +163,11 @@ switch (phase_switch) {
         
         //Calculate desired z from steady state autorotation velocity
         des_z = curr_alt + desired_v_z*G_Dt;
+        // set position controller targets//<----------------
+        //pos_control->set_alt_target_from_climb_rate_ff(desired_v_z, G_Dt, false);//<----------------
     
         //set acceleration
-        required_accel_z = (desired_v_z - curr_vel_z)/G_Dt;
-    
-        // set target vert descent speed for steadystate autorotation  <---defunct
-        //pos_control->set_desired_velocity_z(desired_v_z);
+        required_accel_z += (desired_v_z - curr_vel_z)/G_Dt;  //<------- ff added here
     
         if (curr_alt <= z_flare){
             //Initiate flare phase
@@ -200,26 +206,21 @@ switch (phase_switch) {
             desired_v_z = -flare_aggression * z_flare * expf(-flare_aggression * (now - t_flare_initiate)/1000.0f);  //(cm/s)
             
             //Account for position errors by adjusting velocity
-            desired_v_z += (des_z_last - curr_alt)/G_Dt; //(cm/s)
+            //desired_v_z += (des_z_last - curr_alt)/G_Dt; //(cm/s)
     
             //set acceleration
             required_accel_z = (desired_v_z - curr_vel_z)/G_Dt; //(cm/s/s)
         }
     
-        // set target vert speed for flare phase  <-----defunct
-        //pos_control->set_desired_velocity_z(desired_v_z);
-    
-        if (desired_v_z >= -150) {
-            desired_v_z = -150;
-            phase_switch = TOUCH_DOWN;
-        }
+        //if (desired_v_z >= -150) {
+        //    desired_v_z = -150;
+         //   phase_switch = TOUCH_DOWN;
+        //}
 
         break;
 
 
     case TOUCH_DOWN:
-        // set target vert speed for landing complete. <-----defunct
-        //pos_control->set_desired_velocity_z(desired_v_z);
     
         //Calculate desired z from touch down velocity
         des_z = curr_alt + desired_v_z*G_Dt;
@@ -243,13 +244,6 @@ switch (phase_switch) {
 //Calculate the velocity error
 v_z_error = desired_v_z - curr_vel_z;
 
-
-//pos_control->_accel_target.z = _p_vel_z.get_p(v_z_error);
-//pos_control->_accel_target.z += required_accel_z;
-//pos_control->set_desired_accel_z(required_accel_z);
-// --------------------------------------------------------
-
-
 pos_control->set_accel_z(required_accel_z);
 
 pos_control->acceleration_to_throtte();
@@ -262,8 +256,6 @@ pos_control->acceleration_to_throtte();
 // call xy-axis position controller
 //pos_control->update_xy_controller();
 
-// call z-axis position controller  <----- now defunct
-//pos_control->update_z_controller();
 
 //saving last targeted z position for corrections in the next iteration
 des_z_last = des_z;
@@ -272,8 +264,9 @@ des_z_last = des_z;
 if (message_counter == 300) {
     gcs().send_text(MAV_SEVERITY_INFO, "Desired Vel %.2f",desired_v_z);
     gcs().send_text(MAV_SEVERITY_INFO, "Actual Vel %.2f",curr_vel_z);
+    gcs().send_text(MAV_SEVERITY_INFO, "Desired Height %.2f",des_z);
     gcs().send_text(MAV_SEVERITY_INFO, "Actual Height %.2f",curr_alt);
-    gcs().send_text(MAV_SEVERITY_INFO, "Flare time %.4f",now - t_flare_initiate);
+    gcs().send_text(MAV_SEVERITY_INFO, "Time Height %.3f",G_Dt);
     gcs().send_text(MAV_SEVERITY_INFO, "--- --- --- ---");
     message_counter = 0;
 }
