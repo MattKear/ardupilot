@@ -32,6 +32,10 @@ bool Copter::ModeAutorotate::init(bool ignore_checks)
     pos_control->set_max_accel_z(200000);
     pos_control->set_true_desired_velocity_ff_z();
     pos_control->force_ff_accel_z();
+    
+    
+    pos_control->set_max_accel_xy(20000);//<----------------
+    pos_control->set_max_speed_xy(2000);//<----------------
 
     //Record current x,y velocity to maintain initially
     _inital_vel_x = inertial_nav.get_velocity().x;
@@ -75,8 +79,9 @@ void Copter::ModeAutorotate::run()
     // call attitude controller
     //attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
 
-    //set autorotation position to be the position that mode was initiated 
-    pos_control->set_xy_target(_inital_pos_x,_inital_pos_y);
+    
+    xy_pos_switch = STRAIGHT_AHEAD;
+    
 
 // state machine
 switch (phase_switch) {
@@ -130,7 +135,14 @@ switch (phase_switch) {
             phase_switch = FLARE;
         }
     
-
+        //Calculate desired x position from x velocity at autorotation initiation
+        des_x = inertial_nav.get_position().x + _inital_vel_x*G_Dt;  //(cm)
+        
+        //Calculate desired y position from y velocity at autorotation initiation
+        des_y = inertial_nav.get_position().y + _inital_vel_y*G_Dt;  //(cm)
+        
+        //set xy desired positions
+        pos_control->set_xy_target(des_x,des_y);
     
     
         break;
@@ -151,11 +163,44 @@ switch (phase_switch) {
         // set position controller targets//<----------------
         //pos_control->set_alt_target_from_climb_rate_ff(desired_v_z, G_Dt, false);//<----------------
     
-        //set position target
+    
+        switch (xy_pos_switch) {
+            
+            case STRAIGHT_AHEAD:
+                
+                
+                //Calculate desired x position from x velocity at autorotation initiation
+                des_x = inertial_nav.get_position().x + _inital_vel_x*G_Dt;  //(cm)
+                
+                //Calculate desired y position from y velocity at autorotation initiation
+                des_y = inertial_nav.get_position().y + _inital_vel_y*G_Dt;  //(cm)
+                
+                break;
+                
+            case INTO_WIND:
+                
+                
+                break;
+                
+            case NEAREST_RALLY:
+                
+                
+                break;
+                
+        }
+    
+        //set xy desired positions
+        pos_control->set_xy_target(des_x,des_y);
+    
+    
+    
+    
+    
+    
+        //set z position target
         pos_control->set_alt_target(des_z);
     
-        //set acceleration
-        //required_accel_z += (desired_v_z - curr_vel_z)/G_Dt;  //<------- ff added here
+
     
         if (curr_alt <= z_flare){
             //Initiate flare phase
@@ -177,8 +222,9 @@ switch (phase_switch) {
             //Calculate desired z from seteady state autorotation velocity
             des_z = curr_alt + desired_v_z*G_Dt;
     
-            //set acceleration
-            required_accel_z = (desired_v_z - curr_vel_z)/G_Dt;
+            //position at flare initiation
+            flare_pos_x = inertial_nav.get_position().x;
+            flare_pos_y = inertial_nav.get_position().y;
         
             //message to ground control station to inform that flare has engaged
             #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
@@ -190,10 +236,12 @@ switch (phase_switch) {
             des_z = z_flare * 0.1f * expf(-flare_aggression * (now - t_flare_initiate)/1000.0f); // + terrain_offset (cm)
             
         }
-    
+            
             //set position target
             pos_control->set_alt_target(des_z);
     
+            //set xy desired positions
+            pos_control->set_xy_target(des_x,des_y);
     
     
         if (curr_vel_z >= -150) {
@@ -209,9 +257,16 @@ switch (phase_switch) {
     
         //Calculate desired z from touch down velocity
         des_z = curr_alt + desired_v_z*G_Dt;
+        
+        //Maintain level for touch down;
+        des_x = inertial_nav.get_position().x;
+        des_y = inertial_nav.get_position().y;
     
         //set position target
         pos_control->set_alt_target(des_z);
+        
+        //set xy desired positions
+        pos_control->set_xy_target(des_x,des_y);
     
         if (touch_down_initial == 1) {
             #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
@@ -245,12 +300,15 @@ des_z_last = des_z;
 
 
 if (message_counter == 300) {
-    gcs().send_text(MAV_SEVERITY_INFO, "Desired Vel %.2f",pos_control->get_vel_target_z());
-    gcs().send_text(MAV_SEVERITY_INFO, "Actual Vel %.2f",curr_vel_z);
-    gcs().send_text(MAV_SEVERITY_INFO, "Target Height %.2f",pos_control->get_alt_target());
-    gcs().send_text(MAV_SEVERITY_INFO, "Actual Height %.2f",curr_alt);
-    gcs().send_text(MAV_SEVERITY_INFO, "Desired Height %.2f",des_z);
-    //gcs().send_text(MAV_SEVERITY_INFO, "Leash Down %.2f",pos_control->get_leash_down_z());
+//    gcs().send_text(MAV_SEVERITY_INFO, "Desired Vel %.2f",pos_control->get_vel_target_z());
+//    gcs().send_text(MAV_SEVERITY_INFO, "Actual Vel %.2f",curr_vel_z);
+//    gcs().send_text(MAV_SEVERITY_INFO, "Target Height %.2f",pos_control->get_alt_target());
+//    gcs().send_text(MAV_SEVERITY_INFO, "Actual Height %.2f",curr_alt);
+//    gcs().send_text(MAV_SEVERITY_INFO, "Desired Height %.2f",des_z);
+    gcs().send_text(MAV_SEVERITY_INFO, "Target X %.2f",pos_control->get_pos_target().x);
+    gcs().send_text(MAV_SEVERITY_INFO, "Current X %.2f",inertial_nav.get_position().x);
+    gcs().send_text(MAV_SEVERITY_INFO, "Target Y %.2f",pos_control->get_pos_target().y);
+    gcs().send_text(MAV_SEVERITY_INFO, "Current Y %.2f",inertial_nav.get_position().y);
     gcs().send_text(MAV_SEVERITY_INFO, "--- --- --- ---");
     message_counter = 0;
 }

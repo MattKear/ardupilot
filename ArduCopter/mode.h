@@ -1270,14 +1270,23 @@ private:
         SS_GLIDE,
         FLARE,
         TOUCH_DOWN } phase_switch;
+        
+    enum _xy_position_decision {
+        STRAIGHT_AHEAD,
+        INTO_WIND,
+        NEAREST_RALLY } xy_pos_switch;
 
     float flare_aggression; // This is a scalable and tuneable value that denotes the aggressivenes sof the response required by the flare phase
     float z_flare; // The altitude that the flare will be initialised at
     float desired_v_z; // The target vertical velocity
     float v_z_error;
+    float des_x; // Desired x position
+    float des_y; // Desired y position
     float des_z; // The target vertical postion
     float des_z_last;
     float required_accel_z;
+    float flare_pos_x; //x position at flare initiation
+    float flare_pos_y; //y position at flare initiation
     float accel_target_z;
     float t_flare_initiate;  //the time stamp in which the flare phase was initiated
     bool recovery_initial;
