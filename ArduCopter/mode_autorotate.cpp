@@ -25,21 +25,23 @@ bool Copter::ModeAutorotate::init(bool ignore_checks)
     ss_glide_initial = 1;
     flare_initial = 1;
     touch_down_initial = 1;
-    
-    //reset velocity error and filter
-    //_vel_error.z = 0;
-    //_vel_error_filter.reset(0);
-    //_flags.reset_rate_to_accel_z = false;
      
 
-    //Increase Z velocity limit in position controller to allow for high descent rates sometimes required for steady-state autorotation
-    pos_control->set_max_speed_z(-20000, 500); //speed in cm/s
+    // initialize vertical speeds and acceleration limits and settings
+    pos_control->set_max_speed_z(-2000, 500);
+    pos_control->set_max_accel_z(200000);
+    pos_control->set_true_desired_velocity_ff_z();
+    pos_control->force_ff_accel_z();
 
     //Record current x,y velocity to maintain initially
     _inital_vel_x = inertial_nav.get_velocity().x;
     _inital_vel_y = inertial_nav.get_velocity().y;
+    
+    _inital_pos_x = inertial_nav.get_position().x;
+    _inital_pos_y = inertial_nav.get_position().y;
 
-
+    //initialise position controller
+    pos_control->init_vel_controller_xyz();
 
     message_counter = 0;
 
@@ -50,12 +52,6 @@ void Copter::ModeAutorotate::run()
 {
     //initialise local variables
     
-    // initialize vertical speeds and acceleration limits and settings
-    pos_control->set_max_speed_z(-2000, 500);
-    pos_control->set_max_accel_z(200000);
-    pos_control->set_true_desired_velocity_ff_z();
-    pos_control->force_ff_accel_z();
-    
     // current time
     now = millis(); //milliseconds
     
@@ -64,15 +60,9 @@ void Copter::ModeAutorotate::run()
     
     float curr_vel_z = inertial_nav.get_velocity().z;
     
-    // clear limit flags?????  --not tried this yet, need to confirm what the limit flags do
-    //_limit.pos_up = false;
-    //_limit.pos_down = false;
-    //_limit.vel_up = false;
-    //_limit.vel_down = false;
-    
-    //checked and dt does vary a little range 0.001 -0.007, mean 0.003
     
     // Cut power by setting HeliRSC channel to min value  <--- need to check effect on gas engine aircraft (i.e. dont want to shut down engines)
+    //  this needs to overide the rc interlock channel
     SRV_Channels::set_output_scaled(SRV_Channel::k_heli_rsc, SRV_Channel::SRV_CHANNEL_LIMIT_MIN);
     
     // convert pilot input to lean angles
@@ -80,23 +70,13 @@ void Copter::ModeAutorotate::run()
     get_pilot_desired_lean_angles(target_roll, target_pitch, copter.aparm.angle_max, copter.aparm.angle_max);
 
     // get pilot's desired yaw rate
-    float target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
-
+    //float target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
 
     // call attitude controller
-    attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
+    //attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
 
-    // output pilot's throttle
-    //attitude_control->set_throttle_out(get_pilot_desired_throttle(),
-    //                                   true,
-    //                                   g.throttle_filt);
-
-   //gcs().send_text(MAV_SEVERITY_INFO, "Vz %.4f",inertial_nav.get_position().z);
-
-
-
-//use z-axis desired velocity feed forward
-//    _flags.use_desvel_ff_z = true;
+    //set autorotation position to be the position that mode was initiated 
+    pos_control->set_xy_target(_inital_pos_x,_inital_pos_y);
 
 // state machine
 switch (phase_switch) {
@@ -209,15 +189,6 @@ switch (phase_switch) {
             //Calculate desired z
             des_z = z_flare * 0.1f * expf(-flare_aggression * (now - t_flare_initiate)/1000.0f); // + terrain_offset (cm)
             
-            
-            //calculate desired z velocity for flare trajectory
-            //desired_v_z = -flare_aggression * z_flare * expf(-flare_aggression * (now - t_flare_initiate)/1000.0f);  //(cm/s)
-            
-            //Account for position errors by adjusting velocity
-            //desired_v_z += (des_z_last - curr_alt)/G_Dt; //(cm/s)
-    
-            //set acceleration
-            //required_accel_z = (desired_v_z - curr_vel_z)/G_Dt; //(cm/s/s)
         }
     
             //set position target
@@ -225,24 +196,22 @@ switch (phase_switch) {
     
     
     
-        //if (desired_v_z >= -150) {
-        //    desired_v_z = -150;
-         //   phase_switch = TOUCH_DOWN;
-        //}
+        if (curr_vel_z >= -150) {
+            phase_switch = TOUCH_DOWN;
+        }
 
         break;
 
 
     case TOUCH_DOWN:
     
+        desired_v_z = -150;
+    
         //Calculate desired z from touch down velocity
         des_z = curr_alt + desired_v_z*G_Dt;
     
         //set position target
         pos_control->set_alt_target(des_z);
-    
-        //set acceleration
-        //required_accel_z = (desired_v_z - curr_vel_z)/G_Dt;
     
         if (touch_down_initial == 1) {
             #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
@@ -257,21 +226,16 @@ switch (phase_switch) {
 }
 
 
-//Calculate the velocity error
-//v_z_error = desired_v_z - curr_vel_z;-----------
-
-//pos_control->set_accel_z(required_accel_z);-------------
-
-//pos_control->acceleration_to_throtte();-----------
 
 
-// set desired xy velocty 
-//pos_control->set_desired_velocity_xy(_inital_vel_x, _inital_vel_y);
+
+
 
 
 // call xy-axis position controller
-//pos_control->update_xy_controller();
+pos_control->update_xy_controller();
 
+// call z-axis position controller
 pos_control->update_z_controller();
 
 

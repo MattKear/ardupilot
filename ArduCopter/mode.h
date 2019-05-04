@@ -1261,6 +1261,8 @@ private:
 
     float _inital_vel_x;  //record of velocity on mode initialisation
     float _inital_vel_y;
+    float _inital_pos_x;
+    float _inital_pos_y;
 
     
     enum _recovery_phase {
