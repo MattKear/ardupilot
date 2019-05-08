@@ -1235,7 +1235,6 @@ private:
     uint32_t reach_wp_time_ms = 0;  // time since vehicle reached destination (or zero if not yet reached)
 };
 
-#if FRAME_CONFIG == HELI_FRAME
 #if MODE_AUTOROTATE_ENABLED == ENABLED
 class ModeAutorotate : public Mode {
 
@@ -1303,5 +1302,4 @@ private:
     
     
 };
-#endif
 #endif
