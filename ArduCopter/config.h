@@ -350,6 +350,19 @@
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////////////////////
+// Autorotate - autonomous auto-rotation - helis only
+#if FRAME_CONFIG == HELI_FRAME
+    #ifndef MODE_AUTOROTATE_ENABLED
+    # define MODE_AUTOROTATE_ENABLED ENABLED
+    #endif
+#else
+    # define MODE_AUTOROTATE_ENABLED DISABLED
+#endif
+
+//////////////////////////////////////////////////////////////////////////////
+
 // Beacon support - support for local positioning systems
 #ifndef BEACON_ENABLED
 # define BEACON_ENABLED !HAL_MINIMIZE_FEATURES

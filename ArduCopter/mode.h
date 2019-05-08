@@ -1239,3 +1239,73 @@ protected:
 
     uint32_t last_log_ms;   // system time of last time desired velocity was logging
 };
+
+
+#if MODE_AUTOROTATE_ENABLED == ENABLED
+class ModeAutorotate : public Mode {
+
+public:
+    // inherit constructor
+    //ModeAutorotate(Copter &copter) : Copter::Mode(copter) { }
+    using Copter::Mode::Mode;
+
+    bool init(bool ignore_checks) override;
+    void run() override;
+
+    bool is_autopilot() const override { return false; }
+    bool requires_GPS() const override { return false; }
+    bool has_manual_throttle() const override { return true; }
+    bool allows_arming(bool from_gcs) const override { return true; };
+
+protected:
+
+    const char *name() const override { return "AUTOROTATE"; }
+    const char *name4() const override { return "AROT"; }
+
+private:
+
+    float _inital_vel_x;  //record of velocity on mode initialisation
+    float _inital_vel_y;
+    float _inital_pos_x;
+    float _inital_pos_y;
+
+    
+    enum _recovery_phase {
+        RECOVERY,
+        SS_GLIDE,
+        FLARE,
+        TOUCH_DOWN } phase_switch;
+        
+    enum _xy_position_decision {
+        STRAIGHT_AHEAD,
+        INTO_WIND,
+        NEAREST_RALLY,
+        BREAK } xy_pos_switch;
+
+    float flare_aggression; // This is a scalable and tuneable value that denotes the aggressivenes sof the response required by the flare phase
+    float z_flare; // The altitude that the flare will be initialised at
+    float desired_v_z; // The target vertical velocity
+    float v_z_error;
+    float des_x; // Desired x position
+    float des_y; // Desired y position
+    float des_z; // The target vertical postion
+    float des_z_last;
+    float required_accel_z;
+    float flare_pos_x; //x position at flare initiation
+    float flare_pos_y; //y position at flare initiation
+    float accel_target_z;
+    float t_flare_initiate;  //the time stamp in which the flare phase was initiated
+    bool recovery_initial;
+    bool ss_glide_initial;
+    bool flare_initial;
+    bool touch_down_initial;
+    
+    float now = 0;
+    
+    
+    //temporary for debuging
+    uint16_t message_counter = 0;
+    
+    
+};
+#endif
