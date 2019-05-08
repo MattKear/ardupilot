@@ -206,6 +206,9 @@ public:
 
     // clear desired velocity feed-forward in z axis
     void clear_desired_velocity_ff_z() { _flags.use_desvel_ff_z = false; }
+    
+    // clear desired velocity feed-forward in z axis
+    void set_true_desired_velocity_ff_z() { _flags.use_desvel_ff_z = true; }
 
     // set desired acceleration in cm/s in xy axis
     void set_desired_accel_xy(float accel_lat_cms, float accel_lon_cms) { _accel_desired.x = accel_lat_cms; _accel_desired.y = accel_lon_cms; }
@@ -224,6 +227,9 @@ public:
 
     /// freeze_ff_z - used to stop the feed forward being calculated during a known discontinuity
     void freeze_ff_z() { _flags.freeze_ff_z = true; }
+    
+    /// freeze_ff_z - force false
+    void force_ff_accel_z() { _flags.freeze_ff_z = false; }
 
     // is_active_xy - returns true if the xy position controller has been run very recently
     bool is_active_xy() const;
