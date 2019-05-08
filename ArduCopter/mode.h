@@ -1274,7 +1274,8 @@ private:
     enum _xy_position_decision {
         STRAIGHT_AHEAD,
         INTO_WIND,
-        NEAREST_RALLY } xy_pos_switch;
+        NEAREST_RALLY,
+        BREAK } xy_pos_switch;
 
     float flare_aggression; // This is a scalable and tuneable value that denotes the aggressivenes sof the response required by the flare phase
     float z_flare; // The altitude that the flare will be initialised at
