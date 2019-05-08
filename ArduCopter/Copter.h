@@ -83,7 +83,9 @@
 #include <AP_Arming/AP_Arming.h>
 #include <AP_SmartRTL/AP_SmartRTL.h>
 #include <AP_TempCalibration/AP_TempCalibration.h>
-#include <AC_AutorotationCtrl/AC_AutorotationCtrl.h> // RPM/Collective Controller
+#include <AC_AutorotationCtrl/AC_AutorotationCtrl.h> // Autorotation headspeed Controller
+#include <AP_SpdHgtControl/AP_SpdHgtControl.h>
+#include <AP_SpdHgtControl/AP_SpdHgtControl_Heli.h>
 
 // Configuration
 #include "defines.h"
@@ -499,6 +501,10 @@ private:
 #if MODE_CIRCLE_ENABLED == ENABLED
     AC_Circle *circle_nav;
 #endif
+
+    // SpdHgt controller declarations
+    AP_SpdHgtControl_Heli helispdhgtctrl{ahrs};
+    AP_SpdHgtControl *spdhgt_controller = 0;
 
     // System Timers
     // --------------
