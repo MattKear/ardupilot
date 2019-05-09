@@ -2,6 +2,8 @@
 
 #include "mode.h"
 
+#include <DataFlash/DataFlash.h>
+
 #if MODE_AUTOROTATE_ENABLED == ENABLED
 
 /*
@@ -126,11 +128,11 @@ switch (phase_switch) {
     
         if ((desired_v_z - curr_vel_z)/desired_v_z < 0.02) {  //if descent velocity is within 2% of desired ss vel then switch
             //Steady-State Glide velocity achieved
-            phase_switch = SS_GLIDE;
+            //phase_switch = SS_GLIDE;
         
         } else if (curr_alt <= z_flare){
             //low altitude skip to flare
-            phase_switch = FLARE;
+            //phase_switch = FLARE;
         }
     
         break;
@@ -154,7 +156,7 @@ switch (phase_switch) {
     
         if (curr_alt <= z_flare){
             //Initiate flare phase
-            phase_switch = FLARE;
+            //phase_switch = FLARE;
         }
 
         break;
@@ -253,7 +255,7 @@ switch (xy_pos_switch) {
 pos_control->set_alt_target(des_z);
 
 //set xy desired positions
-pos_control->set_xy_target(des_x,des_y);
+//pos_control->set_xy_target(des_x,des_y);
 
 
 
@@ -268,7 +270,7 @@ pos_control->set_xy_target(des_x,des_y);
 
 
 // call xy-axis position controller
-pos_control->update_xy_controller(1.0f);
+//pos_control->update_xy_controller(1.0f);
 
 // call z-axis position controller
 pos_control->update_z_controller();
@@ -300,6 +302,20 @@ if (message_counter == 300) {
     message_counter = 0;
 }
 message_counter++;
+
+
+
+
+
+
+
+
+
 }
+
+
+
+
+
 
 #endif
