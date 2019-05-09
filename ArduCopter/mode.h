@@ -1305,6 +1305,7 @@ private:
     
     //temporary for debuging
     uint16_t message_counter = 0;
+    uint16_t log_counter = 0;
     
     
 };

@@ -2,7 +2,7 @@
 
 #include "mode.h"
 
-#include <DataFlash/DataFlash.h>
+#include <utility>
 
 #if MODE_AUTOROTATE_ENABLED == ENABLED
 
@@ -304,18 +304,17 @@ if (message_counter == 300) {
 message_counter++;
 
 
-
-
-
-
-
-
+//Write to data flash log
+    if (log_counter++ % 20 == 0) {
+        DataFlash_Class::instance()->Log_Write("AROT", "TimeUS,DVz,CVz,DPz,CPz", "Qffff",
+                                               AP_HAL::micros64(),
+                                               (double)pos_control->get_vel_target_z(),
+                                               (double)curr_vel_z,
+                                               (double)pos_control->get_alt_target(),
+                                               (double)curr_alt);
+    }
 
 }
-
-
-
-
 
 
 #endif
