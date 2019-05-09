@@ -74,14 +74,14 @@ void Copter::ModeAutorotate::run()
     SRV_Channels::set_output_scaled(SRV_Channel::k_heli_rsc, SRV_Channel::SRV_CHANNEL_LIMIT_MIN);
     
     // convert pilot input to lean angles
-    //float target_roll, target_pitch;
-    //get_pilot_desired_lean_angles(target_roll, target_pitch, copter.aparm.angle_max, copter.aparm.angle_max);
+    float target_roll, target_pitch;
+    get_pilot_desired_lean_angles(target_roll, target_pitch, copter.aparm.angle_max, copter.aparm.angle_max);
 
     // get pilot's desired yaw rate
-    //float target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
+    float target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
 
     // call attitude controller
-    //attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
+    attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
 
     
     
@@ -268,7 +268,7 @@ pos_control->set_xy_target(des_x,des_y);
 
 
 // call xy-axis position controller
-pos_control->update_xy_controller();
+//pos_control->update_xy_controller();
 
 // call z-axis position controller
 pos_control->update_z_controller();
