@@ -306,12 +306,17 @@ message_counter++;
 
 //Write to data flash log
     if (log_counter++ % 20 == 0) {
-        DataFlash_Class::instance()->Log_Write("AROT", "TimeUS,DVz,CVz,DPz,CPz", "Qffff",
+        DataFlash_Class::instance()->Log_Write("AROT", "TimeUS,TVz,CVz,DVz,TPz,CPz,DPz,LshD,LshU,AcMx", "Qfffffffff",
                                                AP_HAL::micros64(),
                                                (double)pos_control->get_vel_target_z(),
                                                (double)curr_vel_z,
+                                               (double)desired_v_z,
                                                (double)pos_control->get_alt_target(),
-                                               (double)curr_alt);
+                                               (double)curr_alt,
+                                               (double)des_z,
+                                               (double)pos_control->get_leash_down_z(),
+                                               (double)pos_control->get_leash_up_z(),
+                                               (double)pos_control->get_accel_z());
     }
 
 }
