@@ -98,13 +98,13 @@ switch (phase_switch) {
         
             flare_aggression = 0.15; 
             
-            z_flare = (-G_Dt*desired_v_z)/(expf(-flare_aggression*G_Dt)) * 1000.0f;  //(mm)  //There is a risk here if dt changes later in the flare, it could lead to over/under shot flare
+            z_flare = 1500;//(-G_Dt*desired_v_z)/(expf(-flare_aggression*G_Dt)) * 1000.0f;  //(cm)  //There is a risk here if dt changes later in the flare, it could lead to over/under shot flare
     
             //Check z_flare has not been driven to be very small due to erronious G_Dt values
-            if (z_flare < 400) {
-                z_flare = 400;
-                gcs().send_text(MAV_SEVERITY_INFO, "flare height adjusted");
-            }
+            //if (z_flare < 400) {
+            //    z_flare = 400;
+            //    gcs().send_text(MAV_SEVERITY_INFO, "flare height adjusted");
+            //}
     
     
             #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
@@ -120,19 +120,19 @@ switch (phase_switch) {
         desired_v_z = -680; //(cm/s)
     
         //Calculate desired z from recovery velocity
-        des_z = curr_alt/10.0f + desired_v_z*G_Dt;  //(cm)
-    
+        //des_z = curr_alt/10.0f + desired_v_z*G_Dt;  //(cm)
+        pos_control->set_alt_target_from_climb_rate(desired_v_z, G_Dt, true);
     
         //apply forced recovery collective???
     
     
-        if ((desired_v_z - curr_vel_z)/desired_v_z < 0.02) {  //if descent velocity is within 2% of desired ss vel then switch
+        if ((desired_v_z - curr_vel_z)/desired_v_z < 0.05) {  //if descent velocity is within 5% of desired ss vel then switch
             //Steady-State Glide velocity achieved
-            //phase_switch = SS_GLIDE;
+            phase_switch = SS_GLIDE;
         
         } else if (curr_alt <= z_flare){
             //low altitude skip to flare
-            //phase_switch = FLARE;
+            phase_switch = FLARE;
         }
     
         break;
@@ -149,14 +149,15 @@ switch (phase_switch) {
         }
         
         //Calculate desired z from steady state autorotation velocity
-        des_z = curr_alt/10.0f + desired_v_z*G_Dt;  //(cm)
+        //des_z = curr_alt/10.0f + desired_v_z*G_Dt;  //(cm)
+        pos_control->set_alt_target_from_climb_rate(desired_v_z, G_Dt, true);
         // set position controller targets//<----------------
         //pos_control->set_alt_target_from_climb_rate_ff(desired_v_z, G_Dt, false);//<----------------
     
     
         if (curr_alt <= z_flare){
             //Initiate flare phase
-            //phase_switch = FLARE;
+            phase_switch = FLARE;
         }
 
         break;
@@ -172,7 +173,8 @@ switch (phase_switch) {
         
             //desired_v_z remains unchanged for one more loop to prevent jerks in pos control velocity when exp(0) below.
             //Calculate desired z from seteady state autorotation velocity
-            des_z = curr_alt + desired_v_z*G_Dt;
+            //des_z = curr_alt + desired_v_z*G_Dt;
+            pos_control->set_alt_target_from_climb_rate(desired_v_z, G_Dt, true);
     
             //position at flare initiation
             flare_pos_x = inertial_nav.get_position().x;
@@ -186,7 +188,10 @@ switch (phase_switch) {
 
             //Calculate desired z
             des_z = z_flare * 0.1f * expf(-flare_aggression * (now - t_flare_initiate)/1000.0f); // + terrain_offset (cm)
+            pos_control->set_alt_target(des_z);
             
+            //desired_v_z = -flare_aggression * z_flare * expf(-flare_aggression * (now - t_flare_initiate)/1000.0f); // (cm/s)
+            //pos_control->set_alt_target_from_climb_rate(desired_v_z, G_Dt, true);
         }
     
         //if (curr_vel_z >= -150) {
@@ -252,7 +257,7 @@ switch (xy_pos_switch) {
 }
 
 //set z position target
-pos_control->set_alt_target(des_z);
+//pos_control->set_alt_target(des_z);
 
 //set xy desired positions
 //pos_control->set_xy_target(des_x,des_y);
