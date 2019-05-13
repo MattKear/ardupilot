@@ -11,6 +11,7 @@
 # define AC_ATTITUDE_HELI_STAB_COLLECTIVE_LOW_DEFAULT     400
 # define AC_ATTITUDE_HELI_STAB_COLLECTIVE_HIGH_DEFAULT    600
 # define AC_ATTITUDE_HELI_STAB_COLLECTIVE_MAX_DEFAULT     1000
+# define AC_ATTITUDE_HELI_STAB_COLLECTIVE_AUTOROT_DEFAULT     -1  //set to off by default
 
 /// @class  AP_InputManager_Heli
 /// @brief  Class managing the pilot's control inputs   for Conventional Helicopter
@@ -52,5 +53,6 @@ private:
     AP_Int16        _heli_stab_col_high;            // collective pitch setting at mid-high throttle input in Stabilize mode
     AP_Int16        _heli_stab_col_max;             // maximum collective pitch setting at full throttle input in Stabilize mode
     AP_Float        _acro_col_expo;                 // used to soften collective pitch inputs near center point in Acro mode
+    AP_Int16        _heli_stab_autorot_col;         // minimum collective pitch setting allowed in stabilise mode with interlock off
 
 };

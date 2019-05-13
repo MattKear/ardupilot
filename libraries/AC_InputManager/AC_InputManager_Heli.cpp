@@ -52,6 +52,15 @@ const AP_Param::GroupInfo AC_InputManager_Heli::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("ACRO_COL_EXP",    5, AC_InputManager_Heli, _acro_col_expo, 0),
 
+    // @Param: STAB_C_AROT
+    // @DisplayName: Stabilize Mode Autorotation Collective Point
+    // @Description: Helicopter's minimum collective pitch setting in Stabilize mode, when rotor interlock is disengaged.  -1 is off, in which STAB_COL_1 is used when interlock is disengaged.
+    // @Range: -1 500
+    // @Units: d%
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("STAB_C_AROT",    6, AC_InputManager_Heli, _heli_stab_autorot_col, AC_ATTITUDE_HELI_STAB_COLLECTIVE_AUTOROT_DEFAULT),
+
     AP_GROUPEND
 };
 
