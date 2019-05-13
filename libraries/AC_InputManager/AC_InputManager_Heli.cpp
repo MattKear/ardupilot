@@ -69,11 +69,34 @@ float AC_InputManager_Heli::get_pilot_desired_collective(int16_t control_in)
 {
     float slope_low, slope_high, slope_range, slope_run, scalar;
     float stab_col_out, acro_col_out;
+    bool interlock_state;
+
+    //Get AP Motors singleton
+    const AP_Motors* motors = AP_Motors::get_instance();
+
+    //Get motor interlock state
+    if (motors != nullptr) {
+        interlock_state = motors->get_interlock();
+    } else {
+        #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+            AP_HAL::panic("WARNING: motor library null pointer");
+        #endif
+
+        //if motor library returns a null library leave interlock state as true.  This will simply ensure that slope_low is _heli_stab_col_min.  It does not actually set the interlock state to true.
+        interlock_state = true;
+    }
+
 
     // calculate stabilize collective value which scales pilot input to reduced collective range
     // code implements a 3-segment curve with knee points at 40% and 60% throttle input
     if (control_in < 400){
-        slope_low = _heli_stab_col_min / 1000.0f;
+        if (interlock_state  || _heli_stab_autorot_col < 0){
+            //When interlock engaged or when stabilise autorotation collective parameter set to off then normal stabilise collective curve is used
+            slope_low = _heli_stab_col_min / 1000.0f;
+        } else {
+            //if interlock is disabled and stabilise autorotation collective parameter is set then allow collective as low as _heli_stab_autorot_col
+            slope_low = _heli_stab_autorot_col / 1000.0f;
+        }
         slope_high = _heli_stab_col_low / 1000.0f;
         slope_range = 0.4f;
         slope_run = control_in / 1000.0f;

@@ -5,6 +5,7 @@
 
 #include <AP_Param/AP_Param.h>
 #include <AP_Common/AP_Common.h>
+#include <AP_Motors/AP_Motors.h>
 #include "AC_InputManager.h"
 
 # define AC_ATTITUDE_HELI_STAB_COLLECTIVE_MIN_DEFAULT     0
