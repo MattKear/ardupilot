@@ -31,6 +31,9 @@ bool Copter::ModeAutorotate::init(bool ignore_checks)
     ss_glide_initial = 1;
     flare_initial = 1;
     touch_down_initial = 1;
+    level_initial = 1;
+    break_initial = 1;
+    straight_ahead_initial = 1;
      
 
     // initialize vertical speeds and acceleration limits and settings
@@ -67,6 +70,8 @@ void Copter::ModeAutorotate::run()
     
     // Current altitude
     float curr_alt = inertial_nav.get_position().z;
+    float curr_x = inertial_nav.get_position().x;
+    float curr_y = inertial_nav.get_position().y;
     
     float curr_vel_z = inertial_nav.get_velocity().z;
     
@@ -76,14 +81,14 @@ void Copter::ModeAutorotate::run()
     SRV_Channels::set_output_scaled(SRV_Channel::k_heli_rsc, SRV_Channel::SRV_CHANNEL_LIMIT_MIN);
     
     // convert pilot input to lean angles
-    float target_roll, target_pitch;
-    get_pilot_desired_lean_angles(target_roll, target_pitch, copter.aparm.angle_max, copter.aparm.angle_max);
+    //float target_roll, target_pitch;
+    //get_pilot_desired_lean_angles(target_roll, target_pitch, copter.aparm.angle_max, copter.aparm.angle_max);
 
     // get pilot's desired yaw rate
-    float target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
+    //float target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
 
     // call attitude controller
-    attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
+    //attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
 
     
     
@@ -96,7 +101,7 @@ switch (phase_switch) {
     
         if (recovery_initial == 1) {
         
-            flare_aggression = 0.15; 
+            flare_aggression = 0.12; //0.15
             
             z_flare = 1500;//(-G_Dt*desired_v_z)/(expf(-flare_aggression*G_Dt)) * 1000.0f;  //(cm)  //There is a risk here if dt changes later in the flare, it could lead to over/under shot flare
     
@@ -105,6 +110,13 @@ switch (phase_switch) {
             //    z_flare = 400;
             //    gcs().send_text(MAV_SEVERITY_INFO, "flare height adjusted");
             //}
+    
+            //Check that flare initiation height is not above current height
+            if (z_flare > curr_alt) {
+                z_flare = curr_alt;
+                gcs().send_text(MAV_SEVERITY_INFO, "flare height adjusted");
+            }
+    
     
     
             #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
@@ -135,6 +147,8 @@ switch (phase_switch) {
             phase_switch = FLARE;
         }
     
+        xy_pos_switch = STRAIGHT_AHEAD;
+    
         break;
     
     
@@ -160,6 +174,8 @@ switch (phase_switch) {
             phase_switch = FLARE;
         }
 
+        xy_pos_switch = STRAIGHT_AHEAD;
+
         break;
     
     
@@ -182,7 +198,7 @@ switch (phase_switch) {
         
             //message to ground control station to inform that flare has engaged
             #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-                gcs().send_text(MAV_SEVERITY_INFO, "Flare initiated");
+                gcs().send_text(MAV_SEVERITY_INFO, "Flare initiated at %.1f cm",curr_alt);
             #endif
         } else {
 
@@ -194,11 +210,14 @@ switch (phase_switch) {
             //pos_control->set_alt_target_from_climb_rate(desired_v_z, G_Dt, true);
         }
     
-        //if (curr_vel_z >= -150) {
-         //   phase_switch = TOUCH_DOWN;
-        //}
-        
         xy_pos_switch = BREAK;
+    
+        if (inertial_nav.get_velocity().z < 150  &&  curr_alt < 100) {
+            phase_switch = TOUCH_DOWN;
+            xy_pos_switch = LEVEL;
+        }
+        
+        
 
         break;
 
@@ -228,13 +247,25 @@ switch (xy_pos_switch) {
 
     case STRAIGHT_AHEAD:
         
-        //pos_control->set_max_speed_xy(_inital_vel_x);
+         if (straight_ahead_initial == 1) {
+            #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+                gcs().send_text(MAV_SEVERITY_INFO, "Going straight ahead");
+            #endif
+
+            // reset position controller xy target to current position
+            pos_control->set_xy_target(curr_x, curr_y);
+
+            straight_ahead_initial = 0;
+        }
+        // reset position controller xy target to current position
+        // because we only want velocity control (no position control)
+        pos_control->set_desired_velocity_xy(_inital_vel_x, _inital_vel_y);
+        pos_control->set_desired_accel_xy(0.0f,0.0f);
+
+        // run horizontal velocity controller
+        pos_control->update_vel_controller_xy(1.0f);
         
-        //Calculate desired x position from x velocity at autorotation initiation
-        des_x = inertial_nav.get_position().x + _inital_vel_x*G_Dt;  //(cm)
         
-        //Calculate desired y position from y velocity at autorotation initiation
-        des_y = inertial_nav.get_position().y + _inital_vel_y*G_Dt;  //(cm)
         
         break;
         
@@ -248,12 +279,64 @@ switch (xy_pos_switch) {
         
     case BREAK:
     
-        //Maintain level for touch down;
-        des_x = inertial_nav.get_position().x;
-        des_y = inertial_nav.get_position().y;
+        if (break_initial == 1) {
+            #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+                gcs().send_text(MAV_SEVERITY_INFO, "Breaking");
+            #endif
+
+            break_initial = 0;
+        }
+        
+        pos_control->set_accel_xy(120.0f);
+        
+        pos_control->set_target_to_stopping_point_xy();
+        
+        pos_control->update_xy_controller(1.0f);
+        
+        if (norm(inertial_nav.get_velocity().x,inertial_nav.get_velocity().y) < 300) {
+            xy_pos_switch = LEVEL;
+        }
+        
         
         break;
         
+        
+        
+        
+    case LEVEL:
+        
+        if (level_initial == 1) {
+            #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+                gcs().send_text(MAV_SEVERITY_INFO, "Leveling to Land");
+            #endif
+
+            // reset position controller xy target to current position
+            pos_control->set_xy_target(curr_x, curr_y);
+
+            level_initial = 0;
+        }
+
+        // maintain level attitude and current position
+        //pos_control->set_desired_velocity_xy(0.0f,0.0f);
+        //pos_control->set_desired_accel_xy(0.0f,0.0f);
+        
+        //pos_control->update_xy_controller(1.0f);
+        
+        
+        // convert pilot input to lean angles
+        float target_roll, target_pitch;
+        get_pilot_desired_lean_angles(target_roll, target_pitch, copter.aparm.angle_max, copter.aparm.angle_max);
+
+        // get pilot's desired yaw rate
+        float target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
+
+        // call attitude controller
+        attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
+        
+        
+        
+        
+        break;
 }
 
 //set z position target
@@ -274,9 +357,6 @@ switch (xy_pos_switch) {
 
 
 
-// call xy-axis position controller
-//pos_control->update_xy_controller(1.0f);
-
 // call z-axis position controller
 pos_control->update_z_controller();
 
@@ -287,11 +367,11 @@ des_z_last = des_z;
 
 //  These message outputs are purely for debugging purposes.  Will be removed in future.
 if (message_counter == 300) {
-    gcs().send_text(MAV_SEVERITY_INFO, "Desired Vel %.2f",pos_control->get_vel_target_z());
-    gcs().send_text(MAV_SEVERITY_INFO, "Actual Vel %.2f",curr_vel_z);
-    gcs().send_text(MAV_SEVERITY_INFO, "Target Height %.2f",pos_control->get_alt_target());
-    gcs().send_text(MAV_SEVERITY_INFO, "Actual Height %.2f",curr_alt);
-    gcs().send_text(MAV_SEVERITY_INFO, "Desired Height %.2f",des_z);
+//    gcs().send_text(MAV_SEVERITY_INFO, "Desired Vel %.2f",pos_control->get_vel_target_z());
+//    gcs().send_text(MAV_SEVERITY_INFO, "Actual Vel %.2f",curr_vel_z);
+//    gcs().send_text(MAV_SEVERITY_INFO, "Target Height %.2f",pos_control->get_alt_target());
+//    gcs().send_text(MAV_SEVERITY_INFO, "Actual Height %.2f",curr_alt);
+//    gcs().send_text(MAV_SEVERITY_INFO, "Desired Height %.2f",des_z);
 //    gcs().send_text(MAV_SEVERITY_INFO, "Target X %.2f",pos_control->get_pos_target().x);
 //    gcs().send_text(MAV_SEVERITY_INFO, "Current X %.2f",inertial_nav.get_position().x);
 //    gcs().send_text(MAV_SEVERITY_INFO, "Target X Vel %.2f",pos_control->get_desired_velocity().x);
@@ -303,7 +383,7 @@ if (message_counter == 300) {
 //    gcs().send_text(MAV_SEVERITY_INFO, "Current Y %.2f",inertial_nav.get_position().y);
 //    gcs().send_text(MAV_SEVERITY_INFO, "Target Y Vel %.2f",pos_control->get_desired_velocity().y);
 //    gcs().send_text(MAV_SEVERITY_INFO, "Current Y Vel %.2f",inertial_nav.get_velocity().y);
-    gcs().send_text(MAV_SEVERITY_INFO, "--- --- --- ---");
+//    gcs().send_text(MAV_SEVERITY_INFO, "--- --- --- ---");
     message_counter = 0;
 }
 message_counter++;
