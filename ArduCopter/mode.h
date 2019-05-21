@@ -1239,3 +1239,69 @@ protected:
 
     uint32_t last_log_ms;   // system time of last time desired velocity was logging
 };
+
+
+#if MODE_AUTOROTATE_ENABLED == ENABLED
+class ModeAutorotate : public Mode {
+
+public:
+    // inherit constructor
+    //ModeAutorotate(Copter &copter) : Copter::Mode(copter) { }
+    using Copter::Mode::Mode;
+
+    bool init(bool ignore_checks) override;
+    void run() override;
+
+    bool is_autopilot() const override { return true; }
+    bool requires_GPS() const override { return false; }
+    bool has_manual_throttle() const override { return false; }
+    bool allows_arming(bool from_gcs) const override { return false; };
+
+protected:
+
+    const char *name() const override { return "AUTOROTATE"; }
+    const char *name4() const override { return "AROT"; }
+
+private:
+
+    //internal variables
+    float _inital_vel_x;  //record of velocity on mode initialisation
+    float _inital_vel_y;
+    float _inital_pos_x;
+    float _inital_pos_y;
+    
+    float _desired_v_z;
+    
+    //internal flags
+    bool _entry_initial, _ss_glide_initial, _flare_initial, _touch_down_initial;
+    bool _straight_ahead_initial, _level_initial, _break_initial;
+
+
+    enum autorotation_phase {
+        ENTRY,
+        SS_GLIDE,
+        FLARE,
+        TOUCH_DOWN } phase_switch;
+        
+    enum navigation_position_decision {
+        STRAIGHT_AHEAD,
+        INTO_WIND,
+        NEAREST_RALLY,
+        BREAK,
+        LEVEL } nav_pos_switch;
+
+
+
+    
+   
+    
+    float now = 0;
+    
+    
+    //temporary for debuging
+    uint16_t message_counter = 0;
+    uint16_t log_counter = 0;
+    
+    
+};
+#endif
