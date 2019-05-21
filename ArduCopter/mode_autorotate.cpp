@@ -19,6 +19,12 @@ bool Copter::ModeAutorotate::init(bool ignore_checks)
     return false;
 #endif
 
+//Check that interlock is disengaged
+if (motors->get_interlock()) {
+    gcs().send_text(MAV_SEVERITY_INFO, "Autorotation Mode change fail: Interlock Engaged");
+    return false;
+}
+
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
     gcs().send_text(MAV_SEVERITY_INFO, "Autorotation initiated");
@@ -39,8 +45,8 @@ bool Copter::ModeAutorotate::init(bool ignore_checks)
     // initialize vertical speeds and acceleration limits and settings
     pos_control->set_speed_z(-2000, 500);
     pos_control->set_accel_z(200000);
-    pos_control->set_true_desired_velocity_ff_z();
-    pos_control->force_ff_accel_z();
+    //pos_control->set_true_desired_velocity_ff_z();
+    //pos_control->force_ff_accel_z();
     
     
     //pos_control->set_max_accel_xy(20000);//<----------------
@@ -63,6 +69,17 @@ bool Copter::ModeAutorotate::init(bool ignore_checks)
 
 void Copter::ModeAutorotate::run()
 {
+    
+    //check if interlock becomes engaged
+    if (motors->get_interlock()) {
+        set_mode(copter.prev_control_mode, MODE_REASON_AUTOROTATION_BAILOUT);
+    }
+    
+    
+    
+    
+    
+    
     //initialise local variables
     
     // current time

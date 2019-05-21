@@ -947,7 +947,6 @@ private:
     void userhook_auxSwitch3(uint8_t ch_flag);
 
 #include "mode.h"
-
     Mode *flightmode;
 #if MODE_ACRO_ENABLED == ENABLED
 #if FRAME_CONFIG == HELI_FRAME
@@ -1012,11 +1011,9 @@ private:
 #if !HAL_MINIMIZE_FEATURES && OPTFLOW == ENABLED
     ModeFlowHold mode_flowhold;
 #endif
-
 #if MODE_AUTOROTATE_ENABLED == ENABLED
     ModeAutorotate mode_autorotate;
 #endif
-
 
     // mode.cpp
     Mode *mode_from_mode_num(const uint8_t mode);
