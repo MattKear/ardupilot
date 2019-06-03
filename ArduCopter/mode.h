@@ -132,6 +132,7 @@ protected:
     RC_Channel *&channel_yaw;
     float &G_Dt;
     ap_t &ap;
+    AC_AutorotationCtrl *&rpm_control;
 
     // auto-takeoff support; takeoff state is shared across all mode instances
     class _TakeOff {
@@ -1272,9 +1273,20 @@ private:
     
     float _desired_v_z;
     
+    float _collective_aggression;   //The 'aggresiveness' of collective appliction
+    float _z_touch_down_start;      //The height in cm that the touch down phase began at
+    float _t_touch_down_initiate;   //The time in ms that the touch down phase began at
+
     //internal flags
-    bool _entry_initial, _ss_glide_initial, _flare_initial, _touch_down_initial;
-    bool _straight_ahead_initial, _level_initial, _break_initial;
+    struct rpm_controller_flags {
+            bool entry_initial             : 1;    // 1 if we should recalculate the z axis leash length
+            bool ss_glide_initial          : 1;    // 1 if the phase of flight requires a gradual slew from one collective position to another
+            bool flare_initial             : 1;
+            bool touch_down_initial        : 1;
+            bool straight_ahead_initial    : 1;
+            bool level_initial             : 1;
+            bool break_initial             : 1;
+    } _flags;
 
 
     enum autorotation_phase {
