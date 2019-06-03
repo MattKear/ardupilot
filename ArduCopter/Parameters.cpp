@@ -556,6 +556,10 @@ const AP_Param::Info Copter::var_info[] = {
     // @Group: IM_
     // @Path: ../libraries/AC_InputManager/AC_InputManager_Heli.cpp
     GOBJECT(input_manager, "IM_", AC_InputManager_Heli),
+
+    // @Group: AROT_
+    // @Path: ../libraries/AC_AutorotationCtrl/AC_AutorotationCtrl.cpp
+    GOBJECTPTR(rpm_control, "AROT_", AC_AutorotationCtrl),
 #endif
 
     // @Group: COMPASS_
