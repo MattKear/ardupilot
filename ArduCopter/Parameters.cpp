@@ -559,7 +559,7 @@ const AP_Param::Info Copter::var_info[] = {
 
     // @Group: AROT_
     // @Path: ../libraries/AC_AutorotationCtrl/AC_AutorotationCtrl.cpp
-    GOBJECTPTR(rpm_control, "AROT_", AC_AutorotationCtrl),
+    GOBJECTPTR(arot_control, "AROT_", AC_AutorotationCtrl),
 #endif
 
     // @Group: COMPASS_

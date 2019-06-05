@@ -25,7 +25,7 @@ Copter::Mode::Mode(void) :
     G_Dt(copter.G_Dt),
     ap(copter.ap),
     ekfGndSpdLimit(copter.ekfGndSpdLimit),
-    rpm_control(copter.rpm_control),
+    arot_control(copter.arot_control),
 #if FRAME_CONFIG == HELI_FRAME
     heli_flags(copter.heli_flags),
 #endif

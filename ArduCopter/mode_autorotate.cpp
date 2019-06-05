@@ -93,7 +93,7 @@ void Copter::ModeAutorotate::run()
     float speed = sqrtf(inertial_nav.get_velocity().x * inertial_nav.get_velocity().x + inertial_nav.get_velocity().y * inertial_nav.get_velocity().y);
 
     //altitude check to jump to correct flight phase if at low height
-    if (curr_alt <= rpm_control->get_td_alt() && speed < 500) {
+    if (curr_alt <= arot_control->get_td_alt() && speed < 500) {
         //jump to touch down phase
         phase_switch = TOUCH_DOWN;
     }
@@ -119,10 +119,10 @@ switch (phase_switch) {
             _flags.entry_initial = 0;
             
             //Set tartget head speed in RPM
-            rpm_control->use_entry_slew();
+            arot_control->use_entry_slew();
         }
 
-        rpm_control->set_attitude_hs_mixing_flag (0);
+        arot_control->set_attitude_hs_mixing_flag (0);
         
         //float aspeed;
         //float test = attitude_control->airspeed_estimate(&aspeed);
@@ -167,7 +167,7 @@ switch (phase_switch) {
             _t_touch_down_initiate = now;
 
             // get collective aggression from parameter
-            _collective_aggression = rpm_control->get_td_agression();
+            _collective_aggression = arot_control->get_td_agression();
 
             _flags.touch_down_initial = 0;
 
@@ -235,7 +235,7 @@ switch (nav_pos_switch) {
 
 
 //run RPM/collective controller
-rpm_control->update_hs_glide_controller(G_Dt);
+arot_control->update_hs_glide_controller(G_Dt);
 
 
         // convert pilot input to lean angles
@@ -253,8 +253,8 @@ rpm_control->update_hs_glide_controller(G_Dt);
 //  These message outputs are purely for debugging purposes.  Will be removed in future.
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
     if (message_counter == 300) {
-        gcs().send_text(MAV_SEVERITY_INFO, "Current RPM = %.2f",rpm_control->get_rpm());
-        gcs().send_text(MAV_SEVERITY_INFO, "Head Speed Error = %.4f",rpm_control->get_rpm_error());
+        gcs().send_text(MAV_SEVERITY_INFO, "Current RPM = %.2f",arot_control->get_rpm());
+        gcs().send_text(MAV_SEVERITY_INFO, "Head Speed Error = %.4f",arot_control->get_rpm_error());
         //gcs().send_text(MAV_SEVERITY_INFO, "P AS %.2f",aspeed);
         //gcs().send_text(MAV_SEVERITY_INFO, "Test if airspeed true %.2f",test);
         //gcs().send_text(MAV_SEVERITY_INFO, "Target Pitch %.5f",target_pitch);
@@ -272,7 +272,7 @@ message_counter++;
                                                (double)curr_vel_z,
                                                (double)curr_alt,
                                                (double)des_z,
-                                               (double)rpm_control->get_rpm());
+                                               (double)arot_control->get_rpm());
     }
 
 }

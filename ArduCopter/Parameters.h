@@ -363,7 +363,7 @@ public:
         // 254,255: reserved
 
         // Autorotation controller library
-        k_param_rpm_control = 496,
+        k_param_arot_control = 257,
 
         // the k_param_* space is 9-bits in size
         // 511: reserved

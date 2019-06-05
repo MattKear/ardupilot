@@ -590,8 +590,8 @@ void Copter::allocate_motors(void)
     }
     AP_Param::load_object_from_eeprom(pos_control, pos_control->var_info);
 
-    rpm_control = new AC_AutorotationCtrl(*ahrs_view, inertial_nav, *motors, *attitude_control);
-    if (rpm_control == nullptr) {
+    arot_control = new AC_AutorotationCtrl(*ahrs_view, inertial_nav, *motors, *attitude_control);
+    if (arot_control == nullptr) {
         AP_HAL::panic("Unable to allocate RPMControl");
     }
 
