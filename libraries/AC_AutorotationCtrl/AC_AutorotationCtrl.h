@@ -13,15 +13,15 @@
 #include <AP_InertialNav/AP_InertialNav.h>     // Inertial Navigation library
 
 
-// RPM controller default definitions
-#define RPM_CONTROLLER_COLLECTIVE_CUTOFF_FREQ          2.0f    // low-pass filter on accel error (unit: hz)
-#define COLLECTIVE_SLEW_RATE_ENTRY                     2.0f    // The time in seconds that it will take to initially set the collective during entry phase to match reversing of inflow direction (unit: s)
-#define RPM_CONTROLLER_HEADSPEED_P                     0.6f    // Defualt P gain for head speed controller (unit: -)
-#define RPM_CONTROLLER_HEADSPEED_I                     0.0015f // Defualt D gain for head speed controller (unit: -)
-#define RPM_CONTROLLER_HEADSPEED_D                     0.1f    // Defualt D gain for head speed controller (unit: -)
-#define RPM_CONTROLLER_HEADSPEED_I_LIM                 0.2f    // Defualt D gain for head speed controller (unit: -)
-#define RPM_CONTROLLER_HEADSPEED_TARGET                0.9f    // Defualt D gain for head speed controller (unit: -)
-#define RPM_CONTROLLER_ENTRY_SLEW_TIME                 2.0f    // Defualt D gain for head speed controller (unit: -)
+// Head Speed (HS) controller default definitions
+#define HS_CONTROLLER_COLLECTIVE_CUTOFF_FREQ          2.0f    // low-pass filter on accel error (unit: hz)
+#define COLLECTIVE_SLEW_RATE_ENTRY                    2.0f    // The time in seconds that it will take to initially set the collective during entry phase to match reversing of inflow direction (unit: s)
+#define HS_CONTROLLER_HEADSPEED_P                     0.6f    // Defualt P gain for head speed controller (unit: -)
+#define HS_CONTROLLER_HEADSPEED_I                     0.0015f // Defualt D gain for head speed controller (unit: -)
+#define HS_CONTROLLER_HEADSPEED_D                     0.1f    // Defualt D gain for head speed controller (unit: -)
+#define HS_CONTROLLER_HEADSPEED_I_LIM                 0.2f    // Defualt D gain for head speed controller (unit: -)
+#define HS_CONTROLLER_HEADSPEED_TARGET                0.9f    // Defualt D gain for head speed controller (unit: -)
+#define HS_CONTROLLER_ENTRY_SLEW_TIME                 2.0f    // Defualt D gain for head speed controller (unit: -)
 
 
 

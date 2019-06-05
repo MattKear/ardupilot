@@ -10,7 +10,7 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
     // @Range: 0.3 1
     // @Increment: 0.01
     // @User: Advanced
-    AP_GROUPINFO("HS_P", 0, AC_AutorotationCtrl, _param_hs_p, RPM_CONTROLLER_HEADSPEED_P),
+    AP_GROUPINFO("HS_P", 0, AC_AutorotationCtrl, _param_hs_p, HS_CONTROLLER_HEADSPEED_P),
 
     // @Param: HS_D
     // @DisplayName: D gain for head spead controller
@@ -19,7 +19,7 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
     // @Range: 0.001 0.02
     // @Increment: 0.001
     // @User: Advanced
-    AP_GROUPINFO("HS_D", 1, AC_AutorotationCtrl, _param_hs_d, RPM_CONTROLLER_HEADSPEED_D),
+    AP_GROUPINFO("HS_D", 1, AC_AutorotationCtrl, _param_hs_d, HS_CONTROLLER_HEADSPEED_D),
     
     // @Param: HS_I
     // @DisplayName: I gain for head spead controller
@@ -28,7 +28,7 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
     // @Range: 0.001 0.02
     // @Increment: 0.001
     // @User: Advanced
-    AP_GROUPINFO("HS_I", 2, AC_AutorotationCtrl, _param_hs_i, RPM_CONTROLLER_HEADSPEED_I),
+    AP_GROUPINFO("HS_I", 2, AC_AutorotationCtrl, _param_hs_i, HS_CONTROLLER_HEADSPEED_I),
     
     // @Param: HS_I_LIM
     // @DisplayName: I gain for head spead controller
@@ -37,7 +37,7 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
     // @Range: 0.001 0.02
     // @Increment: 0.001
     // @User: Advanced
-    AP_GROUPINFO("HS_I_LIM", 3, AC_AutorotationCtrl, _param_hs_i_lim, RPM_CONTROLLER_HEADSPEED_I_LIM),
+    AP_GROUPINFO("HS_I_LIM", 3, AC_AutorotationCtrl, _param_hs_i_lim, HS_CONTROLLER_HEADSPEED_I_LIM),
     
     // @Param: HS_TARGET
     // @DisplayName: Target head speed for controller to achieve
@@ -46,7 +46,7 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
     // @Range: 0.8-1
     // @Increment: 0.01
     // @User: Advanced
-    AP_GROUPINFO("HS_TARGET", 4, AC_AutorotationCtrl, _param_target_head_speed, RPM_CONTROLLER_HEADSPEED_TARGET),
+    AP_GROUPINFO("HS_TARGET", 4, AC_AutorotationCtrl, _param_target_head_speed, HS_CONTROLLER_HEADSPEED_TARGET),
     
     // @Param: HS_HOVER
     // @DisplayName: Temporary parameter for head speed in the hover
@@ -64,7 +64,7 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
     // @Range: 1-4
     // @Increment: 0.1
     // @User: Advanced
-    AP_GROUPINFO("ENT_SLEW", 6, AC_AutorotationCtrl, _param_recovery_slew, RPM_CONTROLLER_ENTRY_SLEW_TIME),
+    AP_GROUPINFO("ENT_SLEW", 6, AC_AutorotationCtrl, _param_recovery_slew, HS_CONTROLLER_ENTRY_SLEW_TIME),
     
     // @Param: ATT_P
     // @DisplayName: P gain for head spead/airspeed attitude controller
@@ -206,7 +206,7 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
     _collective_out = (P_hs + I_hs + D_hs) + _motors.get_throttle_hover();
     
     // send collective to setting to motors output library
-    set_collective(RPM_CONTROLLER_COLLECTIVE_CUTOFF_FREQ);
+    set_collective(HS_CONTROLLER_COLLECTIVE_CUTOFF_FREQ);
     
     //save last head speed error term for differential calculation in next time step
     _last_head_speed_error = _head_speed_error;
