@@ -594,6 +594,7 @@ void Copter::allocate_motors(void)
     if (arot_control == nullptr) {
         AP_HAL::panic("Unable to allocate RPMControl");
     }
+    AP_Param::load_object_from_eeprom(arot_control, arot_control->var_info);
 
     wp_nav = new AC_WPNav(inertial_nav, *ahrs_view, *pos_control, *attitude_control);
     if (wp_nav == nullptr) {
