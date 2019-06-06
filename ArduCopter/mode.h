@@ -133,6 +133,7 @@ protected:
     float &G_Dt;
     ap_t &ap;
     AC_AutorotationCtrl *&arot_control;
+    AP_SpdHgtControl_Heli *&helispdhgtctrl;
 
     // auto-takeoff support; takeoff state is shared across all mode instances
     class _TakeOff {
@@ -1247,7 +1248,6 @@ class ModeAutorotate : public Mode {
 
 public:
     // inherit constructor
-    //ModeAutorotate(Copter &copter) : Copter::Mode(copter) { }
     using Copter::Mode::Mode;
 
     bool init(bool ignore_checks) override;
@@ -1272,6 +1272,7 @@ private:
     float _inital_pos_y;
     
     float _desired_v_z;
+    int32_t _pitch_target;
     
     float _collective_aggression;   //The 'aggresiveness' of collective appliction
     float _z_touch_down_start;      //The height in cm that the touch down phase began at

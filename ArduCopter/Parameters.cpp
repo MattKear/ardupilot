@@ -807,7 +807,7 @@ const AP_Param::Info Copter::var_info[] = {
 
     // @Group: SPDHGT_
     // @Path: ../libraries/AP_SpdHgtControl/AP_SpdHgtControl_Heli.cpp
-    GOBJECT(helispdhgtctrl, "SPDHGT_",   AP_SpdHgtControl_Heli),
+    GOBJECTPTR(helispdhgtctrl, "SPDHGT_",   AP_SpdHgtControl_Heli),
 
     // @Group:
     // @Path: Parameters.cpp

@@ -93,14 +93,14 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("ATT_I_LIM", 9, AC_AutorotationCtrl, _param_hs_as_att_i_lim, 2.0f),
     
-    // @Param: ATT_D
+    // @Param: ACC_MAX
     // @DisplayName: D gain for head spead/airspeed attitude controller
     // @Description: ---
     // @Units: -
     // @Range: -
     // @Increment: -
     // @User: Advanced
-    AP_GROUPINFO("ATT_D", 10, AC_AutorotationCtrl, _param_hs_as_att_d, 2.0f),
+    AP_GROUPINFO("ACC_MAX", 10, AC_AutorotationCtrl, _param_accel_max, 2.0f),
     
     // @Param: TARG_AS
     // @DisplayName: Target airspeed in cm/s for the autorotation controller to try and achieve/ maintain.
@@ -231,28 +231,28 @@ void AC_AutorotationCtrl::set_collective(float collective_filter_cutoff)
 
 
 
-void AC_AutorotationCtrl::update_att_glide_controller(float dt)
-{
+//void AC_AutorotationCtrl::update_att_glide_controller(float dt)
+//{
 
-    float aspeed;
-    if (_ahrs.airspeed_estimate(&aspeed)){
-    _airspeed_error = aspeed - _param_target_airspeed;
-    } else {
-    _airspeed_error = sqrtf(_inav.get_velocity().x * _inav.get_velocity().x  +  _inav.get_velocity().y * _inav.get_velocity().y  +  _inav.get_velocity().z * _inav.get_velocity().z);
-    }
+  //  float aspeed;
+  //  if (_ahrs.airspeed_estimate(&aspeed)){
+  //  _airspeed_error = aspeed - _param_target_airspeed;
+  //  } else {
+  //  _airspeed_error = sqrtf(_inav.get_velocity().x * _inav.get_velocity().x  +  _inav.get_velocity().y * _inav.get_velocity().y  +  _inav.get_velocity().z * _inav.get_velocity().z);
+  //  }
 
-    float P_as = _airspeed_error * _param_hs_as_att_p;
+  //  float P_as = _airspeed_error * _param_hs_as_att_p;
 
-    _data = P_as;
+  //  _data = P_as;
 
-    float target_roll = 0;
-    float target_pitch = P_as;
-    float target_yaw_rate = 0;
+  //  float target_roll = 0;
+  //  float target_pitch = P_as;
+  //  float target_yaw_rate = 0;
 
-    _attitude_control.input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
+  //  _attitude_control.input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
 
 
-}
+//}
 
 
 

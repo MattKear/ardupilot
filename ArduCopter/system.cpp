@@ -592,9 +592,16 @@ void Copter::allocate_motors(void)
 
     arot_control = new AC_AutorotationCtrl(*ahrs_view, inertial_nav, *motors, *attitude_control);
     if (arot_control == nullptr) {
-        AP_HAL::panic("Unable to allocate RPMControl");
+        AP_HAL::panic("Unable to allocate ArotControl");
     }
     AP_Param::load_object_from_eeprom(arot_control, arot_control->var_info);
+
+    helispdhgtctrl = new AP_SpdHgtControl_Heli(ahrs);
+    if (helispdhgtctrl == nullptr) {
+        AP_HAL::panic("Unable to allocate SpdHgtControl_Heli");
+    }
+    AP_Param::load_object_from_eeprom(helispdhgtctrl, helispdhgtctrl->var_info);
+
 
     wp_nav = new AC_WPNav(inertial_nav, *ahrs_view, *pos_control, *attitude_control);
     if (wp_nav == nullptr) {

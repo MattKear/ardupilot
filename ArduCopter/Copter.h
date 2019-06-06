@@ -502,9 +502,11 @@ private:
     AC_Circle *circle_nav;
 #endif
 
-    // SpdHgt controller declarations
-    AP_SpdHgtControl_Heli helispdhgtctrl{ahrs};
-    AP_SpdHgtControl *spdhgt_controller = 0;
+
+    //AP_SpdHgtControl_Heli helispdhgtctrl{ahrs};
+    //AP_SpdHgtControl *spdhgt_controller;
+    AP_SpdHgtControl_Heli *helispdhgtctrl;
+
 
     // System Timers
     // --------------

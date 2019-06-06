@@ -56,21 +56,25 @@ AC_AutorotationCtrl(const AP_AHRS_View& ahrs,
     float get_data() { return _data; }
     float get_rpm() { return _current_rpm; }
     float get_rpm_error() { return _head_speed_error; }
-    
+
     //To be called once when initiating the entry.  Calling multiple times will keep resetting the the slew rate timer.
     void use_entry_slew() { _flags.use_entry_slew_rate = 1;  _entry_slew_rate = _param_recovery_slew; }
     void set_attitude_hs_mixing_flag (bool flag_switch) { _flags.use_attitude_hs_mixing = flag_switch; }
     void reset_I_terms() {_error_integral = 0.0f;}
 
     float get_p() { return _param_hs_p; }
-    
+
     float get_d() { return _param_hs_d; }
-    
+
     float get_td_alt() { return _param_td_alt; }
-    
+
     float get_td_agression() { return _param_td_col_agression; }
 
-    
+    float get_speed_target(void) { return _param_target_airspeed; }
+
+    float get_accel_max(void) { return _param_accel_max; }
+
+
     // User settable parameters
     static const struct AP_Param::GroupInfo var_info[];
 
@@ -111,7 +115,7 @@ protected:
     AP_Float _param_hs_as_att_p;
     AP_Float _param_hs_as_att_i;
     AP_Float _param_hs_as_att_i_lim;
-    AP_Float _param_hs_as_att_d;
+    AP_Float _param_accel_max;
     AP_Float _param_target_airspeed;
     AP_Float _param_td_alt;
     AP_Float _param_td_col_agression;

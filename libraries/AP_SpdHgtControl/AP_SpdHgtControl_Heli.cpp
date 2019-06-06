@@ -54,7 +54,6 @@ const AP_Param::GroupInfo AP_SpdHgtControl_Heli::var_info[] = {
 };
 
 
-
 // reset speed controller
 void AP_SpdHgtControl_Heli::init_controller(void)
 {
@@ -62,8 +61,8 @@ void AP_SpdHgtControl_Heli::init_controller(void)
     _pid_vel.reset_I();
     accel_target = 0.0f;
     _accel_out_last = 0.0f;
-    Vector2f _groundspeed_vector = _ahrs.groundspeed_vector();
-    _cmd_vel = _groundspeed_vector.x*_ahrs.cos_yaw() + _groundspeed_vector.y*_ahrs.sin_yaw(); 
+    Vector2f _groundspeed_vector = _ahrs.groundspeed_vector(); //(m/s)
+    _cmd_vel = _groundspeed_vector.x*_ahrs.cos_yaw() + _groundspeed_vector.y*_ahrs.sin_yaw(); //(m/s)
 
 }
 
@@ -75,7 +74,7 @@ void AP_SpdHgtControl_Heli::update_speed_controller(void)
 
     Vector2f _groundspeed_vector = _ahrs.groundspeed_vector();
 
-    speed_forward = _groundspeed_vector.x*_ahrs.cos_yaw() + _groundspeed_vector.y*_ahrs.sin_yaw();
+    speed_forward = _groundspeed_vector.x*_ahrs.cos_yaw() + _groundspeed_vector.y*_ahrs.sin_yaw(); //(m/s)
 
     delta_speed_fwd = speed_forward - _speed_forward_last;
     _speed_forward_last = speed_forward;
@@ -120,6 +119,7 @@ void AP_SpdHgtControl_Heli::update_speed_controller(void)
 
     // the following section converts desired accelerations provided in lat/lon frame to roll/pitch angles
 
+    //limiting acceleration to accel max limits
     if (accel_target > _accel_out_last + _accel_max) {
         accel_target = _accel_out_last + _accel_max;
     } else if (accel_target < _accel_out_last - _accel_max) {
