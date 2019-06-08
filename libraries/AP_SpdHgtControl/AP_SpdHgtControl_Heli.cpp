@@ -60,9 +60,9 @@ void AP_SpdHgtControl_Heli::init_controller(void)
 
     _pid_vel.reset_I();
     accel_target = 0.0f;
-    _accel_out_last = 0.0f;
     Vector2f _groundspeed_vector = _ahrs.groundspeed_vector(); //(m/s)
-    _cmd_vel = _groundspeed_vector.x*_ahrs.cos_yaw() + _groundspeed_vector.y*_ahrs.sin_yaw(); //(m/s)
+    _cmd_vel = 100.0f * (_groundspeed_vector.x*_ahrs.cos_yaw() + _groundspeed_vector.y*_ahrs.sin_yaw());  //(m/s)
+    _accel_out_last = _pid_vel.get_ff(_cmd_vel);
 
 }
 
@@ -70,7 +70,7 @@ void AP_SpdHgtControl_Heli::init_controller(void)
 void AP_SpdHgtControl_Heli::update_speed_controller(void)
 {
 
-    float speed_forward, vel_p, vel_i, vel_d;
+    float speed_forward, vel_p, vel_i, vel_d, vel_ff;
 
     //Get rotation matrix for current attitude relative to NED frame
     const Matrix3f &rotMat = _ahrs.get_rotation_body_to_ned();
@@ -128,7 +128,10 @@ void AP_SpdHgtControl_Heli::update_speed_controller(void)
     // get d
     vel_d = _pid_vel.get_d();
 
-    accel_target = (vel_p + vel_i + vel_d);
+    // get ff
+    vel_ff = _pid_vel.get_ff(_cmd_vel);
+
+    accel_target = vel_ff + vel_p + vel_i + vel_d;
 
     // filter correction acceleration
     _accel_target_filter.set_cutoff_frequency(10.0f);
