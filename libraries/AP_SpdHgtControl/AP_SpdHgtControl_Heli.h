@@ -44,7 +44,14 @@ public:
     AC_PID& get_vel_pid() { return _pid_vel; };
 
     // set max accel
-    void set_max_accel(float accel_max) { _accel_max = accel_max; }; 
+    void set_max_accel(float accel_max)
+    {
+        if (accel_max > 40.0f) {
+            _accel_max = accel_max;
+        } else {
+            _accel_max = 40.0f;  //hard coded acceleration limit, to prevent no airspeed gain
+        }
+    };
 
     // get target accel
     float get_accel_target(void) { return accel_target; }; 
@@ -73,7 +80,9 @@ private:
     float       accel_target;
     float       delta_speed_fwd;
 
-
     LowPassFilterFloat _accel_target_filter; // acceleration target filter
+
+    //Temp:  For logging
+    uint16_t log_counter = 0;
 
 };

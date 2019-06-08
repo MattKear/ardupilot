@@ -69,15 +69,32 @@ void AP_SpdHgtControl_Heli::init_controller(void)
 // update speed controller
 void AP_SpdHgtControl_Heli::update_speed_controller(void)
 {
-    
+
     float speed_forward, vel_p, vel_i, vel_d;
 
-    Vector2f _groundspeed_vector = _ahrs.groundspeed_vector();
+    //Get rotation matrix for current attitude relative to NED frame
+    const Matrix3f &rotMat = _ahrs.get_rotation_body_to_ned();
 
-    speed_forward = _groundspeed_vector.x*_ahrs.cos_yaw() + _groundspeed_vector.y*_ahrs.sin_yaw(); //(m/s)
+    Vector3f ned_frame_velocity;  //(m/s) North/East/Down
+    Vector3f body_frame_velocity;  //(m/s) X,Y,Z in body frame
 
-    delta_speed_fwd = speed_forward - _speed_forward_last;
-    _speed_forward_last = speed_forward;
+    // Get velocity in NED frame
+    if (_ahrs.get_velocity_NED(ned_frame_velocity) == false) {
+        return;
+    }
+
+    //TODO: add wind estimates
+    //Get wind estimate in NED frame
+    //aoa_wind = wind_estimate();
+
+    //Convert velocity to body frame
+    body_frame_velocity = rotMat.mul_transpose(ned_frame_velocity);  //(m/s)
+
+    //Specify forward velocity component and determine delta velocity with respect to time
+    speed_forward = body_frame_velocity.x; //(m/s)
+
+    delta_speed_fwd = speed_forward - _speed_forward_last; //(m/s)
+    _speed_forward_last = speed_forward; //(m/s)
 
     // calculate velocity error
     if (_cmd_vel < _vel_target) {
@@ -142,5 +159,16 @@ void AP_SpdHgtControl_Heli::update_speed_controller(void)
 
     // update angle targets that will be passed to stabilize controller
     _pitch_target = atanf(-accel_out/(GRAVITY_MSS * 100.0f))*(18000.0f/M_PI);
+
+    //Write to data flash log
+    if (log_counter++ % 20 == 0) {
+        DataFlash_Class::instance()->Log_Write("SPHGT", "TimeUS,SpdF,SpdX,SpdY,SpdZ,AhrsAoA", "Qfffff",
+                                                AP_HAL::micros64(),
+                                               (double)speed_forward,
+                                               (double)body_frame_velocity.x,
+                                               (double)body_frame_velocity.y,
+                                               (double)body_frame_velocity.z,
+                                               (double)_ahrs.getAOA());
+    }
 
 }

@@ -142,37 +142,35 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
     if (rpm != nullptr) {
         _current_rpm = rpm->get_rpm(0);
     }
-    
+
     //Use slew rate scaling for entry into phase
     if (_flags.use_entry_slew_rate) {
         _entry_slew_rate -= dt;
-        
+
         if (_entry_slew_rate <= 0) {
             //switch of entry slew
             _flags.use_entry_slew_rate = 0;
         }
     }
-    
+
     // ---- gain scaler calculation ----
     float entry_gain_scaler = 1;  // By default no entry slew gain scaler to be used
-     
+
     if (_flags.use_entry_slew_rate && _entry_slew_rate > 0) {
         // Calculate entry slew gain scaler
         entry_gain_scaler = (_param_recovery_slew - _entry_slew_rate) / _param_recovery_slew;
     }
 
-    
-    
-    
+
     //Prevent divide by zero error
     if (_param_head_speed_hover < 500) {
         _param_head_speed_hover = 500;  //Making sure that hover rpm is not unreasonably low
     }
-    
+
     //Calculate the head speed error
     //Current rpm is normalised by the hover head speed.  Target head speed is defined as a percentage of hover speed
     _head_speed_error = (_current_rpm / _param_head_speed_hover) - _param_target_head_speed;
-    
+
     float P_hs = _head_speed_error * _param_hs_p * entry_gain_scaler;
 
     //No I term to be used in entry to controller
@@ -181,12 +179,11 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
     if (!_flags.use_entry_slew_rate) {
         //calculate integral of error
         _error_integral += _head_speed_error;
-        
+
         //apply I gain
          I_hs = _error_integral * _param_hs_i;
     }
 
-    
     //check that I is within limits
     if (I_hs < -_param_hs_i_lim) {
         I_hs = -_param_hs_i_lim;
@@ -197,20 +194,17 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
 
     //calculate head speed error differential
     float head_speed_error_differential = (_head_speed_error - _last_head_speed_error) / dt;
-    
+
     float D_hs = head_speed_error_differential * _param_hs_d * entry_gain_scaler;
-    
-    
-    
+
     //Calculate collective position to be set
     _collective_out = (P_hs + I_hs + D_hs) + _motors.get_throttle_hover();
-    
+
     // send collective to setting to motors output library
     set_collective(HS_CONTROLLER_COLLECTIVE_CUTOFF_FREQ);
-    
+
     //save last head speed error term for differential calculation in next time step
     _last_head_speed_error = _head_speed_error;
-
 
 }
 

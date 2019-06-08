@@ -502,9 +502,6 @@ private:
     AC_Circle *circle_nav;
 #endif
 
-
-    //AP_SpdHgtControl_Heli helispdhgtctrl{ahrs};
-    //AP_SpdHgtControl *spdhgt_controller;
     AP_SpdHgtControl_Heli *helispdhgtctrl;
 
 

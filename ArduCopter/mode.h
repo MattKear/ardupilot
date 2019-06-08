@@ -1274,9 +1274,18 @@ private:
     float _desired_v_z;
     int32_t _pitch_target;
     
+    float _hs_error_history[10];
+    uint8_t _buffer_tail = 1;
+    uint8_t _buffer_head = 0;
+    float _hs_error_sum;
+    float _hs_error_mean = 1;
+    uint8_t _time_step = 1;
+    
     float _collective_aggression;   //The 'aggresiveness' of collective appliction
     float _z_touch_down_start;      //The height in cm that the touch down phase began at
     float _t_touch_down_initiate;   //The time in ms that the touch down phase began at
+
+    float _att_accel_max;
 
     //internal flags
     struct controller_flags {
@@ -1303,10 +1312,14 @@ private:
         BREAK,
         LEVEL } nav_pos_switch;
 
+    float get_ned_glide_angle(void);
 
+    bool is_hs_stable(void);
 
-    
+    //returns penelty to be applied to airspeed target, preventing head speed loss.
+    float get_head_speed_penalty(float hs);
    
+    float _aspeed;
     
     float now = 0;
     
