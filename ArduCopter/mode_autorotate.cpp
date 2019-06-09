@@ -479,4 +479,20 @@ bool Copter::ModeAutorotate::is_hs_stable(void)
 
 
 
+void Copter::ModeAutorotate::errormessage(int message_number)
+{
+    
+    
+    
+    
+    
+    
+    
+    
+    
+
+}
+
+
+
 #endif
