@@ -1266,10 +1266,7 @@ protected:
 private:
 
     //internal variables
-    float _inital_vel_x;  //record of velocity on mode initialisation
-    float _inital_vel_y;
-    float _inital_pos_x;
-    float _inital_pos_y;
+    float _inital_airspeed;
     
     float _desired_v_z;
     int32_t _pitch_target;

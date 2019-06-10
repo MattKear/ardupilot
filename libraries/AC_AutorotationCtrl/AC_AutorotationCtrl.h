@@ -48,6 +48,7 @@ AC_AutorotationCtrl(const AP_AHRS_View& ahrs,
 
 
     // Functions
+    void init_hs_controller(void);
     void update_hs_glide_controller(float dt);  //Update head speed controller
     void update_att_glide_controller(float dt);  //Update attitude controller
     void set_collective(float _collective_filter_cutoff);
@@ -57,7 +58,10 @@ AC_AutorotationCtrl(const AP_AHRS_View& ahrs,
     float get_rpm() { return _current_rpm; }
 
     //To be called once when initiating the entry.  Calling multiple times will keep resetting the the slew rate timer.
-    void use_entry_slew() { _flags.use_entry_slew_rate = 1;  _entry_slew_rate = _param_recovery_slew; }
+   // void use_entry_slew() { _flags.use_entry_slew_rate = 1;  _entry_slew_rate = _param_recovery_slew; }
+    void set_entry_flag(bool flag) { _flags.entry_phase = flag; }
+    bool get_entry_state() { return _flags.entry_phase; }
+
     void reset_I_terms() {_error_integral = 0.0f;}
 
     float get_p() { return _param_hs_p; }
@@ -92,6 +96,9 @@ protected:
     float _head_speed_error;  // error between target head speed and current head speed.  Normalised by hover head speed.
     float _error_integral;
     float _last_head_speed_error;
+    float _last_head_speed_norm;
+    float _target_head_speed;
+    
     
     //Head Speed / Attitude Controller
     float _airspeed_error;
@@ -102,7 +109,7 @@ protected:
     //internal flags
     struct rpm_controller_flags {
             bool entry_phase_complete       : 1;    // 1 if attitude/collective mixing should be used to control head speed
-            bool use_entry_slew_rate        : 1;    // 1 if the phase of flight requires a gradual slew from one collective position to another
+            bool entry_phase        : 1;    // 1 if the phase of flight requires a gradual slew from one collective position to another
     } _flags;
     
     // Parameter values

@@ -146,10 +146,12 @@ void AP_SpdHgtControl_Heli::update_speed_controller(void)
 
     //Write to data flash log
     if (log_counter++ % 20 == 0) {
-        DataFlash_Class::instance()->Log_Write("SPHGT", "TimeUS,SpdF,AoA", "Qff",
+        DataFlash_Class::instance()->Log_Write("SPHT", "TimeUS,SpdF,p,i,ff", "Qffff",
                                                 AP_HAL::micros64(),
                                                (double)speed_forward,
-                                               (double)_ahrs.getAOA());
+                                               (double)vel_p,
+                                               (double)vel_i,
+                                               (double)vel_ff);
     }
 
 }

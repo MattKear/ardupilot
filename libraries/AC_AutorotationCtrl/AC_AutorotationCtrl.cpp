@@ -133,6 +133,17 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
 };
 
 
+//initialisation of head speed controller
+void AC_AutorotationCtrl::init_hs_controller()
+{
+    //reset 'last' terms
+    _last_head_speed_norm = 0.0f;
+    _last_head_speed_error = 0.0f;
+
+    reset_I_terms();
+}
+
+
 void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
 {
     // Get singleton for RPM library
@@ -143,23 +154,32 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
         _current_rpm = rpm->get_rpm(0);
     }
 
-    //Use slew rate scaling for entry into phase
-    if (_flags.use_entry_slew_rate) {
-        _entry_slew_rate -= dt;
+    //Normalised head speed
+    float head_speed_norm = _current_rpm / _param_head_speed_hover;
 
-        if (_entry_slew_rate <= 0) {
-            //switch of entry slew
-            _flags.use_entry_slew_rate = 0;
+
+    if (_flags.entry_phase) {
+        // Guide head speed to glide target using a gradual change of target as the speed natuarally decays.
+        // This prevents the collective from raising on initiation
+        if (head_speed_norm >= _param_target_head_speed && head_speed_norm >= _last_head_speed_norm) {
+            //head speed has increased, maintain collecitve position
+            _target_head_speed = head_speed_norm;
+
+        } else if (head_speed_norm >= _param_target_head_speed && head_speed_norm < _last_head_speed_norm) {
+            //head speed has decreased.  Predict target collective position based on susstained deceleration.
+            _target_head_speed = head_speed_norm - (_last_head_speed_norm - head_speed_norm);
+
+        } else {
+            // the target head speed has dropped below target, maintain target head speed and complete entry.
+            _target_head_speed = _param_target_head_speed;
+            _flags.entry_phase = false;
         }
-    }
 
-    // ---- gain scaler calculation ----
-    float entry_gain_scaler = 1;  // By default no entry slew gain scaler to be used
+    } else {
+        _target_head_speed = _param_target_head_speed;
 
-    if (_flags.use_entry_slew_rate && _entry_slew_rate > 0) {
-        // Calculate entry slew gain scaler
-        entry_gain_scaler = (_param_recovery_slew - _entry_slew_rate) / _param_recovery_slew;
     }
+    _last_head_speed_norm = head_speed_norm;
 
 
     //Prevent divide by zero error
@@ -169,14 +189,14 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
 
     //Calculate the head speed error
     //Current rpm is normalised by the hover head speed.  Target head speed is defined as a percentage of hover speed
-    _head_speed_error = (_current_rpm / _param_head_speed_hover) - _param_target_head_speed;
+    _head_speed_error = head_speed_norm - _target_head_speed;
 
-    float P_hs = _head_speed_error * _param_hs_p * entry_gain_scaler;
+    float P_hs = _head_speed_error * _param_hs_p;
 
     //No I term to be used in entry to controller
     float I_hs = 0;
 
-    if (!_flags.use_entry_slew_rate) {
+    if (!_flags.entry_phase) {
         //calculate integral of error
         _error_integral += _head_speed_error;
 
@@ -191,11 +211,10 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
         I_hs = _param_hs_i_lim;
     }
 
-
     //calculate head speed error differential
     float head_speed_error_differential = (_head_speed_error - _last_head_speed_error) / dt;
 
-    float D_hs = head_speed_error_differential * _param_hs_d * entry_gain_scaler;
+    float D_hs = head_speed_error_differential * _param_hs_d;
 
     //Calculate collective position to be set
     _collective_out = (P_hs + I_hs + D_hs) + _motors.get_throttle_hover();
@@ -209,46 +228,12 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
 }
 
 
-
-
 void AC_AutorotationCtrl::set_collective(float collective_filter_cutoff)
 {
-// TODO: setup slew rate of collective application
 
     _motors.set_throttle_filter_cutoff(collective_filter_cutoff);
     _motors.set_throttle(_collective_out);
 
 }
-
-
-
-
-
-
-//void AC_AutorotationCtrl::update_att_glide_controller(float dt)
-//{
-
-  //  float aspeed;
-  //  if (_ahrs.airspeed_estimate(&aspeed)){
-  //  _airspeed_error = aspeed - _param_target_airspeed;
-  //  } else {
-  //  _airspeed_error = sqrtf(_inav.get_velocity().x * _inav.get_velocity().x  +  _inav.get_velocity().y * _inav.get_velocity().y  +  _inav.get_velocity().z * _inav.get_velocity().z);
-  //  }
-
-  //  float P_as = _airspeed_error * _param_hs_as_att_p;
-
-  //  _data = P_as;
-
-  //  float target_roll = 0;
-  //  float target_pitch = P_as;
-  //  float target_yaw_rate = 0;
-
-  //  _attitude_control.input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
-
-
-//}
-
-
-
 
 

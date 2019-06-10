@@ -62,6 +62,9 @@ public:
     // this supports the user settable parameters
     static const struct AP_Param::GroupInfo var_info[];
 
+    //calculates an estimate of forward airspeed
+    float calc_speed_forward(void);
+
 
 private:
 
@@ -83,8 +86,7 @@ private:
 
     LowPassFilterFloat _accel_target_filter; // acceleration target filter
 
-    //calculates an estimate of forward airspeed
-    float calc_speed_forward(void);
+
 
     //Temp:  For logging
     uint16_t log_counter = 0;
