@@ -44,7 +44,8 @@ if (motors->get_interlock()) {
 
 
     //Record initial airspeed to be maintained 
-    _inital_airspeed = helispdhgtctrl->calc_speed_forward();
+    helispdhgtctrl->set_z_vel_flag(true);
+    _inital_airspeed = helispdhgtctrl->calc_speed_forward() * 100.0f;
 
     //Initialise hs error ring buffer with all ones
     for (int i = 0; i <= 9; i++) {
@@ -57,10 +58,8 @@ if (motors->get_interlock()) {
     arot_control->init_hs_controller();
 
     //initialise speed/height controller
+    //helispdhgtctrl->set_z_vel_flag(true);
     helispdhgtctrl->init_controller();
-
-    //initialise head speed/collective controller
-    arot_control->init_hs_controller();
 
     message_counter = 0;
 
@@ -102,8 +101,8 @@ void Copter::ModeAutorotate::run()
     //altitude check to jump to correct flight phase if at low height
     if (curr_alt <= arot_control->get_td_alt()) {// && speed < 500) {
         //jump to touch down phase
-        phase_switch = TOUCH_DOWN;
-        arot_control->set_entry_flag(false);
+        //phase_switch = TOUCH_DOWN;
+        //arot_control->set_entry_flag(false);
     }
 
     //If head speed has settled to within 5% of target head speed for 1 sec then set entry phase flag complete
@@ -116,8 +115,6 @@ void Copter::ModeAutorotate::run()
         //temp for debugging
         _flags.entry_initial = 1;
     }
-
-
 
 
     //----------------------------------------------------------------
@@ -142,9 +139,13 @@ void Copter::ModeAutorotate::run()
 
             }
 
-            //Airspeed target is set to the airspeed at autorotation mode initation
-            _aspeed = _inital_airspeed;
-
+            //Airspeed target is set to the lower value of either speed at mode initation or target speed
+            if (arot_control->get_speed_target() <= _inital_airspeed) {
+                _aspeed = arot_control->get_speed_target();
+            } else {
+                _aspeed = _inital_airspeed;
+            }
+            
             //Determine headspeed error penelty function 
             float attitude_penalty = get_head_speed_penalty(arot_control->get_hs_error());
 
@@ -162,6 +163,8 @@ void Copter::ModeAutorotate::run()
             helispdhgtctrl->set_max_accel(_att_accel_max);
 
             //run airspeed/attitude controller
+            //helispdhgtctrl->set_z_vel_flag(true);
+            helispdhgtctrl->set_dt(G_Dt);
             helispdhgtctrl->update_speed_controller();
 
             //retrieve pitch target from helispdhgtctrl 
@@ -203,14 +206,20 @@ void Copter::ModeAutorotate::run()
             _aspeed = arot_control->get_speed_target();
 
             //Determine headspeed error penelty function 
-            //float attitude_penalty = get_head_speed_penalty(arot_control->get_hs_error());
+            float attitude_penalty = get_head_speed_penalty(arot_control->get_hs_error());
 
             //Apply airspeed penalty
-            //_aspeed *= (1.0f - (attitude_penalty *0.25f)); //this doesn't decay over time as its constantly refreshed
+            _aspeed *= (1.0f - (attitude_penalty *0.25f)); //this doesn't decay over time as its constantly refreshed
+
+
+            //TODO:  Try applying the airspeed penelty to the target pitch attitude (PIDS) instead of the airspeed target.
+            //May get a far more crisp response for head speed recovery.  This could have the adverse effect of causing
+            //the controller the controller to fight itself....
+
 
             //Apply pitch acceleration penalty
             //This penelty scheme resets every time the mode is initiated.
-            //_att_accel_max -= attitude_penalty*_att_accel_max*0.005;  //Acceleration limit will decay oscillations in acceleration;
+            _att_accel_max -= attitude_penalty*_att_accel_max*0.005;  //Acceleration limit will decay oscillations in acceleration;
 
             //Set desired air speed target
             helispdhgtctrl->set_desired_speed(_aspeed);
@@ -219,6 +228,7 @@ void Copter::ModeAutorotate::run()
             helispdhgtctrl->set_max_accel(_att_accel_max);
 
             //run airspeed/attitude controller
+            helispdhgtctrl->set_z_vel_flag(true);
             helispdhgtctrl->update_speed_controller();
 
             //retrieve pitch target from helispdhgtctrl 
@@ -339,11 +349,7 @@ void Copter::ModeAutorotate::run()
 //  These message outputs are purely for debugging purposes.  Will be removed in future.
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
     if (message_counter == 300) {
-        //gcs().send_text(MAV_SEVERITY_INFO, "Current RPM = %.2f",arot_control->get_rpm());
-        //gcs().send_text(MAV_SEVERITY_INFO, "Head Speed Error = %.4f",arot_control->get_rpm_error());
-        //gcs().send_text(MAV_SEVERITY_INFO, "P AS %.2f",aspeed);
-        //gcs().send_text(MAV_SEVERITY_INFO, "Test if airspeed true %.2f",test);
-        //gcs().send_text(MAV_SEVERITY_INFO, "Target Pitch %.5f",target_pitch);
+        //gcs().send_text(MAV_SEVERITY_INFO, "Initial Speed = %.3f",_inital_airspeed);
         //gcs().send_text(MAV_SEVERITY_INFO, "--- --- --- ---");
         message_counter = 0;
     }

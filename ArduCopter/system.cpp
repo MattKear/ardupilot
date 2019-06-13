@@ -596,7 +596,7 @@ void Copter::allocate_motors(void)
     }
     AP_Param::load_object_from_eeprom(arot_control, arot_control->var_info);
 
-    helispdhgtctrl = new AP_SpdHgtControl_Heli(ahrs);
+    helispdhgtctrl = new AP_SpdHgtControl_Heli(ahrs, inertial_nav);
     if (helispdhgtctrl == nullptr) {
         AP_HAL::panic("Unable to allocate SpdHgtControl_Heli");
     }

@@ -20,7 +20,7 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
     // @Increment: 0.001
     // @User: Advanced
     AP_GROUPINFO("HS_D", 1, AC_AutorotationCtrl, _param_hs_d, HS_CONTROLLER_HEADSPEED_D),
-    
+
     // @Param: HS_I
     // @DisplayName: I gain for head spead controller
     // @Description: Increase value to increase damping of head speed controller during autonomous autorotation.
@@ -29,7 +29,7 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
     // @Increment: 0.001
     // @User: Advanced
     AP_GROUPINFO("HS_I", 2, AC_AutorotationCtrl, _param_hs_i, HS_CONTROLLER_HEADSPEED_I),
-    
+
     // @Param: HS_I_LIM
     // @DisplayName: I gain for head spead controller
     // @Description: Increase value to increase damping of head speed controller during autonomous autorotation.
@@ -38,7 +38,7 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
     // @Increment: 0.001
     // @User: Advanced
     AP_GROUPINFO("HS_I_LIM", 3, AC_AutorotationCtrl, _param_hs_i_lim, HS_CONTROLLER_HEADSPEED_I_LIM),
-    
+
     // @Param: HS_TARGET
     // @DisplayName: Target head speed for controller to achieve
     // @Description: Specify the target head speed as a percentage of hover headspeed
@@ -47,7 +47,7 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
     // @Increment: 0.01
     // @User: Advanced
     AP_GROUPINFO("HS_TARGET", 4, AC_AutorotationCtrl, _param_target_head_speed, HS_CONTROLLER_HEADSPEED_TARGET),
-    
+
     // @Param: HS_HOVER
     // @DisplayName: Temporary parameter for head speed in the hover
     // @Description: This will be replaced by hover collective learning in the future
@@ -56,52 +56,7 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
     // @Increment: -
     // @User: Advanced
     AP_GROUPINFO("HS_HOVER", 5, AC_AutorotationCtrl, _param_head_speed_hover, 1700.0f),
-    
-    // @Param: ENT_SLEW
-    // @DisplayName: The slew time for entry into headspeed/collective controller
-    // @Description: This allows a gentle transition into the contoller.  Specifiy the time to phase in the headspeed/collective controller PID.
-    // @Units: s
-    // @Range: 1-4
-    // @Increment: 0.1
-    // @User: Advanced
-    AP_GROUPINFO("ENT_SLEW", 6, AC_AutorotationCtrl, _param_recovery_slew, HS_CONTROLLER_ENTRY_SLEW_TIME),
-    
-    // @Param: ATT_P
-    // @DisplayName: P gain for head spead/airspeed attitude controller
-    // @Description: ---
-    // @Units: -
-    // @Range: -
-    // @Increment: -
-    // @User: Advanced
-    AP_GROUPINFO("ATT_P", 7, AC_AutorotationCtrl, _param_hs_as_att_p, 2.0f),
-    
-    // @Param: ATT_I
-    // @DisplayName: I gain for head spead/airspeed attitude controller
-    // @Description: ---
-    // @Units: -
-    // @Range: -
-    // @Increment: -
-    // @User: Advanced
-    AP_GROUPINFO("ATT_I", 8, AC_AutorotationCtrl, _param_hs_as_att_i, 2.0f),
-    
-    // @Param: ATT_I_LIM
-    // @DisplayName: I Limit for head spead/airspeed attitude controller
-    // @Description: ---
-    // @Units: -
-    // @Range: -
-    // @Increment: -
-    // @User: Advanced
-    AP_GROUPINFO("ATT_I_LIM", 9, AC_AutorotationCtrl, _param_hs_as_att_i_lim, 2.0f),
-    
-    // @Param: ACC_MAX
-    // @DisplayName: D gain for head spead/airspeed attitude controller
-    // @Description: ---
-    // @Units: -
-    // @Range: -
-    // @Increment: -
-    // @User: Advanced
-    AP_GROUPINFO("ACC_MAX", 10, AC_AutorotationCtrl, _param_accel_max, 2.0f),
-    
+
     // @Param: TARG_AS
     // @DisplayName: Target airspeed in cm/s for the autorotation controller to try and achieve/ maintain.
     // @Description: ---
@@ -109,8 +64,8 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
     // @Range: -
     // @Increment: -
     // @User: Advanced
-    AP_GROUPINFO("TARG_AS", 11, AC_AutorotationCtrl, _param_target_airspeed, 2.0f),
-    
+    AP_GROUPINFO("TARG_AS", 6, AC_AutorotationCtrl, _param_target_airspeed, 2.0f),
+
     // @Param: TD_ALT
     // @DisplayName: Altitude at which to begin touch down phase
     // @Description: ---
@@ -118,8 +73,8 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
     // @Range: -
     // @Increment: -
     // @User: Advanced
-    AP_GROUPINFO("TD_ALT", 12, AC_AutorotationCtrl, _param_td_alt, 2.0f),
-    
+    AP_GROUPINFO("TD_ALT", 7, AC_AutorotationCtrl, _param_td_alt, 6.0f),
+
     // @Param: TD_COL_AGR
     // @DisplayName: Collective agression during touch down phase
     // @Description: ---
@@ -127,8 +82,8 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
     // @Range: -
     // @Increment: -
     // @User: Advanced
-    AP_GROUPINFO("TD_COL_AGR", 13, AC_AutorotationCtrl, _param_td_col_agression, 2.0f),
-    
+    AP_GROUPINFO("TD_COL_AGR", 8, AC_AutorotationCtrl, _param_td_col_agression, 0.15f),
+
     AP_GROUPEND
 };
 

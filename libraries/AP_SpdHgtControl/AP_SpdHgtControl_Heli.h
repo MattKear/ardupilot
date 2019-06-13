@@ -11,6 +11,7 @@
 #include <AP_Vehicle/AP_Vehicle.h>
 #include <DataFlash/DataFlash.h>
 #include <AC_PID/AC_PID.h>             // PID library
+#include <AP_InertialNav/AP_InertialNav.h>     // Inertial Navigation library
 
 #define AP_SPDHGTCTRL_VEL_P                       1.0f
 #define AP_SPDHGTCTRL_VEL_I                       0.5f
@@ -22,9 +23,11 @@
 
 class AP_SpdHgtControl_Heli {
 public:
-    AP_SpdHgtControl_Heli(AP_AHRS &ahrs)
-        : _ahrs(ahrs)
-        , _pid_vel(AP_SPDHGTCTRL_VEL_P, AP_SPDHGTCTRL_VEL_I, AP_SPDHGTCTRL_VEL_D, AP_SPDHGTCTRL_VEL_IMAX, AP_SPDHGTCTRL_VEL_FILT_HZ, AP_SPDHGTCTRL_VEL_DT, AP_SPDHGTCTRL_VEL_FF)
+    AP_SpdHgtControl_Heli(AP_AHRS &ahrs,
+                          AP_InertialNav& inav):
+        _ahrs(ahrs),
+        _inav(inav),
+        _pid_vel(AP_SPDHGTCTRL_VEL_P, AP_SPDHGTCTRL_VEL_I, AP_SPDHGTCTRL_VEL_D, AP_SPDHGTCTRL_VEL_IMAX, AP_SPDHGTCTRL_VEL_FILT_HZ, AP_SPDHGTCTRL_VEL_DT, AP_SPDHGTCTRL_VEL_FF)
     {
         AP_Param::setup_object_defaults(this, var_info);
     }
@@ -65,11 +68,19 @@ public:
     //calculates an estimate of forward airspeed
     float calc_speed_forward(void);
 
+    //set the include z velocity flag
+    void set_z_vel_flag(bool flag) { _flags.include_z_vel = flag; }
+
+    // set_dt - sets time delta in seconds for all controllers (i.e. 100hz = 0.01, 400hz = 0.0025)
+    void set_dt(float delta_sec);
+
 
 private:
 
-    // reference to the AHRS object
-    AP_AHRS &_ahrs;
+    // reference to other libraries
+    AP_AHRS&           _ahrs;
+    AP_InertialNav&    _inav;
+
 
     AC_PID      _pid_vel;
     float       _vel_target;
@@ -83,10 +94,14 @@ private:
     float       _cmd_vel;
     float       accel_target;
     float       delta_speed_fwd;
+    float       _dt;
 
     LowPassFilterFloat _accel_target_filter; // acceleration target filter
 
-
+    //internal flags
+    struct spd_hgt_controller_flags {
+            bool include_z_vel       : 1;    // 1 if attitude/collective mixing should be used to control head speed
+    } _flags;
 
     //Temp:  For logging
     uint16_t log_counter = 0;

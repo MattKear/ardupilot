@@ -65,6 +65,20 @@ void AP_SpdHgtControl_Heli::init_controller(void)
 
 }
 
+
+// set_dt - sets time delta in seconds for all controllers (i.e. 100hz = 0.01, 400hz = 0.0025)
+void AP_SpdHgtControl_Heli::set_dt(float delta_sec)
+{
+    _dt = delta_sec;
+
+    // update PID controller dt
+    _pid_vel.set_dt(_dt);
+}
+
+
+
+
+
 // update speed controller
 void AP_SpdHgtControl_Heli::update_speed_controller(void)
 {
@@ -74,23 +88,25 @@ void AP_SpdHgtControl_Heli::update_speed_controller(void)
     //Specify forward velocity component and determine delta velocity with respect to time
     speed_forward = calc_speed_forward(); //(m/s)
 
+
     delta_speed_fwd = speed_forward - _speed_forward_last; //(m/s)
     _speed_forward_last = speed_forward; //(m/s)
 
-    // calculate velocity error
+    // Limitng the target velocity based on the max acceleration limit
     if (_cmd_vel < _vel_target) {
-        _cmd_vel += _accel_max * 0.0025f;
+        _cmd_vel += _accel_max * _dt;
         if (_cmd_vel > _vel_target) {
             _cmd_vel = _vel_target;
         }
     } else {
-        _cmd_vel -= _accel_max * 0.0025f;
+        _cmd_vel -= _accel_max * _dt;
         if (_cmd_vel < _vel_target) {
             _cmd_vel = _vel_target;
         }
     }
-
-    _vel_error = _cmd_vel - speed_forward * 100.0f; //(cm/s)
+    
+    // calculate velocity error
+    _vel_error = _cmd_vel - (speed_forward * 100.0f); //(cm/s)
 
     // call pid controller
     _pid_vel.set_input_filter_all(_vel_error);
@@ -116,7 +132,7 @@ void AP_SpdHgtControl_Heli::update_speed_controller(void)
 
     // filter correction acceleration
     _accel_target_filter.set_cutoff_frequency(10.0f);
-    _accel_target_filter.apply(accel_target, 0.0025);
+    _accel_target_filter.apply(accel_target, _dt);
 
     // the following section converts desired accelerations provided in lat/lon frame to roll/pitch angles
 
@@ -127,9 +143,9 @@ void AP_SpdHgtControl_Heli::update_speed_controller(void)
         accel_target = _accel_out_last - _accel_max;
     }
 
-    if (fabsf(delta_speed_fwd * 100.0f) > _accel_max * 0.0025f) {
+    if (fabsf(delta_speed_fwd * 100.0f) > _accel_max * _dt) {
         _flag_limit_accel = true;
-    } else if (fabsf(delta_speed_fwd * 100.0f) < _accel_max * 0.0025f){
+    } else if (fabsf(delta_speed_fwd * 100.0f) < _accel_max * _dt){
         _flag_limit_accel = false;
     }
 
@@ -146,9 +162,11 @@ void AP_SpdHgtControl_Heli::update_speed_controller(void)
 
     //Write to data flash log
     if (log_counter++ % 20 == 0) {
-        DataFlash_Class::instance()->Log_Write("SPHT", "TimeUS,SpdF,p,i,ff", "Qffff",
+        DataFlash_Class::instance()->Log_Write("SPHT", "TimeUS,SpdF,CmdV,GndS,Verr,p,i,ff", "Qfffffff",
                                                 AP_HAL::micros64(),
                                                (double)speed_forward,
+                                               (double)_cmd_vel,
+                                               (double)_vel_error,
                                                (double)vel_p,
                                                (double)vel_i,
                                                (double)vel_ff);
@@ -159,26 +177,9 @@ void AP_SpdHgtControl_Heli::update_speed_controller(void)
 
 float AP_SpdHgtControl_Heli::calc_speed_forward(void)
 {
-    //Get rotation matrix for current attitude relative to NED frame
-    const Matrix3f &rotMat = _ahrs.get_rotation_body_to_ned();
 
-    Vector3f ned_frame_velocity;  //(m/s) North/East/Down
-    Vector3f body_frame_velocity;  //(m/s) X,Y,Z in body frame
-
-    // Get velocity in NED frame
-    if (_ahrs.get_velocity_NED(ned_frame_velocity) == false) {
-        return 0.0f;  //TODO: improve this response in some way!!!!
-    }
-
-    //TODO: add wind estimates
-    //Get wind estimate in NED frame
-    //aoa_wind = wind_estimate();
-
-    //Convert velocity to body frame
-    body_frame_velocity = rotMat.mul_transpose(ned_frame_velocity);  //(m/s)
-
-    //Specify forward velocity component and determine delta velocity with respect to time
-    float speed_forward = body_frame_velocity.x;  //(m/s)
+    Vector2f groundspeed_vector = _ahrs.groundspeed_vector();
+    float speed_forward = groundspeed_vector.x*_ahrs.cos_yaw() + groundspeed_vector.y*_ahrs.sin_yaw(); //(m/s)
 
     return speed_forward;
 
