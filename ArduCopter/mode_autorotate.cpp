@@ -131,8 +131,7 @@ void Copter::ModeAutorotate::run()
                     gcs().send_text(MAV_SEVERITY_INFO, "Entry Phase");
                 #endif
 
-                //TODO:  Set entry flag in head speed controller
-                //Set tartget head speed in RPM
+                // Set entry flag in head speed controller
                 arot_control->set_entry_flag(true);
 
                  _flags.entry_initial = 0;

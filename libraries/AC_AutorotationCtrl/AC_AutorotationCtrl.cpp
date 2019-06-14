@@ -149,15 +149,15 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
     float P_hs = _head_speed_error * _param_hs_p;
 
     //No I term to be used in entry to controller
-    float I_hs = 0;
+    //float I_hs = 0;
 
-    if (!_flags.entry_phase) {
+    //if (!_flags.entry_phase) {
         //calculate integral of error
         _error_integral += _head_speed_error;
 
         //apply I gain
-         I_hs = _error_integral * _param_hs_i;
-    }
+         float I_hs = _error_integral * _param_hs_i;
+    //}
 
     //check that I is within limits
     if (I_hs < -_param_hs_i_lim) {
@@ -179,6 +179,26 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
 
     //save last head speed error term for differential calculation in next time step
     _last_head_speed_error = _head_speed_error;
+
+
+
+    //Write to data flash log
+    if (_log_counter++ % 20 == 0) {
+        DataFlash_Class::instance()->Log_Write("ARO2", "TimeUS,P,I,D,hserr,hstarg,hovthr,", "Qffffff",
+                                                AP_HAL::micros64(),
+                                               (double)P_hs,
+                                               (double)I_hs,
+                                               (double)D_hs,
+                                               (double)_head_speed_error,
+                                               (double)_target_head_speed,
+                                               (double)_motors.get_throttle_hover());
+
+    }
+
+
+
+
+
 
 }
 

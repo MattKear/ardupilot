@@ -3,6 +3,7 @@
 #include <AP_Common/AP_Common.h>
 #include <AP_Param/AP_Param.h>
 #include <AP_Math/AP_Math.h>
+#include <DataFlash/DataFlash.h>
 #include <AC_PID/AC_P.h>               // P library
 #include <AC_PID/AC_PID.h>             // PID library
 #include <AC_PID/AC_PI_2D.h>           // PI library (2-axis)
@@ -98,6 +99,7 @@ protected:
     float _last_head_speed_error;
     float _last_head_speed_norm;
     float _target_head_speed;
+    uint16_t _log_counter = 0;
     
     
     //Head Speed / Attitude Controller
