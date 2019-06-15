@@ -121,10 +121,6 @@ protected:
     AP_Float _param_hs_i_lim;           //i limit value for rpm collective controller
     AP_Float _param_target_head_speed;  //(rpm) normalised head speed to be maintined in the autorotation (normalised by hover head speed)
     AP_Float _param_head_speed_hover;   //(rpm) head speed during normal hover
-    AP_Float _param_recovery_slew;      //(s) the time period over which the PD errors are phased in and the I terms are switched off
-    AP_Float _param_hs_as_att_p;
-    AP_Float _param_hs_as_att_i;
-    AP_Float _param_hs_as_att_i_lim;
     AP_Float _param_accel_max;
     AP_Float _param_target_airspeed;
     AP_Float _param_td_alt;

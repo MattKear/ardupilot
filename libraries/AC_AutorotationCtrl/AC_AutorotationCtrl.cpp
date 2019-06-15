@@ -83,6 +83,15 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
     // @Increment: -
     // @User: Advanced
     AP_GROUPINFO("TD_COL_AGR", 8, AC_AutorotationCtrl, _param_td_col_agression, 0.15f),
+    
+    // @Param: AS_ACC_MAX
+    // @DisplayName: Maximum acceleration to apply in airspeed controller
+    // @Description: ---
+    // @Units: cm
+    // @Range: -
+    // @Increment: -
+    // @User: Advanced
+    AP_GROUPINFO("AS_ACC_MAX", 9, AC_AutorotationCtrl, _param_accel_max, 100.0f),
 
     AP_GROUPEND
 };
@@ -184,15 +193,13 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
 
     //Write to data flash log
     if (_log_counter++ % 20 == 0) {
-        DataFlash_Class::instance()->Log_Write("ARO2", "TimeUS,P,I,D,hserr,hstarg,hovthr,", "Qffffff",
+        DataFlash_Class::instance()->Log_Write("ARO2", "TimeUS,P,I,D,hserr,hstarg", "Qfffff",
                                                 AP_HAL::micros64(),
                                                (double)P_hs,
                                                (double)I_hs,
                                                (double)D_hs,
                                                (double)_head_speed_error,
-                                               (double)_target_head_speed,
-                                               (double)_motors.get_throttle_hover());
-
+                                               (double)_target_head_speed);
     }
 
 
@@ -203,6 +210,7 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
 }
 
 
+//function to set collective and collective filter in motor library
 void AC_AutorotationCtrl::set_collective(float collective_filter_cutoff)
 {
 

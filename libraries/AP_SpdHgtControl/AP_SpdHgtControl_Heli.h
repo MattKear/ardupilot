@@ -68,8 +68,6 @@ public:
     //calculates an estimate of forward airspeed
     float calc_speed_forward(void);
 
-    //set the include z velocity flag
-    void set_z_vel_flag(bool flag) { _flags.include_z_vel = flag; }
 
     // set_dt - sets time delta in seconds for all controllers (i.e. 100hz = 0.01, 400hz = 0.0025)
     void set_dt(float delta_sec);
@@ -98,10 +96,6 @@ private:
 
     LowPassFilterFloat _accel_target_filter; // acceleration target filter
 
-    //internal flags
-    struct spd_hgt_controller_flags {
-            bool include_z_vel       : 1;    // 1 if attitude/collective mixing should be used to control head speed
-    } _flags;
 
     //Temp:  For logging
     uint16_t log_counter = 0;

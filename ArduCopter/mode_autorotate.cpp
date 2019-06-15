@@ -44,7 +44,6 @@ if (motors->get_interlock()) {
 
 
     //Record initial airspeed to be maintained 
-    helispdhgtctrl->set_z_vel_flag(true);
     _inital_airspeed = helispdhgtctrl->calc_speed_forward() * 100.0f;
 
     //Initialise hs error ring buffer with all ones
@@ -58,7 +57,6 @@ if (motors->get_interlock()) {
     arot_control->init_hs_controller();
 
     //initialise speed/height controller
-    //helispdhgtctrl->set_z_vel_flag(true);
     helispdhgtctrl->init_controller();
 
     message_counter = 0;
@@ -105,9 +103,8 @@ void Copter::ModeAutorotate::run()
         //arot_control->set_entry_flag(false);
     }
 
-    //If head speed has settled to within 5% of target head speed for 1 sec then set entry phase flag complete
-    //and progress to glide phase.
-    if (phase_switch == ENTRY && is_hs_stable() && !arot_control->get_entry_state()){
+    //If head speed has been guided down to target speed then move onto glide
+    if (phase_switch == ENTRY && !arot_control->get_entry_state()){
         //Head speed is stable and flight phase can be progressed to steady state glide
         phase_switch = SS_GLIDE;
         arot_control->set_entry_flag(false);
@@ -138,22 +135,18 @@ void Copter::ModeAutorotate::run()
 
             }
 
-            //Airspeed target is set to the lower value of either speed at mode initation or target speed
-            if (arot_control->get_speed_target() <= _inital_airspeed) {
-                _aspeed = arot_control->get_speed_target();
-            } else {
-                _aspeed = _inital_airspeed;
-            }
+            //Get airspeed target from parameters
+            _aspeed = arot_control->get_speed_target();
             
             //Determine headspeed error penelty function 
-            float attitude_penalty = get_head_speed_penalty(arot_control->get_hs_error());
+            //float attitude_penalty = get_head_speed_penalty(arot_control->get_hs_error());
 
             //Apply airspeed penalty
-            _aspeed *= (1.0f - (attitude_penalty * 0.25f)); //this doesn't decay over time as its constantly refreshed
+            //_aspeed *= (1.0f - (attitude_penalty * 0.25f)); //this doesn't decay over time as its constantly refreshed
 
             //Apply pitch acceleration penalty
             _att_accel_max = arot_control->get_accel_max(); //refresh the acceleration limit to prevent penelty from being perminant
-            _att_accel_max *= (1.0f - attitude_penalty);  //Apply strong penelty scheme to ensure good head speed achieved.
+            //_att_accel_max *= (1.0f - attitude_penalty);  //Apply strong penelty scheme to ensure good head speed achieved.
 
             //Set desired air speed target
             helispdhgtctrl->set_desired_speed(_aspeed);
@@ -162,7 +155,6 @@ void Copter::ModeAutorotate::run()
             helispdhgtctrl->set_max_accel(_att_accel_max);
 
             //run airspeed/attitude controller
-            //helispdhgtctrl->set_z_vel_flag(true);
             helispdhgtctrl->set_dt(G_Dt);
             helispdhgtctrl->update_speed_controller();
 
@@ -195,20 +187,20 @@ void Copter::ModeAutorotate::run()
                     gcs().send_text(MAV_SEVERITY_INFO, "SS Glide Phase");
                 #endif
 
-                //Refresh acceleration limit once.  Perminant accel penalties are in effect in ss glide to prevent oscillations at high airspeed.
-                _att_accel_max = arot_control->get_accel_max();
-
                 _flags.ss_glide_initial = 0;
             }
 
             //get target airspeed for best glide efficiency
             _aspeed = arot_control->get_speed_target();
+            
+            //Refresh acceleration limit.
+            _att_accel_max = arot_control->get_accel_max();
 
             //Determine headspeed error penelty function 
-            float attitude_penalty = get_head_speed_penalty(arot_control->get_hs_error());
+            //float attitude_penalty = get_head_speed_penalty(arot_control->get_hs_error());
 
             //Apply airspeed penalty
-            _aspeed *= (1.0f - (attitude_penalty *0.25f)); //this doesn't decay over time as its constantly refreshed
+            //_aspeed *= (1.0f - (attitude_penalty *0.25f)); //this doesn't decay over time as its constantly refreshed
 
 
             //TODO:  Try applying the airspeed penelty to the target pitch attitude (PIDS) instead of the airspeed target.
@@ -218,7 +210,7 @@ void Copter::ModeAutorotate::run()
 
             //Apply pitch acceleration penalty
             //This penelty scheme resets every time the mode is initiated.
-            _att_accel_max -= attitude_penalty*_att_accel_max*0.005;  //Acceleration limit will decay oscillations in acceleration;
+            //_att_accel_max -= attitude_penalty*_att_accel_max*0.005;  //Acceleration limit will decay oscillations in acceleration;
 
             //Set desired air speed target
             helispdhgtctrl->set_desired_speed(_aspeed);
@@ -227,7 +219,7 @@ void Copter::ModeAutorotate::run()
             helispdhgtctrl->set_max_accel(_att_accel_max);
 
             //run airspeed/attitude controller
-            helispdhgtctrl->set_z_vel_flag(true);
+            helispdhgtctrl->set_dt(G_Dt);
             helispdhgtctrl->update_speed_controller();
 
             //retrieve pitch target from helispdhgtctrl 
