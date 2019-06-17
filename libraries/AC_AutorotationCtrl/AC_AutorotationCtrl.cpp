@@ -157,22 +157,19 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
 
     float P_hs = _head_speed_error * _param_hs_p;
 
-    //No I term to be used in entry to controller
-    //float I_hs = 0;
-
-    //if (!_flags.entry_phase) {
+    if (_flags.entry_phase || _target_head_speed > head_speed_norm) {
         //calculate integral of error
         _error_integral += _head_speed_error;
 
         //apply I gain
-         float I_hs = _error_integral * _param_hs_i;
-    //}
+         _I_hs = _error_integral * _param_hs_i;
+    }
 
     //check that I is within limits
-    if (I_hs < -_param_hs_i_lim) {
-        I_hs = -_param_hs_i_lim;
-    } else if (I_hs > _param_hs_i_lim) {
-        I_hs = _param_hs_i_lim;
+    if (_I_hs < -_param_hs_i_lim) {
+        _I_hs = -_param_hs_i_lim;
+    } else if (_I_hs > _param_hs_i_lim) {
+        _I_hs = _param_hs_i_lim;
     }
 
     //calculate head speed error differential
@@ -181,7 +178,7 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
     float D_hs = head_speed_error_differential * _param_hs_d;
 
     //Calculate collective position to be set
-    _collective_out = (P_hs + I_hs + D_hs) + _motors.get_throttle_hover();
+    _collective_out = (P_hs + _I_hs + D_hs) + _motors.get_throttle_hover();
 
     // send collective to setting to motors output library
     set_collective(HS_CONTROLLER_COLLECTIVE_CUTOFF_FREQ);
@@ -196,7 +193,7 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
         DataFlash_Class::instance()->Log_Write("ARO2", "TimeUS,P,I,D,hserr,hstarg", "Qfffff",
                                                 AP_HAL::micros64(),
                                                (double)P_hs,
-                                               (double)I_hs,
+                                               (double)_I_hs,
                                                (double)D_hs,
                                                (double)_head_speed_error,
                                                (double)_target_head_speed);

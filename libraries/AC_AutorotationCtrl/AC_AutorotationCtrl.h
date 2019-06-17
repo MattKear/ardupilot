@@ -100,7 +100,7 @@ protected:
     float _last_head_speed_norm;
     float _target_head_speed;
     uint16_t _log_counter = 0;
-    
+    float _I_hs;
     
     //Head Speed / Attitude Controller
     float _airspeed_error;
