@@ -12,6 +12,10 @@
 #include <AP_Motors/AP_Motors.h>          // motors library
 #include <AC_AttitudeControl/AC_AttitudeControl.h> // Attitude control library
 #include <AP_InertialNav/AP_InertialNav.h>     // Inertial Navigation library
+#include <Filter/Filter.h>                     // Filter library
+#include <Filter/LowPassFilter.h>      // LowPassFilter class (inherits from Filter class)
+
+
 
 
 // Head Speed (HS) controller default definitions
@@ -125,7 +129,10 @@ protected:
     AP_Float _param_target_airspeed;
     AP_Float _param_td_alt;
     AP_Float _param_td_col_agression;
+    AP_Float _param_col_cutoff_freq;
     
+    //function to calculate collective feed forward
+    float calc_ff(void);
     
     
     
