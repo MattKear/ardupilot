@@ -121,7 +121,7 @@ void AC_AutorotationCtrl::init_hs_controller()
     _entry_time_remain = 3.0f;
 
     //set initial collective position to be the collective position on initialisation
-    _collective_out = 0.3f;//_motors.get_throttle();
+    _collective_out = _motors.get_throttle();
 
     //Reset feed forward filter
     col_trim_lpf.reset(_collective_out);
@@ -231,15 +231,14 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
 
     //Write to data flash log
     if (_log_counter++ % 20 == 0) {
-        DataFlash_Class::instance()->Log_Write("ARO2", "TimeUS,P,D,hserr,hstarg,ColOut,FFCol,ColPCT", "Qfffffff",
+        DataFlash_Class::instance()->Log_Write("ARO2", "TimeUS,P,D,hserr,hstarg,ColOut,FFCol", "Qffffff",
                                                 AP_HAL::micros64(),
                                                (double)P_hs,
                                                (double)D_hs,
                                                (double)_head_speed_error,
                                                (double)_target_head_speed,
                                                (double)_collective_out,
-                                               (double)FF_hs,
-                                               (double)_motors.get_col_mid_pct());
+                                               (double)FF_hs);
     }
 
 

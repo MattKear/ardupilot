@@ -109,7 +109,7 @@ protected:
     float _airspeed_error;
     
     float _data;
-    
+    float _test;
     
     //internal flags
     struct rpm_controller_flags {
