@@ -106,9 +106,6 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
 };
 
 
-// create a global instance of the class
-LowPassFilterFloat low_pass_filter;
-
 
 //initialisation of head speed controller
 void AC_AutorotationCtrl::init_hs_controller()
@@ -117,16 +114,31 @@ void AC_AutorotationCtrl::init_hs_controller()
     _last_head_speed_norm = 0.0f;
     _last_head_speed_error = 0.0f;
 
-    reset_I_terms();
+    //set target head speed to be guided on entry
+    _flags.target_guide = true;
 
-    //set collective trim low pass filter cut off frequency
-    low_pass_filter.set_cutoff_frequency(_param_col_cutoff_freq);
+    //set 3 seconds on entry timer
+    _entry_time_remain = 3.0f;
 
     //set initial collective position to be the collective position on initialisation
-    _collective_out = 0.0f;//_motors.get_throttle();
+    _collective_out = 0.3f;//_motors.get_throttle();
 
     //Reset feed forward filter
-    low_pass_filter.reset(_collective_out);
+    col_trim_lpf.reset(_collective_out);
+    
+    // Get singleton for RPM library
+    const AP_RPM *rpm = AP_RPM::get_instance();
+
+    //Get current rpm, checking to ensure no nullptr
+    if (rpm != nullptr) {
+        _current_rpm = rpm->get_rpm(0);
+    }
+
+    //The decay rate to reduce the head speed from the current to the target
+    _hs_decay = ((_current_rpm/_param_head_speed_hover) - _param_target_head_speed) /2000.0f;
+
+    //Set temporary target to current head speed for entry phase
+    _target_head_speed = _current_rpm/_param_head_speed_hover;
 }
 
 
@@ -144,28 +156,44 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
     float head_speed_norm = _current_rpm / _param_head_speed_hover;
 
 
-    //if (_flags.entry_phase) {
-        // Guide head speed to glide target using a gradual change of target as the speed natuarally decays.
-        // This prevents the collective from raising on initiation
-    //    float hs_decay = _last_head_speed_norm - head_speed_norm
-    //    if (head_speed_norm >= _param_target_head_speed && head_speed_norm >= _last_head_speed_norm) {
-            //head speed has increased, gently increase collecitve position
-    //        _target_head_speed = head_speed_norm + (_last_head_speed_norm - head_speed_norm);
+    if (_flags.entry_phase) {
+         
+         //Guide head speed to glide target using a gradual change of target as the speed natuarally decays.
+         //This prevents the collective from raising on initiation
+        if (head_speed_norm >= _param_target_head_speed && head_speed_norm >= _last_head_speed_norm && _flags.target_guide) {
+            //head speed has increased, gently reduce head speed target based on 2 second decay rate
+            _target_head_speed -= _hs_decay*dt;
 
-    //    } else if (head_speed_norm >= _param_target_head_speed && head_speed_norm < _last_head_speed_norm) {
+        } else if (head_speed_norm >= _param_target_head_speed && head_speed_norm < _last_head_speed_norm && _flags.target_guide) {
             //head speed has decreased.  Predict target collective position based on sustained deceleration.
-    //        _target_head_speed = head_speed_norm - (_last_head_speed_norm - head_speed_norm);
+            _target_head_speed -= (_last_head_speed_norm - head_speed_norm);
 
-    //    } else {
+        } else if (_flags.target_guide){
             // the target head speed has dropped below target, maintain target head speed and complete entry.
-     //       _target_head_speed = _param_target_head_speed;
-            _flags.entry_phase = false;
-     //   }
+            _target_head_speed = _param_target_head_speed;
+            _flags.target_guide = false;
+        }
 
-    //} else {
+        //set collective trim low pass filter cut off frequency
+        col_trim_lpf.set_cutoff_frequency(_param_col_cutoff_freq*4);
+
+        //update entry phase timer
+        _entry_time_remain -= dt;
+
+        //if entry phase time is up, then set entry flag to false
+        if (_entry_time_remain <= 0.0f) {
+            _flags.entry_phase = false;
+        }
+
+
+    } else {
         _target_head_speed = _param_target_head_speed;
 
-    //}
+        //set collective trim low pass filter cut off frequency
+        col_trim_lpf.set_cutoff_frequency(_param_col_cutoff_freq);
+
+
+    }
     _last_head_speed_norm = head_speed_norm;
 
 
@@ -180,21 +208,6 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
 
     float P_hs = _head_speed_error * _param_hs_p;
 
-    if (_flags.entry_phase || _target_head_speed > head_speed_norm) {
-        //calculate integral of error
-        _error_integral += _head_speed_error;
-
-        //apply I gain
-         _I_hs = _error_integral * _param_hs_i;
-    }
-
-    //check that I is within limits
-    if (_I_hs < -_param_hs_i_lim) {
-        _I_hs = -_param_hs_i_lim;
-    } else if (_I_hs > _param_hs_i_lim) {
-        _I_hs = _param_hs_i_lim;
-    }
-
     //calculate head speed error differential
     float head_speed_error_differential = (_head_speed_error - _last_head_speed_error) / dt;
 
@@ -202,13 +215,11 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
 
 
     //Adjusting collective trim using feed forward
-    float FF_hs = low_pass_filter.apply(_collective_out, dt); //note that the collective out has not yet been updated, so this value is the previous time steps collective position
-    
-    
+    float FF_hs = col_trim_lpf.apply(_collective_out, dt); //note that the collective out has not yet been updated, so this value is the previous time steps collective position
     
 
     //Calculate collective position to be set
-    _collective_out = P_hs + _I_hs + D_hs + FF_hs;
+    _collective_out = P_hs + D_hs + FF_hs;
 
     // send collective to setting to motors output library
     set_collective(HS_CONTROLLER_COLLECTIVE_CUTOFF_FREQ);
@@ -220,15 +231,15 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
 
     //Write to data flash log
     if (_log_counter++ % 20 == 0) {
-        DataFlash_Class::instance()->Log_Write("ARO2", "TimeUS,P,I,D,hserr,hstarg,ColOut,FFCol", "Qfffffff",
+        DataFlash_Class::instance()->Log_Write("ARO2", "TimeUS,P,D,hserr,hstarg,ColOut,FFCol,ColPCT", "Qfffffff",
                                                 AP_HAL::micros64(),
                                                (double)P_hs,
-                                               (double)_I_hs,
                                                (double)D_hs,
                                                (double)_head_speed_error,
                                                (double)_target_head_speed,
                                                (double)_collective_out,
-                                               (double)FF_hs);
+                                               (double)FF_hs,
+                                               (double)_motors.get_col_mid_pct());
     }
 
 
@@ -247,5 +258,7 @@ void AC_AutorotationCtrl::set_collective(float collective_filter_cutoff)
     _motors.set_throttle(_collective_out);
 
 }
+
+
 
 

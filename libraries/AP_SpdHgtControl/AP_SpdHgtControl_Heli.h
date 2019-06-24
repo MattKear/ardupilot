@@ -68,6 +68,8 @@ public:
     //calculates an estimate of forward airspeed
     float calc_speed_forward(void);
 
+    //return speed forward
+    float get_norm_speed_error(void);
 
     // set_dt - sets time delta in seconds for all controllers (i.e. 100hz = 0.01, 400hz = 0.0025)
     void set_dt(float delta_sec);
@@ -93,6 +95,7 @@ private:
     float       accel_target;
     float       delta_speed_fwd;
     float       _dt;
+    float       _speed_forward;
 
     LowPassFilterFloat _accel_target_filter; // acceleration target filter
 

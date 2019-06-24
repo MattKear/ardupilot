@@ -1315,7 +1315,7 @@ private:
 
     //returns penelty to be applied to airspeed target, preventing head speed loss.
     float get_head_speed_penalty(float hs);
-   
+
    //organises and outputs error messages to the gcs.
    void errormessage(int message_number);
    

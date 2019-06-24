@@ -131,6 +131,9 @@ public:
 
     float get_throttle_hover() const { return 0.5f; }
 
+    //return the collective position as a value between 0 and 1.
+    float get_col_mid_pct(void) const { return _collective_mid_pct; }
+
     // set_in_autorotation - allows main code to set when aircraft is in autorotation.
     void set_in_autorotation(bool autorotation) { _heliflags.in_autorotation = autorotation; }
 

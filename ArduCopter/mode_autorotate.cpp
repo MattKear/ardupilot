@@ -43,7 +43,7 @@ if (motors->get_interlock()) {
     _flags.straight_ahead_initial = 1;
 
 
-    //Record initial airspeed to be maintained 
+    //Record initial speed to be maintained 
     _inital_airspeed = helispdhgtctrl->calc_speed_forward() * 100.0f;
 
     //Initialise hs error ring buffer with all ones
@@ -190,11 +190,12 @@ void Copter::ModeAutorotate::run()
                 _flags.ss_glide_initial = 0;
             }
 
-            //get target airspeed for best glide efficiency
+            //get target airspeed
             _aspeed = arot_control->get_speed_target();
             
             //Refresh acceleration limit.
             _att_accel_max = arot_control->get_accel_max();
+
 
             //Determine headspeed error penelty function 
             //float attitude_penalty = get_head_speed_penalty(arot_control->get_hs_error());
@@ -237,7 +238,8 @@ void Copter::ModeAutorotate::run()
             //update controllers
             arot_control->update_hs_glide_controller(G_Dt); //run head speed/ collective controller
             attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(pilot_roll, _pitch_target, pilot_yaw_rate);
-
+            //attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(pilot_roll, pilot_pitch, pilot_yaw_rate);
+            
             break;
         }
 
@@ -495,6 +497,8 @@ void Copter::ModeAutorotate::errormessage(int message_number)
     
 
 }
+
+
 
 
 

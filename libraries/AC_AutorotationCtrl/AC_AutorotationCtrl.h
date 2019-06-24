@@ -67,8 +67,6 @@ AC_AutorotationCtrl(const AP_AHRS_View& ahrs,
     void set_entry_flag(bool flag) { _flags.entry_phase = flag; }
     bool get_entry_state() { return _flags.entry_phase; }
 
-    void reset_I_terms() {_error_integral = 0.0f;}
-
     float get_p() { return _param_hs_p; }
 
     float get_d() { return _param_hs_d; }
@@ -96,7 +94,7 @@ protected:
     //----------------------------
     //Head Speed / Collective Controller
     float _current_rpm;
-    float _collective_out;
+    float _collective_out = 0.0f;
     float _entry_slew_rate;  //(s) Number of seconds to apply collective setting over
     float _head_speed_error;  // error between target head speed and current head speed.  Normalised by hover head speed.
     float _error_integral;
@@ -104,7 +102,8 @@ protected:
     float _last_head_speed_norm;
     float _target_head_speed;
     uint16_t _log_counter = 0;
-    float _I_hs;
+    float _hs_decay;
+    float _entry_time_remain = 0.0f;
     
     //Head Speed / Attitude Controller
     float _airspeed_error;
@@ -116,6 +115,7 @@ protected:
     struct rpm_controller_flags {
             bool entry_phase_complete       : 1;    // 1 if attitude/collective mixing should be used to control head speed
             bool entry_phase        : 1;    // 1 if the phase of flight requires a gradual slew from one collective position to another
+            bool target_guide       : 1;
     } _flags;
     
     // Parameter values
@@ -134,15 +134,13 @@ protected:
     //function to calculate collective feed forward
     float calc_ff(void);
     
-    
+    // low pass filter for collective trim
+    LowPassFilterFloat col_trim_lpf;
     
     // References to other libraries
     const AP_AHRS_View&         _ahrs;
     const AP_InertialNav&       _inav;
     AP_Motors&                  _motors;
     AC_AttitudeControl&         _attitude_control;
-    
-    
-    
     
 };

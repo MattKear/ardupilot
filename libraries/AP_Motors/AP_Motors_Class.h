@@ -160,7 +160,10 @@ public:
                     PWM_TYPE_DSHOT600   = 6,
                     PWM_TYPE_DSHOT1200  = 7};
     pwm_type            get_pwm_type(void) const { return (pwm_type)_pwm_type.get(); }
-    
+
+    //returns collective mid position as a value from 0 to 1.  Used for trad heli.
+    virtual float get_col_mid_pct(void) { return 0.0f; }
+
 protected:
     // output functions that should be overloaded by child classes
     virtual void        output_armed_stabilizing()=0;

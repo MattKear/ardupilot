@@ -83,14 +83,14 @@ void AP_SpdHgtControl_Heli::set_dt(float delta_sec)
 void AP_SpdHgtControl_Heli::update_speed_controller(void)
 {
 
-    float speed_forward, vel_p, vel_i, vel_d, vel_ff;
+    float vel_p, vel_i, vel_d, vel_ff;
 
     //Specify forward velocity component and determine delta velocity with respect to time
-    speed_forward = calc_speed_forward(); //(m/s)
+    _speed_forward = calc_speed_forward(); //(m/s)
 
 
-    delta_speed_fwd = speed_forward - _speed_forward_last; //(m/s)
-    _speed_forward_last = speed_forward; //(m/s)
+    delta_speed_fwd = _speed_forward - _speed_forward_last; //(m/s)
+    _speed_forward_last = _speed_forward; //(m/s)
 
     // Limitng the target velocity based on the max acceleration limit
     if (_cmd_vel < _vel_target) {
@@ -106,7 +106,7 @@ void AP_SpdHgtControl_Heli::update_speed_controller(void)
     }
     
     // calculate velocity error
-    _vel_error = _cmd_vel - (speed_forward * 100.0f); //(cm/s)
+    _vel_error = _cmd_vel - (_speed_forward * 100.0f); //(cm/s)
 
     // call pid controller
     _pid_vel.set_input_filter_all(_vel_error);
@@ -164,7 +164,7 @@ void AP_SpdHgtControl_Heli::update_speed_controller(void)
     if (log_counter++ % 20 == 0) {
         DataFlash_Class::instance()->Log_Write("SPHT", "TimeUS,SpdF,CmdV,GndS,Verr,p,i,ff", "Qfffffff",
                                                 AP_HAL::micros64(),
-                                               (double)speed_forward,
+                                               (double)_speed_forward,
                                                (double)_cmd_vel,
                                                (double)_vel_error,
                                                (double)vel_p,
@@ -177,13 +177,18 @@ void AP_SpdHgtControl_Heli::update_speed_controller(void)
 
 float AP_SpdHgtControl_Heli::calc_speed_forward(void)
 {
-
     Vector2f groundspeed_vector = _ahrs.groundspeed_vector();
     float speed_forward = groundspeed_vector.x*_ahrs.cos_yaw() + groundspeed_vector.y*_ahrs.sin_yaw(); //(m/s)
 
     return speed_forward;
-
 }
 
 
+//calculates the normalised speed error.  Called from mode_autorotation.
+float AP_SpdHgtControl_Heli::get_norm_speed_error(void)
+{
+    float norm_error = (_vel_target - _speed_forward)/_vel_target;
+
+    return norm_error;
+}
 
