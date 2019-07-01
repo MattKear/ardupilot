@@ -75,14 +75,14 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("TD_ALT", 7, AC_AutorotationCtrl, _param_td_alt, 6.0f),
 
-    // @Param: TD_COL_AGR
-    // @DisplayName: Collective agression during touch down phase
+    // @Param: COL_FILT_E
+    // @DisplayName: Cut-off frequency for collective feed forward during entry
     // @Description: ---
     // @Units: cm
     // @Range: -
     // @Increment: -
     // @User: Advanced
-    AP_GROUPINFO("TD_COL_AGR", 8, AC_AutorotationCtrl, _param_td_col_agression, 0.15f),
+    AP_GROUPINFO("COL_FILT_E", 8, AC_AutorotationCtrl, _param_col_entry_cutoff_freq, 0.08f),
     
     // @Param: AS_ACC_MAX
     // @DisplayName: Maximum acceleration to apply in airspeed controller
@@ -93,14 +93,14 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("AS_ACC_MAX", 9, AC_AutorotationCtrl, _param_accel_max, 100.0f),
 
-    // @Param: COL_FILT
-    // @DisplayName: Cut-off frequency for collective feed forward
+    // @Param: COL_FILT_G
+    // @DisplayName: Cut-off frequency for collective feed forward during glide
     // @Description: ---
     // @Units: cm
     // @Range: -
     // @Increment: -
     // @User: Advanced
-    AP_GROUPINFO("COL_FILT", 10, AC_AutorotationCtrl, _param_col_cutoff_freq, 0.05f),
+    AP_GROUPINFO("COL_FILT_G", 10, AC_AutorotationCtrl, _param_col_glide_cutoff_freq, 0.05f),
 
     AP_GROUPEND
 };
@@ -175,7 +175,7 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
         }
 
         //set collective trim low pass filter cut off frequency
-        col_trim_lpf.set_cutoff_frequency(_param_col_cutoff_freq*4);
+        col_trim_lpf.set_cutoff_frequency(_param_col_entry_cutoff_freq);
 
         //update entry phase timer
         _entry_time_remain -= dt;
@@ -190,7 +190,7 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
         _target_head_speed = _param_target_head_speed;
 
         //set collective trim low pass filter cut off frequency
-        col_trim_lpf.set_cutoff_frequency(_param_col_cutoff_freq);
+        col_trim_lpf.set_cutoff_frequency(_param_col_glide_cutoff_freq);
 
 
     }

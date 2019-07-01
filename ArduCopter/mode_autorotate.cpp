@@ -63,6 +63,7 @@ if (motors->get_interlock()) {
 
     //setting default starting switches
     phase_switch = ENTRY;
+    //phase_switch = SS_GLIDE;
 
     //TODO: introduce the set entry flag back into controller when state machiene logic is ready to decide when to go to entry
     arot_control->set_entry_flag(true);
@@ -173,6 +174,7 @@ void Copter::ModeAutorotate::run()
             //update controllers
             arot_control->update_hs_glide_controller(G_Dt); //run head speed/ collective controller
             attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(pilot_roll, _pitch_target, pilot_yaw_rate);
+            //attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(pilot_roll, pilot_pitch, pilot_yaw_rate);
 
             break;
 
@@ -352,7 +354,7 @@ message_counter++;
 
     //Write to data flash log
     if (log_counter++ % 20 == 0) {
-        DataFlash_Class::instance()->Log_Write("AROT", "TimeUS,InVz,Glide,HSMean,DPz,CRPM,AcL,ASTg,BufH,sum", "Qfffffffff",
+        DataFlash_Class::instance()->Log_Write("AROT", "TimeUS,InVz,Glide,HSMean,DPz,CRPM,AcL,ASTg,Pit,sum", "Qfffffffff",
                                                 AP_HAL::micros64(),
                                                (double)curr_vel_z,
                                                (double)get_ned_glide_angle(),
@@ -361,7 +363,7 @@ message_counter++;
                                                (double)arot_control->get_rpm(),
                                                (double)_att_accel_max,
                                                (double)_aspeed,
-                                               (double)_buffer_head,
+                                               (double)_pitch_target,
                                                (double)_hs_error_sum);
     }
 

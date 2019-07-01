@@ -129,7 +129,8 @@ protected:
     AP_Float _param_target_airspeed;
     AP_Float _param_td_alt;
     AP_Float _param_td_col_agression;
-    AP_Float _param_col_cutoff_freq;
+    AP_Float _param_col_entry_cutoff_freq;
+    AP_Float _param_col_glide_cutoff_freq;
     
     //function to calculate collective feed forward
     float calc_ff(void);
