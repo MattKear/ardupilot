@@ -121,7 +121,7 @@ void AC_AutorotationCtrl::init_hs_controller()
     _entry_time_remain = 3.0f;
 
     //set initial collective position to be the collective position on initialisation
-    _collective_out = _motors.get_throttle();
+    _collective_out = 0.4f;//_motors.get_throttle();
 
     //Reset feed forward filter
     col_trim_lpf.reset(_collective_out);
