@@ -64,7 +64,7 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
     // @Range: -
     // @Increment: -
     // @User: Advanced
-    AP_GROUPINFO("TARG_AS", 6, AC_AutorotationCtrl, _param_target_airspeed, 2.0f),
+    AP_GROUPINFO("TARG_AS", 6, AC_AutorotationCtrl, _param_target_airspeed, 1100.0f),
 
     // @Param: TD_ALT
     // @DisplayName: Altitude at which to begin touch down phase
@@ -82,7 +82,7 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
     // @Range: -
     // @Increment: -
     // @User: Advanced
-    AP_GROUPINFO("COL_FILT_E", 8, AC_AutorotationCtrl, _param_col_entry_cutoff_freq, 0.08f),
+    AP_GROUPINFO("COL_FILT_E", 8, AC_AutorotationCtrl, _param_col_entry_cutoff_freq, 0.28f),
     
     // @Param: AS_ACC_MAX
     // @DisplayName: Maximum acceleration to apply in airspeed controller
@@ -111,8 +111,12 @@ const AP_Param::GroupInfo AC_AutorotationCtrl::var_info[] = {
 void AC_AutorotationCtrl::init_hs_controller()
 {
     //reset 'last' terms
-    _last_head_speed_norm = 0.0f;
     _last_head_speed_error = 0.0f;
+
+    //Prevent divide by zero error
+    if (_param_head_speed_hover < 500) {
+        _param_head_speed_hover = 500;  //Making sure that hover rpm is not unreasonably low
+    }
 
     //set target head speed to be guided on entry
     _flags.target_guide = true;
@@ -131,15 +135,16 @@ void AC_AutorotationCtrl::init_hs_controller()
 
     //Get current rpm, checking to ensure no nullptr
     if (rpm != nullptr) {
-        _current_rpm = rpm->get_rpm(0);
+        _initial_rpm = rpm->get_rpm(0);
     }
 
     //The decay rate to reduce the head speed from the current to the target
-    _hs_decay = ((_current_rpm/_param_head_speed_hover) - _param_target_head_speed) /2000.0f;
+    _hs_decay = ((_initial_rpm/_param_head_speed_hover) - _param_target_head_speed) / (3000.0f); //Decay rate in head speed over 3 secs
 
     //Set temporary target to current head speed for entry phase
-    _target_head_speed = _current_rpm/_param_head_speed_hover;
+    _target_head_speed = _initial_rpm/_param_head_speed_hover;
 }
+
 
 
 void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
@@ -157,22 +162,10 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
 
 
     if (_flags.entry_phase) {
-         
-         //Guide head speed to glide target using a gradual change of target as the speed natuarally decays.
-         //This prevents the collective from raising on initiation
-        if (head_speed_norm >= _param_target_head_speed && head_speed_norm >= _last_head_speed_norm && _flags.target_guide) {
-            //head speed has increased, gently reduce head speed target based on 2 second decay rate
-            _target_head_speed -= _hs_decay*dt;
 
-        } else if (head_speed_norm >= _param_target_head_speed && head_speed_norm < _last_head_speed_norm && _flags.target_guide) {
-            //head speed has decreased.  Predict target collective position based on sustained deceleration.
-            _target_head_speed -= (_last_head_speed_norm - head_speed_norm);
-
-        } else if (_flags.target_guide){
-            // the target head speed has dropped below target, maintain target head speed and complete entry.
-            _target_head_speed = _param_target_head_speed;
-            _flags.target_guide = false;
-        }
+        //During the entry phase the head speed is initially set to the head speed at 
+        //entry to avoid shanges in attitude due to collective changing
+        _target_head_speed = _initial_rpm/_param_head_speed_hover;
 
         //set collective trim low pass filter cut off frequency
         col_trim_lpf.set_cutoff_frequency(_param_col_entry_cutoff_freq);
@@ -183,23 +176,21 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
         //if entry phase time is up, then set entry flag to false
         if (_entry_time_remain <= 0.0f) {
             _flags.entry_phase = false;
+            _target_head_speed = _param_target_head_speed;
         }
 
-
     } else {
-        _target_head_speed = _param_target_head_speed;
+
+        //After the entry phase is complete, slowly change the target head speed until the target head speed matches the parameter defined value
+        if (_target_head_speed > _param_target_head_speed) {
+            _target_head_speed -= _hs_decay*dt;
+        } else {
+            _target_head_speed = _param_target_head_speed;
+        }
 
         //set collective trim low pass filter cut off frequency
         col_trim_lpf.set_cutoff_frequency(_param_col_glide_cutoff_freq);
 
-
-    }
-    _last_head_speed_norm = head_speed_norm;
-
-
-    //Prevent divide by zero error
-    if (_param_head_speed_hover < 500) {
-        _param_head_speed_hover = 500;  //Making sure that hover rpm is not unreasonably low
     }
 
     //Calculate the head speed error
@@ -240,8 +231,6 @@ void AC_AutorotationCtrl::update_hs_glide_controller(float dt)
                                                (double)_collective_out,
                                                (double)FF_hs);
     }
-
-
 
 
 

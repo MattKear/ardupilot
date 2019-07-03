@@ -104,6 +104,7 @@ protected:
     uint16_t _log_counter = 0;
     float _hs_decay;
     float _entry_time_remain = 0.0f;
+    float _initial_rpm;
     
     //Head Speed / Attitude Controller
     float _airspeed_error;
