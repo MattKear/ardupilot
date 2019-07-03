@@ -47,11 +47,11 @@ if (motors->get_interlock()) {
     _inital_airspeed = helispdhgtctrl->calc_speed_forward() * 100.0f;
 
     //Initialise hs error ring buffer with all ones
-    for (int i = 0; i <= 9; i++) {
-        _hs_error_history[i] = 1.0f;
-    }
+    //for (int i = 0; i <= 9; i++) {
+    //    _hs_error_history[i] = 1.0f;
+    //}
     //reset head speed error mean
-    _hs_error_mean = 1.0f;
+    //_hs_error_mean = 1.0f;
 
     //initialise head speed/collective controller
     arot_control->init_hs_controller();
