@@ -83,7 +83,7 @@
 #include <AP_Arming/AP_Arming.h>
 #include <AP_SmartRTL/AP_SmartRTL.h>
 #include <AP_TempCalibration/AP_TempCalibration.h>
-#include <AC_AutorotationCtrl/AC_AutorotationCtrl.h> // Autorotation headspeed Controller
+#include <AC_Autorotation/AC_Autorotation.h> // Autorotation controllers
 #include <AP_SpdHgtControl/AP_SpdHgtControl.h>
 #include <AP_SpdHgtControl/AP_SpdHgtControl_Heli.h>
 
@@ -497,7 +497,7 @@ private:
     AC_PosControl *pos_control;
     AC_WPNav *wp_nav;
     AC_Loiter *loiter_nav;
-    AC_AutorotationCtrl *arot_control;
+    AC_Autorotation *arot;
 #if MODE_CIRCLE_ENABLED == ENABLED
     AC_Circle *circle_nav;
 #endif

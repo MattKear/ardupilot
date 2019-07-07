@@ -1,5 +1,5 @@
 #include "Copter.h"
-#include <AC_AutorotationCtrl/AC_AutorotationCtrl.h>
+#include <AC_Autorotation/AC_Autorotation.h>
 #include "mode.h"
 
 #include <utility>
@@ -25,13 +25,23 @@ if (motors->get_interlock()) {
     return false;
 }
 
+    // Get singleton for RPM library
+    const AP_RPM *rpm = AP_RPM::get_instance();
 
-//  ToDo:  Add check to enforce RPM sensor available to allow mode change.
+    //Get current rpm, checking to ensure no nullptr
+    if (rpm != nullptr) {
+        _initial_rpm = rpm->get_rpm(0);
+    } else {
+        //Prevent access to mode.  RPM sensor must be fitted to use autorotation mode
+        gcs().send_text(MAV_SEVERITY_INFO, "Autorotation Mode change fail: No RPM sensor");
+        return false;
+    }
 
-
-#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    //Display message 
     gcs().send_text(MAV_SEVERITY_INFO, "Autorotation initiated");
-#endif
+
+    //Retrieve parameter values from autorotation library
+    arot->set_param_values(&_param_target_head_speed, &_param_head_speed_hover, &_param_accel_max, &_param_target_airspeed, &_param_td_alt, &_param_col_entry_cutoff_freq, &_param_col_glide_cutoff_freq);
 
      //set all inial flags to on
     _flags.entry_initial = 1;
@@ -42,31 +52,35 @@ if (motors->get_interlock()) {
     _flags.break_initial = 1;
     _flags.straight_ahead_initial = 1;
 
+    //Prevent divide by zero error
+    if (_param_head_speed_hover < 500) {
+        _param_head_speed_hover = 500;  //Making sure that hover rpm is not unreasonably low
+    }
 
     //Record initial speed to be maintained 
     _inital_airspeed = helispdhgtctrl->calc_speed_forward() * 100.0f;
 
-    //Initialise hs error ring buffer with all ones
-    //for (int i = 0; i <= 9; i++) {
-    //    _hs_error_history[i] = 1.0f;
-    //}
-    //reset head speed error mean
-    //_hs_error_mean = 1.0f;
-
     //initialise head speed/collective controller
-    arot_control->init_hs_controller();
+    arot->init_hs_controller();
 
     //initialise speed/height controller
     helispdhgtctrl->init_controller();
 
+    //TEMP:  TO BE REMOVED
     message_counter = 0;
 
     //setting default starting switches
     phase_switch = ENTRY;
     //phase_switch = SS_GLIDE;
 
-    //TODO: introduce the set entry flag back into controller when state machiene logic is ready to decide when to go to entry
-    arot_control->set_entry_flag(true);
+    //set hover head speed in head speed controller
+    arot->set_head_speed_hover(_param_head_speed_hover);
+
+    //set 3 seconds on entry timer
+    _entry_time_remain = AUTOROTATE_ENTRY_TIME;
+
+    //The decay rate to reduce the head speed from the current to the target
+    _hs_decay = ((_initial_rpm/_param_head_speed_hover) - _param_target_head_speed) / AUTOROTATE_HS_ADJUST_TIME; //Decay rate in head speed over 3 secs
 
     return true;
 }
@@ -98,20 +112,22 @@ void Copter::ModeAutorotate::run()
      nav_pos_switch = STRAIGHT_AHEAD;
 
     //altitude check to jump to correct flight phase if at low height
-    if (curr_alt <= arot_control->get_td_alt()) {// && speed < 500) {
+    if (curr_alt <= _param_td_alt) {
         //jump to touch down phase
         //phase_switch = TOUCH_DOWN;
-        //arot_control->set_entry_flag(false);
     }
 
-    //If head speed has been guided down to target speed then move onto glide
-    if (phase_switch == ENTRY && !arot_control->get_entry_state()){
-        //Head speed is stable and flight phase can be progressed to steady state glide
-        phase_switch = SS_GLIDE;
-        arot_control->set_entry_flag(false);
+    //Timer from entry phase to progress to glide phase
+    if (phase_switch == ENTRY){
 
-        //temp for debugging
-        _flags.entry_initial = 1;
+        //update entry phase timer
+        _entry_time_remain -= G_Dt;
+
+        if (_entry_time_remain < 0.0f) {
+            //Flight phase can be progressed to steady state glide
+            phase_switch = SS_GLIDE;
+        }
+
     }
 
 
@@ -129,31 +145,35 @@ void Copter::ModeAutorotate::run()
                     gcs().send_text(MAV_SEVERITY_INFO, "Entry Phase");
                 #endif
 
-                // Set entry flag in head speed controller
-                arot_control->set_entry_flag(true);
+                //set following trim low pass cut off frequency
+                arot->set_col_cutoff_freq(_param_col_entry_cutoff_freq);
 
-                 _flags.entry_initial = 0;
+                //target head speed is set to rpm at initiation to prevent unwanted changes in attitude
+                _target_head_speed = _initial_rpm/_param_head_speed_hover;
+
+                //Set desired air speed target
+                _aspeed = _param_target_airspeed;
+                helispdhgtctrl->set_desired_speed(_aspeed);
+
+                //set acceleration limit
+                _att_accel_max = _param_accel_max;
+                helispdhgtctrl->set_max_accel(_att_accel_max);
+
+                //Prevent running the initial entry functions again
+                _flags.entry_initial = 0;
 
             }
 
-            //Get airspeed target from parameters
-            _aspeed = arot_control->get_speed_target();
-            
-            //Determine headspeed error penelty function 
-            //float attitude_penalty = get_head_speed_penalty(arot_control->get_hs_error());
+            //Slowly change the target head speed until the target 
+            //head speed matches the parameter defined value
+            if (_target_head_speed > _param_target_head_speed*1.005f  ||  _target_head_speed < _param_target_head_speed*0.995f) {
+                _target_head_speed -= _hs_decay*G_Dt;
+            } else {
+                _target_head_speed = _param_target_head_speed;
+            }
 
-            //Apply airspeed penalty
-            //_aspeed *= (1.0f - (attitude_penalty * 0.25f)); //this doesn't decay over time as its constantly refreshed
-
-            //Apply pitch acceleration penalty
-            _att_accel_max = arot_control->get_accel_max(); //refresh the acceleration limit to prevent penelty from being perminant
-            //_att_accel_max *= (1.0f - attitude_penalty);  //Apply strong penelty scheme to ensure good head speed achieved.
-
-            //Set desired air speed target
-            helispdhgtctrl->set_desired_speed(_aspeed);
-
-            //set acceleration limit
-            helispdhgtctrl->set_max_accel(_att_accel_max);
+            //set target head speed in head speed controller
+            arot->set_target_head_speed(_target_head_speed);
 
             //run airspeed/attitude controller
             helispdhgtctrl->set_dt(G_Dt);
@@ -162,9 +182,6 @@ void Copter::ModeAutorotate::run()
             //retrieve pitch target from helispdhgtctrl 
             _pitch_target = helispdhgtctrl-> get_pitch();
 
-
-
-            //temp
             float pilot_roll, pilot_pitch;
             get_pilot_desired_lean_angles(pilot_roll, pilot_pitch, copter.aparm.angle_max, copter.aparm.angle_max);
 
@@ -172,7 +189,7 @@ void Copter::ModeAutorotate::run()
             float pilot_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
 
             //update controllers
-            arot_control->update_hs_glide_controller(G_Dt); //run head speed/ collective controller
+            arot->update_hs_glide_controller(G_Dt); //run head speed/ collective controller
             attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(pilot_roll, _pitch_target, pilot_yaw_rate);
             //attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(pilot_roll, pilot_pitch, pilot_yaw_rate);
 
@@ -189,37 +206,23 @@ void Copter::ModeAutorotate::run()
                     gcs().send_text(MAV_SEVERITY_INFO, "SS Glide Phase");
                 #endif
 
+                //set following trim low pass cut off frequency
+                arot->set_col_cutoff_freq(_param_col_glide_cutoff_freq);
+
+                //Set desired air speed target
+                _aspeed = _param_target_airspeed;
+                helispdhgtctrl->set_desired_speed(_aspeed);
+
+               //set target head speed in head speed controller
+                arot->set_target_head_speed(_target_head_speed);
+
+                //set acceleration limit
+                _att_accel_max = _param_accel_max;
+                helispdhgtctrl->set_max_accel(_att_accel_max);
+
+                //Prevent running the initial glide functions again
                 _flags.ss_glide_initial = 0;
             }
-
-            //get target airspeed
-            _aspeed = arot_control->get_speed_target();
-            
-            //Refresh acceleration limit.
-            _att_accel_max = arot_control->get_accel_max();
-
-
-            //Determine headspeed error penelty function 
-            //float attitude_penalty = get_head_speed_penalty(arot_control->get_hs_error());
-
-            //Apply airspeed penalty
-            //_aspeed *= (1.0f - (attitude_penalty *0.25f)); //this doesn't decay over time as its constantly refreshed
-
-
-            //TODO:  Try applying the airspeed penelty to the target pitch attitude (PIDS) instead of the airspeed target.
-            //May get a far more crisp response for head speed recovery.  This could have the adverse effect of causing
-            //the controller the controller to fight itself....
-
-
-            //Apply pitch acceleration penalty
-            //This penelty scheme resets every time the mode is initiated.
-            //_att_accel_max -= attitude_penalty*_att_accel_max*0.005;  //Acceleration limit will decay oscillations in acceleration;
-
-            //Set desired air speed target
-            helispdhgtctrl->set_desired_speed(_aspeed);
-
-            //set acceleration limit
-            helispdhgtctrl->set_max_accel(_att_accel_max);
 
             //run airspeed/attitude controller
             helispdhgtctrl->set_dt(G_Dt);
@@ -227,8 +230,6 @@ void Copter::ModeAutorotate::run()
 
             //retrieve pitch target from helispdhgtctrl 
             _pitch_target = helispdhgtctrl-> get_pitch();
-
-
 
             //temp
             float pilot_roll, pilot_pitch;
@@ -238,7 +239,7 @@ void Copter::ModeAutorotate::run()
             float pilot_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
 
             //update controllers
-            arot_control->update_hs_glide_controller(G_Dt); //run head speed/ collective controller
+            arot->update_hs_glide_controller(G_Dt); //run head speed/ collective controller
             attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(pilot_roll, _pitch_target, pilot_yaw_rate);
             //attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(pilot_roll, pilot_pitch, pilot_yaw_rate);
             
@@ -271,7 +272,7 @@ void Copter::ModeAutorotate::run()
                 _t_touch_down_initiate = now;
 
                 // get collective aggression from parameter
-                _collective_aggression = arot_control->get_td_agression();
+                _collective_aggression = 0.15f;
 
                 _flags.touch_down_initial = 0;
 
@@ -354,43 +355,19 @@ message_counter++;
 
     //Write to data flash log
     if (log_counter++ % 20 == 0) {
-        DataFlash_Class::instance()->Log_Write("AROT", "TimeUS,InVz,Glide,HSMean,DPz,CRPM,AcL,ASTg,Pit,sum", "Qfffffffff",
+        DataFlash_Class::instance()->Log_Write("AROT", "TimeUS,InVz,Glide,DPz,CRPM,AcL,ASTg,Pit", "Qfffffff",
                                                 AP_HAL::micros64(),
                                                (double)curr_vel_z,
                                                (double)get_ned_glide_angle(),
-                                               (double)_hs_error_mean,
                                                (double)des_z,
-                                               (double)arot_control->get_rpm(),
+                                               (double)arot->get_rpm(),
                                                (double)_att_accel_max,
                                                (double)_aspeed,
-                                               (double)_pitch_target,
-                                               (double)_hs_error_sum);
+                                               (double)_pitch_target);
     }
 
 }
 
-
-//this function determines the headspeed penelty.  The headspeed penelty is used to prevent the
-//the attitude controller from slowing the headspeed too much.  The critical head speed is defined
-//to be 0.1 less than the target.  That correspods to 10% of the hover head speed less than the
-//target.  An exponential penelty function is used.
-float Copter::ModeAutorotate::get_head_speed_penalty(float hs)
-{
-
-    const float weighting_exponent = -76.75f;
-
-    const float min_hs_error = -0.1;
-
-    float penelty_weighting = expf(weighting_exponent * (hs - min_hs_error));
-
-    //Prevent penelty from being larger that 1
-    if (penelty_weighting > 1.0f) {
-        penelty_weighting = 1.0f;
-    }
-
-    return penelty_weighting;
-
-}
 
 
 // Determine the glide path angle based on NED frame velocities.  This method determines the instaintanious glide angle,
@@ -423,77 +400,12 @@ float Copter::ModeAutorotate::get_ned_glide_angle(void)
 }
 
 
-// This function looks at the Head Speed (HS) trend over a number of iterations.  Once the mean HS error drops to
-// within 5% of the target a true value is returned.  Mean is being measured over approximatley 1 sec, provided 
-// mode is being called in the 100 Hz loop.
-bool Copter::ModeAutorotate::is_hs_stable(void)
-{
-    //every 30th time step is accepted into the mean, to give a longer time projection without excesssive memory usage
-    if (_time_step > 129) {
-
-        //function stores hs error every 30 iterations.  Stored in a cirular buffer.
-        _hs_error_history[_buffer_head] = arot_control->get_hs_error();
-
-        //compute mean
-        //_hs_error_sum += _hs_error_history[_buffer_head]; //add new data measurement
-        //_hs_error_sum -= _hs_error_history[_buffer_tail]; //remove tail data measurement
-        //_hs_error_mean = _hs_error_sum/10.0f;
-
-        //update head buffer position
-        if (_buffer_head < 9){
-            _buffer_head++;
-        } else {
-            _buffer_head = 0;
-            
-            //on reset recalc mean
-            _hs_error_mean = 0.0f;
-            for (int i = 0; i <= 9; i++) {
-                _hs_error_mean += _hs_error_history[i];
-            }
-            _hs_error_mean /= 10.0f;
-        }
-
-        //update tail buffer position
-        if (_buffer_tail < 9){
-            _buffer_tail++;
-        } else {
-            _buffer_tail = 0;
-        }
-
-        //reset time step
-        _time_step = 1;
-
-        //Check if mean is within 5% of target head speed
-        if (_hs_error_mean > -0.05f  &&  _hs_error_mean < 0.05f) {
-            return true;
-        } else {
-            return false;
-        }
-
-
-    } else {
-
-        // time step counter is incremented
-        _time_step++;
-
-        // mean calculation hasn't changed since last update therefore must still be false
-        return false;
-    }
-}
-
 
 //TODO: winding direction approximation learning via circuling descent
 
 
-
 void Copter::ModeAutorotate::errormessage(int message_number)
 {
-    
-    
-    
-    
-    
-    
     
     
     

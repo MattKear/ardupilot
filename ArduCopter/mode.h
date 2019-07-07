@@ -132,7 +132,7 @@ protected:
     RC_Channel *&channel_yaw;
     float &G_Dt;
     ap_t &ap;
-    AC_AutorotationCtrl *&arot_control;
+    AC_Autorotation *&arot;
     AP_SpdHgtControl_Heli *&helispdhgtctrl;
 
     // auto-takeoff support; takeoff state is shared across all mode instances
@@ -1244,6 +1244,10 @@ protected:
 
 
 #if MODE_AUTOROTATE_ENABLED == ENABLED
+
+#define AUTOROTATE_ENTRY_TIME          3.0f    // (s) number of seconds that the entry phase operates for
+#define AUTOROTATE_HS_ADJUST_TIME      4.0f    // (s) number of seconds during which the head speed target is adjusted after starting glide phase
+
 class ModeAutorotate : public Mode {
 
 public:
@@ -1258,43 +1262,61 @@ public:
     bool has_manual_throttle() const override { return false; }
     bool allows_arming(bool from_gcs) const override { return false; };
 
+    static const struct AP_Param::GroupInfo  var_info[];
+
 protected:
 
     const char *name() const override { return "AUTOROTATE"; }
     const char *name4() const override { return "AROT"; }
 
+    // Parameter values
+
+
+
+
 private:
 
-    //internal variables
+    //-------- Internal variables --------
     float _inital_airspeed;
-    
+
+    float _initial_rpm;
+
+    float _target_head_speed;
+
+    float _aspeed;
+
     float _desired_v_z;
+
     int32_t _pitch_target;
-    
-    float _hs_error_history[10];
-    uint8_t _buffer_tail = 1;
-    uint8_t _buffer_head = 0;
-    float _hs_error_sum;
-    float _hs_error_mean = 1;
-    uint8_t _time_step = 1;
-    
+
     float _collective_aggression;   //The 'aggresiveness' of collective appliction
+
     float _z_touch_down_start;      //The height in cm that the touch down phase began at
+
     float _t_touch_down_initiate;   //The time in ms that the touch down phase began at
 
     float _att_accel_max;
 
-    //internal flags
-    struct controller_flags {
-            bool entry_initial             : 1;    // 1 
-            bool ss_glide_initial          : 1;    // 1 if 
-            bool flare_initial             : 1;
-            bool touch_down_initial        : 1;
-            bool straight_ahead_initial    : 1;
-            bool level_initial             : 1;
-            bool break_initial             : 1;
-    } _flags;
+    float now = 0;
 
+    float _entry_time_remain;
+
+    float _hs_decay;
+
+    // ------- Values to be retrieved from parameters in set in the library -------
+    float _param_target_head_speed;  //(rpm) normalised head speed to be maintined in the autorotation (normalised by hover head speed)
+
+    float _param_head_speed_hover;   //(rpm) head speed during normal hover
+
+    float _param_accel_max;
+
+    float _param_target_airspeed;
+
+    float _param_td_alt;
+
+    float _param_col_entry_cutoff_freq;
+
+    float _param_col_glide_cutoff_freq;
 
     enum autorotation_phase {
         ENTRY,
@@ -1309,25 +1331,28 @@ private:
         BREAK,
         LEVEL } nav_pos_switch;
 
+    //internal flags
+    struct controller_flags {
+            bool entry_initial             : 1;    // 1 
+            bool ss_glide_initial          : 1;    // 1 if 
+            bool flare_initial             : 1;
+            bool touch_down_initial        : 1;
+            bool straight_ahead_initial    : 1;
+            bool level_initial             : 1;
+            bool break_initial             : 1;
+    } _flags;
+
+
+    //-------- Internal functions --------
+
     float get_ned_glide_angle(void);
-
-    bool is_hs_stable(void);
-
-    //returns penelty to be applied to airspeed target, preventing head speed loss.
-    float get_head_speed_penalty(float hs);
 
    //organises and outputs error messages to the gcs.
    void errormessage(int message_number);
-   
-    float _aspeed;
-    
-    float now = 0;
-    
-    
-    //temporary for debuging
+
+    //temporary for debuging  TO BE REMOVED
     uint16_t message_counter = 0;
     uint16_t log_counter = 0;
-    
     
 };
 #endif
