@@ -198,7 +198,7 @@ bool Copter::set_mode(control_mode_t mode, mode_reason_t reason)
     // rotor runup is not complete
     //if (!ignore_checks && !new_flightmode->has_manual_throttle() && !motors->rotor_runup_complete()){
     if (!ignore_checks && !new_flightmode->has_manual_throttle() && !motors->rotor_runup_complete() && new_flightmode != &mode_autorotate){
-        //if the mode being exited it the autorotation mode allow mode change despite rotor not being at 
+        //if the mode being exited is the autorotation mode allow mode change despite rotor not being at 
         //full speed.  This will reduce altitude loss on bail-outs back to non-manual throttle modes
         if (flightmode != &mode_autorotate) {
             gcs().send_text(MAV_SEVERITY_WARNING,"Flight mode change failed");
@@ -214,7 +214,7 @@ bool Copter::set_mode(control_mode_t mode, mode_reason_t reason)
         gcs().send_text(MAV_SEVERITY_INFO, "Previous Flight Mode Saved");
         // Dont attempt to exit back into Auto from an Autorotation.  Instead exit to Position Hold.
         if (control_mode == AUTO) {
-            prev_control_mode = POSHOLD;
+            prev_control_mode = ALT_HOLD;
         } else {
             prev_control_mode = control_mode;
         }
