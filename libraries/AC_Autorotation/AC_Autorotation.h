@@ -57,6 +57,8 @@ AC_Autorotation(const AP_AHRS_View& ahrs,
 
     void set_param_values(float* targ_hs, float* hs_hov, float* accel, float* targ_s, float* td_alt, float* ent_freq, float* glide_freq);
 
+    float get_last_collective() { return _collective_out; }
+
     // User settable parameters
     static const struct AP_Param::GroupInfo var_info[];
 
