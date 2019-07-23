@@ -35,6 +35,11 @@ public:
     AP_RPM(const AP_RPM &other) = delete;
     AP_RPM &operator=(const AP_RPM&) = delete;
 
+    // get singleton
+    static AP_RPM *get_instance(void) {
+        return _instance;
+    }
+
     // RPM driver types
     enum RPM_Type {
         RPM_TYPE_NONE    = 0,
@@ -93,6 +98,9 @@ public:
     bool enabled(uint8_t instance) const;
 
 private:
+    // singleton
+    static AP_RPM *_instance;
+
     RPM_State state[RPM_MAX_INSTANCES];
     AP_RPM_Backend *drivers[RPM_MAX_INSTANCES];
     uint8_t num_instances:2;
