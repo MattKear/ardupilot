@@ -113,7 +113,8 @@ enum control_mode_t {
     SMART_RTL =    21,  // SMART_RTL returns to home by retracing its steps
     FLOWHOLD  =    22,  // FLOWHOLD holds position with optical flow without rangefinder
     FOLLOW    =    23,  // follow attempts to follow another vehicle or ground station
-};
+    AUTOROTATE =   25,  // Autonomous autorotation
+	};
 
 enum mode_reason_t {
     MODE_REASON_UNKNOWN=0,
@@ -135,6 +136,8 @@ enum mode_reason_t {
     MODE_REASON_THROW_COMPLETE,
     MODE_REASON_TERMINATE,
     MODE_REASON_TMODE,
+    MODE_REASON_AUTOROTATION_BAILOUT,
+    MODE_REASON_AUTO_AUTOROTATION,
 };
 
 // Tuning enumeration
