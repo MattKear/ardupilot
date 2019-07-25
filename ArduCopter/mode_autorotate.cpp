@@ -141,9 +141,9 @@ void Copter::ModeAutorotate::run()
             //Entry phase functions to be run only once
             if (_flags.entry_initial == 1) {
 
-                #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+                //#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
                     gcs().send_text(MAV_SEVERITY_INFO, "Entry Phase");
-                #endif
+                //#endif
 
                 //set following trim low pass cut off frequency
                 arot->set_col_cutoff_freq(_param_col_entry_cutoff_freq);
@@ -202,9 +202,9 @@ void Copter::ModeAutorotate::run()
             //steady state glide functions to be run only once
             if (_flags.ss_glide_initial == 1) {
 
-                #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+                //#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
                     gcs().send_text(MAV_SEVERITY_INFO, "SS Glide Phase");
-                #endif
+                //#endif
 
                 //set following trim low pass cut off frequency
                 arot->set_col_cutoff_freq(_param_col_glide_cutoff_freq);
