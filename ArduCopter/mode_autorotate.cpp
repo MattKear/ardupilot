@@ -99,7 +99,6 @@ void Copter::ModeAutorotate::run()
     now = millis(); //milliseconds
 
     //initialise internal variables
-    float des_z;
     float curr_alt = inertial_nav.get_position().z;     // Current altitude
     float curr_vel_z = inertial_nav.get_velocity().z;
 
@@ -279,9 +278,9 @@ void Copter::ModeAutorotate::run()
             }
 
             //Calculate desired z
-            des_z = _z_touch_down_start * 0.1f * expf(-_collective_aggression * (now - _t_touch_down_initiate)/1000.0f); // + terrain_offset (cm)
+            _des_z = _z_touch_down_start * 0.1f * expf(-_collective_aggression * (now - _t_touch_down_initiate)/1000.0f); // + terrain_offset (cm)
 
-            pos_control->set_alt_target(des_z);
+            pos_control->set_alt_target(_des_z);
 
             pos_control->update_z_controller();
 
@@ -359,7 +358,7 @@ message_counter++;
                                                 AP_HAL::micros64(),
                                                (double)curr_vel_z,
                                                (double)get_ned_glide_angle(),
-                                               (double)des_z,
+                                               (double)_des_z,
                                                (double)arot->get_rpm(),
                                                (double)_att_accel_max,
                                                (double)_aspeed,

@@ -90,15 +90,21 @@ const AP_Param::GroupInfo AP_RPM::var_info[] = {
     AP_GROUPEND
 };
 
-// singleton instance
-AP_RPM *AP_RPM::_instance;
+
 
 AP_RPM::AP_RPM(void) :
     num_instances(0)
 {
-    _instance = this;
-
     AP_Param::setup_object_defaults(this, var_info);
+
+
+    if (_instance != nullptr) {
+
+        AP_HAL::panic("AP_RPM must be singleton");
+
+    }
+
+    _instance = this;
 
     // init state and drivers
     memset(state,0,sizeof(state));
@@ -195,11 +201,14 @@ bool AP_RPM::enabled(uint8_t instance) const
     return true;
 }
 
+// singleton instance
+AP_RPM *AP_RPM::_instance;
+
 namespace AP {
 
-AP_RPM &rpm()
+AP_RPM *rpm()
 {
-    return *AP_RPM::get_instance();
+    return AP_RPM::get_instance();
 }
 
 };

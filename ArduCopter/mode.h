@@ -1318,6 +1318,8 @@ private:
 
     float _param_col_glide_cutoff_freq;
 
+    float _des_z;
+
     enum autorotation_phase {
         ENTRY,
         SS_GLIDE,
