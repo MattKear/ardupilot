@@ -249,8 +249,8 @@ void AP_MotorsHeli_Single::calculate_armed_scalars()
         thrcrv[i]=_rsc_thrcrv[i]*0.001f;
     }
     if (_heliflags.enable_bailout) {
-        _main_rotor.set_ramp_time(1);
-        _main_rotor.set_runup_time(1);
+        _main_rotor.set_ramp_time(0.5f);
+        _main_rotor.set_runup_time(0.5f);
     } else {
         _main_rotor.set_ramp_time(_rsc_ramp_time);
         _main_rotor.set_runup_time(_rsc_runup_time); 
