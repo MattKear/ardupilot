@@ -22,6 +22,12 @@ Mode::Mode(void) :
     channel_pitch(copter.channel_pitch),
     channel_throttle(copter.channel_throttle),
     channel_yaw(copter.channel_yaw),
+#if FRAME_CONFIG == HELI_FRAME
+    #if MODE_AUTOROTATE_ENABLED == ENABLED
+        arot(copter.arot),
+        helispdhgtctrl(copter.helispdhgtctrl),
+    #endif
+#endif
     G_Dt(copter.G_Dt)
 { };
 
@@ -159,6 +165,12 @@ Mode *Copter::mode_from_mode_num(const Mode::Number mode)
             break;
 #endif
 
+#if MODE_AUTOROTATE_ENABLED == ENABLED
+        case Mode::Number::AUTOROTATE:
+            ret = &mode_autorotate;
+            break;
+#endif
+
         default:
             break;
     }
@@ -192,11 +204,37 @@ bool Copter::set_mode(Mode::Number mode, mode_reason_t reason)
 #if FRAME_CONFIG == HELI_FRAME
     // do not allow helis to enter a non-manual throttle mode if the
     // rotor runup is not complete
-    if (!ignore_checks && !new_flightmode->has_manual_throttle() && (motors->get_spool_state() == AP_Motors::SpoolState::SPOOLING_UP || motors->get_spool_state() == AP_Motors::SpoolState::SPOOLING_DOWN)) {
-        gcs().send_text(MAV_SEVERITY_WARNING,"Flight mode change failed");
-        AP::logger().Write_Error(LogErrorSubsystem::FLIGHT_MODE, LogErrorCode(mode));
-        return false;
+    if (!ignore_checks && 
+    !new_flightmode->has_manual_throttle() && 
+    (motors->get_spool_state() == AP_Motors::SpoolState::SPOOLING_UP || motors->get_spool_state() == AP_Motors::SpoolState::SPOOLING_DOWN)) {
+    #if MODE_AUTOROTATE_ENABLED == ENABLED
+        //if the mode being exited is the autorotation mode allow mode change despite rotor not being at 
+        //full speed.  This will reduce altitude loss on bail-outs back to non-manual throttle modes
+        if (flightmode != &mode_autorotate && new_flightmode != &mode_autorotate) {
+            gcs().send_text(MAV_SEVERITY_WARNING,"Flight mode change failed");
+            AP::logger().Write_Error(LogErrorSubsystem::FLIGHT_MODE, LogErrorCode(mode));
+            return false;
+        }
+    #else
+            gcs().send_text(MAV_SEVERITY_WARNING,"Flight mode change failed");
+            AP::logger().Write_Error(LogErrorSubsystem::FLIGHT_MODE, LogErrorCode(mode));
+            return false;
+    #endif
     }
+
+    #if MODE_AUTOROTATE_ENABLED == ENABLED
+    // if changing to autorotate flight mode from a non-manual throttle mode, store the previous flight mode
+    // to exit back to it when interlock is re-engaged
+    if (new_flightmode == &mode_autorotate) {
+        gcs().send_text(MAV_SEVERITY_INFO, "Previous Flight Mode Saved");
+        // Dont attempt to exit back into Auto from an Autorotation.  Instead exit to Altitude Hold.
+        if (control_mode == Mode::Number::AUTO) {
+            prev_control_mode = Mode::Number::ALT_HOLD;
+        } else {
+            prev_control_mode = control_mode;
+        }
+    }
+    #endif
 #endif
 
 #if FRAME_CONFIG != HELI_FRAME

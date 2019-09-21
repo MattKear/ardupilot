@@ -180,4 +180,47 @@ void Copter::heli_update_rotor_speed_targets()
     rotor_runup_complete_last = motors->rotor_runup_complete();
 }
 
+#if MODE_AUTOROTATE_ENABLED == ENABLED
+// heli_update_autorotation - determines if aircraft is in autorotation and sets motors flag and switches
+// to autorotation flight mode if manual collective is not being used.
+void Copter::heli_update_autorotation()
+{
+    //Set SPDHGT_ENABLE parameter based on AROT_ENABLE parameter
+    if (arot->is_enable()  &&  !helispdhgtctrl->get_enable()) {
+        helispdhgtctrl->set_enable(1);
+    } else if (!arot->is_enable()  &&  helispdhgtctrl->get_enable()){
+        helispdhgtctrl->set_enable(0);
+    }
+
+    //set autonomous autorotation flight mode
+    if (!ap.land_complete && !motors->get_interlock() && !flightmode->has_manual_throttle() && arot->is_enable()) {
+        heli_flags.in_autorotation = true;
+        set_mode(Mode::Number::AUTOROTATE, MODE_REASON_AUTO_AUTOROTATION);
+    } else {
+        heli_flags.in_autorotation = false;
+    }
+
+    // sets autorotation flags through out libraries
+    heli_set_autorotation(heli_flags.in_autorotation);
+    if (!ap.land_complete && arot->is_enable()) {
+        motors->set_enable_bailout(true);
+    } else {
+        motors->set_enable_bailout(false);
+    }
+}
+
+// heli_set_autorotation - set the autorotation f`lag throughout libraries
+void Copter::heli_set_autorotation(bool autorotation)
+{
+    motors->set_in_autorotation(autorotation);
+}
+
+#else
+//ensuring that the autorotation and bailout flags are set false in non-SITL boards
+void Copter::heli_update_autorotation()
+{
+    heli_flags.in_autorotation = false;
+    motors->set_enable_bailout(false);
+}
+#endif
 #endif  // FRAME_CONFIG == HELI_FRAME

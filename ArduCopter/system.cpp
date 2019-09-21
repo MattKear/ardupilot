@@ -553,6 +553,22 @@ void Copter::allocate_motors(void)
     }
     AP_Param::load_object_from_eeprom(pos_control, pos_control->var_info);
 
+#if FRAME_CONFIG == HELI_FRAME
+#if MODE_AUTOROTATE_ENABLED == ENABLED
+    arot = new AC_Autorotation(*ahrs_view, inertial_nav, *motors, *attitude_control);
+    if (arot == nullptr) {
+        AP_HAL::panic("Unable to allocate Autorotation");
+    }
+    AP_Param::load_object_from_eeprom(arot, arot->var_info);
+
+    helispdhgtctrl = new AP_SpdHgtControl_Heli(ahrs, inertial_nav);
+    if (helispdhgtctrl == nullptr) {
+        AP_HAL::panic("Unable to allocate SpdHgtControl_Heli");
+    }
+    AP_Param::load_object_from_eeprom(helispdhgtctrl, helispdhgtctrl->var_info);
+#endif
+#endif
+
 #if AC_OAPATHPLANNER_ENABLED == ENABLED
     wp_nav = new AC_WPNav_OA(inertial_nav, *ahrs_view, *pos_control, *attitude_control);
 #else
