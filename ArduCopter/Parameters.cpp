@@ -492,16 +492,6 @@ const AP_Param::Info Copter::var_info[] = {
     // @Group: IM_
     // @Path: ../libraries/AC_InputManager/AC_InputManager_Heli.cpp
     GOBJECT(input_manager, "IM_", AC_InputManager_Heli),
-
-    #if MODE_AUTOROTATE_ENABLED == ENABLED
-        // @Group: AROT_
-        // @Path: ../libraries/AC_Autorotation/AC_Autorotation.cpp
-        GOBJECTPTR(arot, "AROT_", AC_Autorotation),
-
-        // @Group: SPDHGT_
-        // @Path: ../libraries/AP_SpdHgtControl/AP_SpdHgtControl_Heli.cpp
-        GOBJECTPTR(helispdhgtctrl, "SPDHGT_",   AP_SpdHgtControl_Heli),
-    #endif
 #endif
 
     // @Group: COMPASS_
@@ -942,6 +932,21 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     AP_SUBGROUPINFO(oa, "OA_", 33, ParametersG2, AP_OAPathPlanner),
 #endif
 
+
+#if FRAME_CONFIG == HELI_FRAME
+    #if MODE_AUTOROTATE_ENABLED == ENABLED
+        // @Group: AROT_
+        // @Path: ../libraries/AC_Autorotation/AC_Autorotation.cpp
+        AP_SUBGROUPPTR(arot_ptr, "AROT_", 34, ParametersG2, AC_Autorotation),
+
+        // @Group: SPDHGT_
+        // @Path: ../libraries/AP_SpdHgtControl/AP_SpdHgtControl_Heli.cpp
+        AP_SUBGROUPPTR(helispdhgtctrl_ptr, "SPDHGT_", 35, ParametersG2, AP_SpdHgtControl_Heli),
+    #endif
+#endif
+
+
+
     AP_GROUPEND
 };
 
@@ -1024,6 +1029,12 @@ ParametersG2::ParametersG2(void)
 #endif
 #if AUTOTUNE_ENABLED == ENABLED
     ,autotune_ptr(&copter.autotune)
+#endif
+#if FRAME_CONFIG == HELI_FRAME
+    #if MODE_AUTOROTATE_ENABLED == ENABLED
+    ,arot_ptr(copter.arot)
+    ,helispdhgtctrl_ptr(copter.helispdhgtctrl)
+    #endif
 #endif
 {
     AP_Param::setup_object_defaults(this, var_info);

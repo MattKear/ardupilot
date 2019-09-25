@@ -373,9 +373,6 @@ public:
 
         // 254,255: reserved
 
-        k_param_helispdhgtctrl = 256,
-        k_param_arot = 257,  // Autorotation controller library
-
         // the k_param_* space is 9-bits in size
         // 511: reserved
     };
@@ -604,6 +601,14 @@ public:
 #if AC_OAPATHPLANNER_ENABLED == ENABLED
     // object avoidance path planning
     AP_OAPathPlanner oa;
+#endif
+
+#if FRAME_CONFIG == HELI_FRAME
+    #if MODE_AUTOROTATE_ENABLED == ENABLED
+        // we need a pointer to the Autonomous autorotation libraries for the G2 table
+        void *arot_ptr;
+        void *helispdhgtctrl_ptr;
+    #endif
 #endif
 };
 
