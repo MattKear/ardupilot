@@ -137,6 +137,9 @@ bool AC_Autorotation::update_hs_glide_controller(float dt)
         _flags.bad_rpm_warning = true;
     }
 
+    //update data flash logs
+    update_logger();
+
     // send collective to setting to motors output library
     set_collective(HS_CONTROLLER_COLLECTIVE_CUTOFF_FREQ);
 
@@ -212,9 +215,6 @@ float AC_Autorotation::get_rpm(bool update_counter)
             _healthy_rpm_counter = 0;
         }
     }
-
-    //update data flash logs
-    update_logger();
 
     return current_rpm;
 }
