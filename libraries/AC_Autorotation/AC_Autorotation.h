@@ -96,7 +96,6 @@ protected:
 
     //--------Internal Functions--------
     void update_logger(void);
-    void set_collective(float _collective_filter_cutoff);
 
     // low pass filter for collective trim
     LowPassFilterFloat col_trim_lpf;

@@ -141,17 +141,10 @@ bool AC_Autorotation::update_hs_glide_controller(float dt)
     update_logger();
 
     // send collective to setting to motors output library
-    set_collective(HS_CONTROLLER_COLLECTIVE_CUTOFF_FREQ);
+    _motors.set_throttle_filter_cutoff(HS_CONTROLLER_COLLECTIVE_CUTOFF_FREQ);
+    _motors.set_throttle(_collective_out);
 
     return _flags.bad_rpm_warning;
-}
-
-
-//function to set collective and collective filter in motor library
-void AC_Autorotation::set_collective(float collective_filter_cutoff)
-{
-    _motors.set_throttle_filter_cutoff(collective_filter_cutoff);
-    _motors.set_throttle(_collective_out);
 }
 
 
