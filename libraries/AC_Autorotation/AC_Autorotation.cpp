@@ -83,6 +83,14 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     AP_GROUPEND
 };
 
+//constructor
+ AC_Autorotation::AC_Autorotation(AP_Motors& motors) :
+        _motors(motors),
+        _p_hs(HS_CONTROLLER_HEADSPEED_P)
+{
+    AP_Param::setup_object_defaults(this, var_info);
+}
+
 
 //initialisation of head speed controller
 void AC_Autorotation::init_hs_controller()
@@ -165,10 +173,11 @@ void AC_Autorotation::set_param_values(int16_t* set_point_hs, int16_t* accel, in
 //before using it in the controller
 float AC_Autorotation::get_rpm(bool update_counter)
 {
-    // Get singleton for RPM library
-    const AP_RPM *rpm = AP_RPM::get_singleton();
 
     float current_rpm = 0.0f;
+
+    // Get singleton for RPM library
+    const AP_RPM *rpm = AP_RPM::get_singleton();
 
     //Get current rpm, checking to ensure no nullptr
     if (rpm != nullptr) {

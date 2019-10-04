@@ -555,7 +555,7 @@ void Copter::allocate_motors(void)
 
 #if FRAME_CONFIG == HELI_FRAME
 #if MODE_AUTOROTATE_ENABLED == ENABLED
-    arot = new AC_Autorotation(*ahrs_view, inertial_nav, *motors, *attitude_control);
+    arot = new AC_Autorotation(*motors);
     if (arot == nullptr) {
         AP_HAL::panic("Unable to allocate Autorotation");
     }

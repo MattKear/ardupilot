@@ -31,21 +31,19 @@ class AC_Autorotation
 {
 public:
 
-    /// Constructor
-AC_Autorotation(const AP_AHRS_View& ahrs,
-                     const AP_InertialNav& inav,
-                     AP_Motors& motors,
-                     AC_AttitudeControl& attitude_control) :
-    _ahrs(ahrs),
-    _inav(inav),
-    _motors(motors),
-    _attitude_control(attitude_control),
-    _p_hs(HS_CONTROLLER_HEADSPEED_P)
-    {
-        AP_Param::setup_object_defaults(this, var_info);
-    }
+    // Constructor
+ AC_Autorotation(AP_Motors& motors);
+//AC_Autorotation(AP_Motors& motors,
+
+//    _motors(motors),
+//    _attitude_control(attitude_control),
+//    _p_hs(HS_CONTROLLER_HEADSPEED_P)
+//    {
+//        AP_Param::setup_object_defaults(this, var_info);
+//    }
 
     //--------Functions--------
+    void init(void);
     void init_hs_controller(void);  //Initialise head speed controller
     bool update_hs_glide_controller(float dt);  //Update head speed controller
     float get_rpm(void) { return _current_rpm; }  //Function just returns the rpm as last read in this library
@@ -101,9 +99,5 @@ protected:
     LowPassFilterFloat col_trim_lpf;
 
     //--------References to Other Libraries--------
-    const AP_AHRS_View&         _ahrs;
-    const AP_InertialNav&       _inav;
     AP_Motors&                  _motors;
-    AC_AttitudeControl&         _attitude_control;
-
 };
