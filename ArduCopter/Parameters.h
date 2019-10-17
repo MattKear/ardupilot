@@ -612,6 +612,10 @@ public:
 
     // vibration failsafe enable/disable
     AP_Int8 fs_vibe_enabled;
+
+#if ENABLE_DATALOGGER == ENABLED
+    AP_DataLogger datalogger;
+#endif
 };
 
 extern const AP_Param::Info        var_info[];
