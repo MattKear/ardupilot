@@ -235,6 +235,11 @@ void Copter::init_ardupilot()
     }
 #endif // ENABLE_SCRIPTING
 
+#if ENABLE_DATALOGGER == ENABLED
+    // init datalogger library
+    g2.datalogger.init();
+#endif
+
     // set landed flags
     set_land_complete(true);
     set_land_complete_maybe(true);
