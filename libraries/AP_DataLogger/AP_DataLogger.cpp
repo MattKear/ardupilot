@@ -69,7 +69,7 @@ void AP_DataLogger::init()
         _uart->begin(AP::serialmanager().find_baudrate(AP_SerialManager::SerialProtocol_Data_log, 0));
     }
 
-    _logger = AP::logger().get_singleton();
+    _logger = AP_Logger::get_singleton();
 }
 
 // Update datalogger, expected to be called at 10hz
@@ -78,10 +78,11 @@ void AP_DataLogger::update()
     if (_type == _DATALOGGER_NONE) {
         return;
     }
-    if (_logger == nullptr) {
+    if (_logger == nullptr) {  // <<<--------This is were the code is failing.  _logger is becoming a nullptr.  It gets succesfully written and is becoming a nullptr.
         return;
     }
-    if (!_logger->should_log(1)) { // need to pick a appropriate mask value here
+    // 524288 is the 20th bit
+    if (!_logger->should_log(524288)) { 
         return;
     }
 
@@ -104,7 +105,7 @@ void AP_DataLogger::update_ascii()
     while (nbytes-- > 0) {
         char c = _uart->read();
         if (decode(c)) {
-            // log latest line
+            // Line ending found or buffer is full.  Log latest line
             _logger->Write("DATA", "TimeUS,CSV",
                         "s-", "F?", "Qz",
                         AP_HAL::micros64(),
