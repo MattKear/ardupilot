@@ -32,31 +32,31 @@ public:
 
     static AP_DataLogger *get_singleton();
 
-    // return true if datalogger is enabled
+    // Return true if datalogger is enabled
     bool enabled() const;
 
     // Initialize the datalogger object and prepare it for use
     void init();
 
-    // update datalogging
+    // Update datalogging
     void update();
 
-    // parameter block
+    // Parameter block
     static const struct AP_Param::GroupInfo var_info[];
 
 private:
 
-    // parameters
+    // Parameters
     AP_Int8 _type; // type of data logger
 
     uint8_t _num_chars;        // number of chars we have got so far
     char _term[ASCII_BUFFER];  // buffer for the current term within the current sentence
     uint32_t _time_stamp;      // time stamp at the start of each new log item
 
-    // pointer to serial uart
+    // Pointer to serial uart
     AP_HAL::UARTDriver *_uart = nullptr; 
 
-    // pointer to AP_logger
+    // Pointer to AP_logger
     AP_Logger *_logger = nullptr;
     
     enum Datalogger_Type {
@@ -64,11 +64,9 @@ private:
         _DATALOGGER_ASCII = 1
     };
 
+    // Functions
     void update_ascii();
-
     bool decode(char c);
-
-
 
     static AP_DataLogger *_singleton;
 };

@@ -30,7 +30,7 @@ const AP_Param::GroupInfo AP_DataLogger::var_info[] = {
     AP_GROUPEND
 };
 
-// constructor
+// Constructor
 AP_DataLogger::AP_DataLogger()
 {
     AP_Param::setup_object_defaults(this, var_info);
@@ -50,7 +50,7 @@ AP_DataLogger *AP_DataLogger::get_singleton()
     return _singleton;
 }
 
-// return true if wind vane is enabled
+// Return true if data logger is enabled
 bool AP_DataLogger::enabled() const
 {
     return _type != _DATALOGGER_NONE;
@@ -72,7 +72,7 @@ void AP_DataLogger::init()
     _logger = AP::logger().get_singleton();
 }
 
-// update datalogger, expected to be called at 10hz
+// Update datalogger, expected to be called at 10hz
 void AP_DataLogger::update()
 {
     if (_type == _DATALOGGER_NONE) {
@@ -99,7 +99,6 @@ void AP_DataLogger::update_ascii()
         return;
     }
 
-
    // read any available data
     int16_t nbytes = _uart->available();
     while (nbytes-- > 0) {
@@ -111,7 +110,7 @@ void AP_DataLogger::update_ascii()
                         AP_HAL::micros64(),
                         _term);
 
-            for (uint8_t i=0; i<AIRSPEED_MAX_SENSORS; i++) {
+            for (uint8_t i=0; i<ASCII_BUFFER; i++) {
                 _term[i] = ' ';
             }
             _num_chars = 0;
