@@ -175,6 +175,10 @@
 #include <AP_DataLogger/AP_DataLogger.h>
 #endif
 
+#if ENABLE_FUELCELL  == ENABLED
+#include <AP_FuelCell/AP_FuelCell.h>
+#endif
+
 // Local modules
 #ifdef USER_PARAMS_ENABLED
 #include "UserParameters.h"
