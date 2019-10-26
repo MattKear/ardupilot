@@ -114,6 +114,7 @@ public:
         SerialProtocol_SLCAN = 22,
         SerialProtocol_RCIN = 23,
         SerialProtocol_Data_log = 24,
+        SerialProtocol_FuelCell = 25,
     };
 
     // get singleton instance
