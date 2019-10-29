@@ -30,7 +30,7 @@ a bitmask for internal fuel cell failsafes to the battery low failsafe action. F
 
 ## Setup
 
-Battery monitor type (BATT_MONITOR) 13 must be selected for the fuel cell tank and type 14 for the fuel cell battery. Note that only type 13 will trigger failsafes. As the fuel cell provides no information about voltage the battery monitor will report a fixed voltage of 1v. This requires the battery failsafe voltage to be disabled, BATT_CRT_VOLT = 0, BATT_LOW_VOLT = 0 and BATT_ARM_VOLT = 0. Again as the fuel cell provides no information about capacity it is convenient to set the capacity to 100, BATT_CAPACITY. This allows the low and critical capacity's to map to the percentage given by the fuel cell, BATT_CRT_MAH and BATT_LOW_MAH.
+Battery monitor type (BATT_MONITOR) 13 must be selected for the fuel cell tank and type 14 for the fuel cell battery. Note that only type 13 will trigger failsafes. As the fuel cell provides no information about voltage the battery monitor will report a fixed voltage of 1v. This requires the battery failsafe voltage to be disabled, BATT_CRT_VOLT = 0, BATT_LOW_VOLT = 0 and BATT_ARM_VOLT = 0. Again as the fuel cell provides no information about capacity it is convenient to set the capacity to 100, BATT_CAPACITY. This allows the low and critical capacity's to map to the percentage given by the fuel cell, BATT_CRT_MAH and BATT_LOW_MAH.  This needs to be done for both the fuel tank monitor and the fuel cell battery monitor.  
 
 ##  Usage
 
