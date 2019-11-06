@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Copter.h"
-
 class Parameters;
 class ParametersG2;
 
@@ -36,6 +35,7 @@ public:
         FOLLOW    =    23,  // follow attempts to follow another vehicle or ground station
         ZIGZAG    =    24,  // ZIGZAG mode is able to fly in a zigzag manner with predefined point A and point B
         SYSTEMID  =    25,  // System ID mode produces automated system identification signals in the controllers
+        AUTOROTATE =   26,  // Autonomous autorotation
     };
 
     // constructor
@@ -1352,7 +1352,7 @@ class ModeZigZag : public Mode {
 
 public:
 
-    // inherit constructor
+    // Inherit constructor
     using Mode::Mode;
 
     bool init(bool ignore_checks) override;
@@ -1392,3 +1392,93 @@ private:
 
     uint32_t reach_wp_time_ms = 0;  // time since vehicle reached destination (or zero if not yet reached)
 };
+
+#if MODE_AUTOROTATE_ENABLED == ENABLED
+class ModeAutorotate : public Mode {
+
+public:
+
+    // inherit constructor
+    using Mode::Mode;
+
+    bool init(bool ignore_checks) override;
+    void run() override;
+
+    bool is_autopilot() const override { return true; }
+    bool requires_GPS() const override { return false; }
+    bool has_manual_throttle() const override { return false; }
+    bool allows_arming(bool from_gcs) const override { return false; };
+
+    static const struct AP_Param::GroupInfo  var_info[];
+
+protected:
+
+    const char *name() const override { return "AUTOROTATE"; }
+    const char *name4() const override { return "AROT"; }
+
+private:
+
+    // --- Internal variables ---
+    float _initial_rpm;             //Head speed recorded at initiation of flight mode (RPM)
+    float _target_head_speed;       //The terget head main rotor head speed.  Normalised by main rotor set point
+    float _fwd_speed_target;        //Target forward speed (cm/s)
+    float _desired_v_z;             //Desired vertical
+    int32_t _pitch_target;          //Target pitch attitude to pass to attitude controller
+    float _collective_aggression;   //The 'aggresiveness' of collective appliction
+    float _z_touch_down_start;      //The height in cm that the touch down phase began
+    float _t_touch_down_initiate;   //The time in ms that the touch down phase began
+    float now;                      //Time at start of cycle
+    float _entry_time_start;        //Time remaining until entry phase moves on to glide phase
+    float _hs_decay;                //The head accerleration during the entry phase
+    float bail_time;                //Timer for exiting the bail out phase (s)
+    float bail_time_start;          //Time at start of bail out
+    float _des_z;                   //Desired vertical position
+    float _target_climb_rate_adjust;//Target vertical acceleration used during bail out phase
+    float _target_pitch_adjust;     //Target pitch rate used during bail out phase
+    uint16_t log_counter;           //Used to reduce the data flash logging rate
+
+
+    // --- Values to be retrieved from parameters in set in the autorotation library ---
+    int16_t _param_head_speed_set_point;
+    int16_t _param_accel_max;
+    int16_t _param_target_fwd_speed;
+    float _param_td_alt;
+    float _param_col_entry_cutoff_freq;
+    float _param_col_glide_cutoff_freq;
+    float _param_bail_time;
+
+    enum autorotation_phase {
+        ENTRY,
+        SS_GLIDE,
+        FLARE,
+        TOUCH_DOWN,
+        BAIL_OUT } phase_switch;
+        
+    enum navigation_position_decision {
+        USER_CONTROL_STABILISED,
+        STRAIGHT_AHEAD,
+        INTO_WIND,
+        NEAREST_RALLY} nav_pos_switch;
+
+    // --- Internal flags ---
+    struct controller_flags {
+            bool entry_initial             : 1;
+            bool ss_glide_initial          : 1;
+            bool flare_initial             : 1;
+            bool touch_down_initial        : 1;
+            bool straight_ahead_initial    : 1;
+            bool level_initial             : 1;
+            bool break_initial             : 1;
+            bool bail_out_initial          : 1;
+            bool bad_rpm                   : 1;
+    } _flags;
+
+    struct message_flags {
+            bool bad_rpm                   : 1;
+    } _msg_flags;
+
+    //--- Internal functions ---
+    void warning_message(uint8_t message_n);    //Handles output messages to the terminal
+
+};
+#endif
