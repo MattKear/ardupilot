@@ -242,7 +242,7 @@ bool AP_FuelCell::arming_checks(char * buffer, size_t buflen) const
     }
 
     // refuse arming if not in running state
-    if (_state.state == _FUEL_CELL_STATE_RUNNING) {
+    if (_state.state != _FUEL_CELL_STATE_RUNNING) {
         strcpy(message, "Fuel Cell: Status not running");
         strncpy(buffer, message, buflen);
         return false;
