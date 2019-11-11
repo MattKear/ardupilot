@@ -5,6 +5,7 @@
 
 //Autorotation controller defaults
 #define AROT_BAIL_OUT_TIME                            2.0f     // Default time for bail out controller to run (unit: s)
+#define AROT_FLARE_MIN_Z_ACCEL_PEAK                   1.2f     // Minimum permissible peak acceleration factor for the flare phase (unit: -)
 
 // Head Speed (HS) controller specific default definitions
 #define HS_CONTROLLER_COLLECTIVE_CUTOFF_FREQ          2.0f     // low-pass filter on accel error (unit: hz)
@@ -161,6 +162,42 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @User: Advanced
 
     AP_SUBGROUPINFO(_pid_fw_vel, "FW_V_", 10, AC_Autorotation, AC_PID),
+
+    // @Param: TD_VEL_Z
+    // @DisplayName: Desired velocity to initiate the touch down phase
+    // @Description: 
+    // @Units: cm/s
+    // @Range: 30 200
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("TD_VEL_Z", 18, AC_Autorotation, _param_vel_z_td, 50),
+
+    // @Param: F_PERIOD
+    // @DisplayName: Time period to execute the flare
+    // @Description: The target time period in which the controller will attempt to complete the flare phase
+    // @Units: s
+    // @Range: 0.5 2.0
+    // @Increment: 0.1
+    // @User: Advanced
+    AP_GROUPINFO("F_PERIOD", 19, AC_Autorotation, _param_flare_time_period, 0.9),
+
+    // @Param: F_ACC_ZMAX
+    // @DisplayName: Maximum allowable vertical acceleration during flare
+    // @Description: Multiplier of acceleration due to gravity 'g'.  Cannot be smaller that 1.2.
+    // @Range: 1.2 2.5
+    // @Increment: 0.1
+    // @User: Advanced
+    AP_GROUPINFO("F_ACC_ZMAX", 20, AC_Autorotation, _param_flare_accel_z_max, 1.5),
+
+    // @Param: TD_ALT_TARG
+    // @DisplayName: Target altitude to initiate touch down phase
+    // @Description: 
+    // @Units: cm
+    // @Range: 30 150
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("TD_ALT_TARG", 21, AC_Autorotation, _param_td_alt_targ, 50),
+
 
     AP_GROUPEND
 };
@@ -433,4 +470,61 @@ float AC_Autorotation::calc_speed_forward(void)
     float speed_forward = groundspeed_vector.x*ahrs.cos_yaw() + groundspeed_vector.y*ahrs.sin_yaw(); //(m/s)
     return speed_forward;
 }
+
+
+// Determine whether or not the flare phase should be initiated
+bool AC_Autorotation::should_flare(void)
+{
+
+    bool ret;
+
+    // Determine peak acceleration if the flare was initiated in this state
+    float accel_z_peak = 2.0f * (-_param_vel_z_td - _inav.get_velocity().z) / _param_flare_time_period;
+
+    // Compare the calculated peak acceleration to the allowable limits
+    if ((accel_z_peak < (AROT_FLARE_MIN_Z_ACCEL_PEAK-1) * GRAVITY_MSS * 100.0f)  || (accel_z_peak > (_param_flare_accel_z_max-1) * GRAVITY_MSS * 100.0f)){
+        //return false;
+        ret = false;
+    }
+
+    // Determine the altitude that the flare would complete
+    uint32_t td_alt_predicted = 0.237334852f * accel_z_peak * _param_flare_time_period * _param_flare_time_period  +  _inav.get_velocity().z * _param_flare_time_period  +  _inav.get_position().z;
+
+    // Compare the prediced altitude to the acceptable range
+    if ((td_alt_predicted < _param_td_alt_targ * 0.5f)  ||  (td_alt_predicted > _param_td_alt_targ * 1.5f)){
+        //return false;
+        ret = false;
+    } else {
+        ret = true;
+    }
+
+    //Write to data flash log
+    AP::logger().Write("ARO2",
+                       "TimeUS,AcMxC,AcMnL,AcMxL,VelE,VelS,ZCal",
+                         "Qffffff",
+                        AP_HAL::micros64(),
+                        (double)accel_z_peak,
+                        (double)((AROT_FLARE_MIN_Z_ACCEL_PEAK-1) * GRAVITY_MSS * 100.0f),
+                        (double)((_param_flare_accel_z_max-1) * GRAVITY_MSS * 100.0f),
+                        (double)-_param_vel_z_td,
+                        (double)_inav.get_velocity().z,
+                        (double)td_alt_predicted);
+
+    // All checks pass, initiate flare
+    //return true;
+    return ret;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
