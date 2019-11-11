@@ -282,11 +282,11 @@ void AP_MotorsHeli_Single::calculate_armed_scalars()
     if (_heliflags.save_rsc_mode && !_flags.armed) {
         _main_rotor._rsc_mode.save();
         _heliflags.save_rsc_mode = false;
+    }
 
     // set bailout ramp time
-    _main_rotor.use_bailout_ramp_time(_heliflags.enable_bailout); 
-    _tail_rotor.use_bailout_ramp_time(_heliflags.enable_bailout); 
-    }
+    _main_rotor.use_bailout_ramp_time(_heliflags.enable_bailout);
+    _tail_rotor.use_bailout_ramp_time(_heliflags.enable_bailout);
 }
 
 // calculate_scalars - recalculates various scalers used.
