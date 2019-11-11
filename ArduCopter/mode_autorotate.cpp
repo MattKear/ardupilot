@@ -100,12 +100,15 @@ void ModeAutorotate::run()
 
     // Timer from entry phase to progress to glide phase
     if (phase_switch == ENTRY){
-
         if (now - _entry_time_start > AUTOROTATE_ENTRY_TIME) {
             // Flight phase can be progressed to steady state glide
             phase_switch = SS_GLIDE;
         }
+    }
 
+    // Check for flare initiation conditions
+    if (g2.arot.should_flare()  &&  (phase_switch != FLARE  ||  phase_switch != TOUCH_DOWN)){
+        phase_switch = FLARE;
     }
 
 
@@ -201,6 +204,44 @@ void ModeAutorotate::run()
         }
 
         case FLARE:
+        {
+             // Flare phase functions to be run only once
+            if (_flags.flare_initial == 1) {
+
+                #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+                    gcs().send_text(MAV_SEVERITY_INFO, "Flare Phase");
+                #endif
+
+                // Set following trim low pass cut off frequency
+                g2.arot.set_col_cutoff_freq(0.8f);
+
+                // Set desired forward speed target
+                _fwd_speed_target = 10;
+                g2.arot.set_desired_fwd_speed(_fwd_speed_target);
+
+                // Set target head speed ratio in head speed controller
+                g2.arot.set_target_head_speed(100/_param_head_speed_set_point);
+
+                // Prevent running the initial glide functions again
+                _flags.flare_initial = 0;
+            }
+
+            // Run airspeed/attitude controller
+            g2.arot.set_dt(G_Dt);
+            g2.arot.update_forward_speed_controller();
+
+            // Retrieve pitch target 
+            _pitch_target = g2.arot.get_pitch();
+
+            // Update head speed/ collective controller
+            _flags.bad_rpm = g2.arot.update_hs_glide_controller(G_Dt); 
+            // Attitude controller is updated in navigation switch-case statements
+
+            //motors->set_throttle(0.75f);
+
+            break;
+        }
+
         case TOUCH_DOWN:
         {
             break;
