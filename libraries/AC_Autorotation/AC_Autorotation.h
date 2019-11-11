@@ -41,6 +41,7 @@ public:
     int32_t get_pitch(void) const { return _pitch_target; }  // Get pitch target
     float calc_speed_forward(void);  // Calculates the forward speed in the horizontal plane
     void set_dt(float delta_sec);
+    bool should_flare(void);  // Function to determine whether or not the flare phase should be initiated
 
     // User Settable Parameters
     static const struct AP_Param::GroupInfo var_info[];
@@ -89,6 +90,10 @@ private:
     AP_Float _param_bail_time;
     AP_Int8  _param_rpm_instance;
     AP_Float _param_fwd_k_ff;
+    AP_Int16 _param_vel_z_td;
+    AP_Float _param_flare_time_period;
+    AP_Float _param_flare_accel_z_max;
+    AP_Int16 _param_td_alt_targ;
 
     //--------Internal Flags--------
     struct controller_flags {
