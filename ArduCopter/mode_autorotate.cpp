@@ -127,6 +127,7 @@ void ModeAutorotate::run()
                 g2.arot.set_col_cutoff_freq(_param_col_entry_cutoff_freq);
 
                 // Target head speed is set to rpm at initiation to prevent unwanted changes in attitude
+                
                 _target_head_speed = _initial_rpm/_param_head_speed_set_point;
 
                 // Set desired forward speed target
@@ -216,10 +217,10 @@ void ModeAutorotate::run()
 
                 // Set bail out timer remaining equal to the paramter value, bailout time 
                 // cannot be less than the motor spool-up time: BAILOUT_MOTOR_RAMP_TIME.
-                bail_time = MAX(_param_bail_time,BAILOUT_MOTOR_RAMP_TIME);
+                _bail_time = MAX(_param_bail_time,BAILOUT_MOTOR_RAMP_TIME+0.1f);
 
                 // Set bail out start time
-                bail_time_start = now;
+                _bail_time_start = now;
 
                 // Set initial target vertical speed
                 _desired_v_z = curr_vel_z;
@@ -240,10 +241,10 @@ void ModeAutorotate::run()
                 pilot_des_v_z = constrain_float(pilot_des_v_z, pilot_spd_dn, pilot_spd_up);
 
                 // Calculate target climb rate adjustment to transition from bail out decent speed to requested climb rate on stick.
-                _target_climb_rate_adjust = (curr_vel_z - pilot_des_v_z)/(_param_bail_time - BAILOUT_MOTOR_RAMP_TIME); //accounting for 0.5s motor spool time
+                _target_climb_rate_adjust = (curr_vel_z - pilot_des_v_z)/(_bail_time - BAILOUT_MOTOR_RAMP_TIME); //accounting for 0.5s motor spool time
 
                 // Calculate pitch target adjustment rate to return to level
-                _target_pitch_adjust = _pitch_target/(_param_bail_time - BAILOUT_MOTOR_RAMP_TIME); //accounting for 0.5s motor spool time_param_bail_time;
+                _target_pitch_adjust = _pitch_target/_bail_time;
 
                 // Set acceleration limit
                 pos_control->set_max_accel_z(abs(_target_climb_rate_adjust));
@@ -253,7 +254,7 @@ void ModeAutorotate::run()
                 _flags.bail_out_initial = 0;
             }
 
-        if (now - bail_time_start >= BAILOUT_MOTOR_RAMP_TIME) {
+        if (now - _bail_time_start >= BAILOUT_MOTOR_RAMP_TIME) {
             // Update desired vertical speed and pitch target after the bailout motor ramp timer has completed
             _desired_v_z -= _target_climb_rate_adjust*G_Dt;
             _pitch_target -= _target_pitch_adjust*G_Dt;
@@ -264,7 +265,7 @@ void ModeAutorotate::run()
         // Update controllers
         pos_control->update_z_controller();
 
-        if (now - bail_time_start >= bail_time) {
+        if (now - _bail_time_start >= _bail_time) {
             // Bail out timer complete.  Change flight mode. Do not revert back to auto. Prevent aircraft
             // from continuing mission and potentially flying further away after a power failure.
             if (copter.prev_control_mode == Mode::Number::AUTO) {

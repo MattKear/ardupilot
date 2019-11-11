@@ -1430,8 +1430,8 @@ private:
     float now;                      //Time at start of cycle
     float _entry_time_start;        //Time remaining until entry phase moves on to glide phase
     float _hs_decay;                //The head accerleration during the entry phase
-    float bail_time;                //Timer for exiting the bail out phase (s)
-    float bail_time_start;          //Time at start of bail out
+    float _bail_time;                //Timer for exiting the bail out phase (s)
+    float _bail_time_start;          //Time at start of bail out
     float _des_z;                   //Desired vertical position
     float _target_climb_rate_adjust;//Target vertical acceleration used during bail out phase
     float _target_pitch_adjust;     //Target pitch rate used during bail out phase
