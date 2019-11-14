@@ -24,7 +24,7 @@ public:
     //--------Functions--------
     void init_hs_controller(void);  // Initialise head speed controller
     void init_fwd_spd_controller(void);  // Initialise forward speed controller
-    bool update_hs_glide_controller(float dt);  // Update head speed controller
+    bool update_hs_glide_controller(void);  // Update head speed controller
     float get_rpm(void) const { return _current_rpm; }  // Function just returns the rpm as last read in this library
     float get_rpm(bool update_counter);  // Function fetches fresh rpm update and continues sensor health monitoring
     void set_target_head_speed(float ths) { _target_head_speed = ths; }  // Sets the normalised target head speed
@@ -32,13 +32,18 @@ public:
     void get_param_values(int16_t &set_point_hs, int16_t &accel, int16_t &targ_s, float &ent_freq, float &glide_freq, float &bail_time);  // Enables the parameter values to be retrieved by the autorotation flight mode
     float get_last_collective() const { return _collective_out; }
     bool is_enable(void) { return _param_enable; }
-    void Log_Write_Autorotation(void);
+    void log_write_autorotation(void);
     void update_forward_speed_controller(void);  // Update foward speed controller
     void set_desired_fwd_speed(float speed) { _vel_target = speed; }; // Set desired speed for controller
     int32_t get_pitch(void) const { return _pitch_target; }  // Get pitch target
     float calc_speed_forward(void);  // Calculates the forward speed in the horizontal plane
     void set_dt(float delta_sec);
     bool should_flare(void);  // Function to determine whether or not the flare phase should be initiated
+    void set_flare_head_speed(void);
+    float update_flare_controller(void);
+    void set_flare_time(float ft) { _flare_time = ft/1000.0f; }  // Set flare time and convert from millis to seconds
+    void set_flare_initial_conditions(void);
+    float calc_hs_error_flare(void);
 
     // User Settable Parameters
     static const struct AP_Param::GroupInfo var_info[];
@@ -73,6 +78,14 @@ private:
     float _vel_i;                    // Forward velocity I term.
     float _vel_ff;                   // Forward velocity Feed Forward term.
     float _accel_out;                // Acceleration value used to calculate pitch target.
+    float _flare_time;               // Flare time, used for computing target trajectories.
+    float _flare_accel_z_peak;       // Calculated peak acceleration for target trajectory
+    int16_t _last_vel_z;
+    int16_t _vel_z_initial;
+    int32_t _alt_z_initial;
+    float _z_accel_target;
+    int16_t _z_vel_target;
+    int32_t _alt_target;
 
     LowPassFilterFloat _accel_target_filter; // acceleration target filter
 
@@ -91,6 +104,8 @@ private:
     AP_Float _param_flare_time_period;
     AP_Float _param_flare_accel_z_max;
     AP_Int16 _param_td_alt_targ;
+    AP_Int8 _param_log_bitmask;
+    AP_Float _param_flare_correction_ratio;
 
     //--------Internal Flags--------
     struct controller_flags {
