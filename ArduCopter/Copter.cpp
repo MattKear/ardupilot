@@ -408,10 +408,10 @@ void Copter::twentyfive_hz_logging()
 #endif
 
 #if MODE_AUTOROTATE_ENABLED == ENABLED
-    if (should_log(MASK_LOG_ATTITUDE_MED) || should_log(MASK_LOG_ATTITUDE_FAST)) {
-        //update autorotation log
-        g2.arot.Log_Write_Autorotation();
-    }
+    // Update autorotation log
+    // Logging mask is done within autorotation library to not pollute the general logging bit
+    // mask with niche log options that are only valid for autorotation.
+    g2.arot.log_write_autorotation();
 #endif
 }
 

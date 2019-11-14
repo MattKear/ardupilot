@@ -1431,7 +1431,11 @@ private:
     float _collective_aggression;   // The 'aggresiveness' of collective appliction
     float _z_touch_down_start;      // The height in cm that the touch down phase began
     float _t_touch_down_initiate;   // The time in ms that the touch down phase began
+<<<<<<< HEAD
     float now;                      // Current time in millis
+=======
+    float now;                      // Time at start of cycle
+>>>>>>> c5e77b1... Copter: Added trajectory targets and feed-forward adjustments
     float _entry_time_start;        // Time remaining until entry phase moves on to glide phase
     float _hs_decay;                // The head accerleration during the entry phase
     float _bail_time;               // Timer for exiting the bail out phase (s)
@@ -1440,6 +1444,7 @@ private:
     float _target_climb_rate_adjust;// Target vertical acceleration used during bail out phase
     float _target_pitch_adjust;     // Target pitch rate used during bail out phase
     uint16_t log_counter;           // Used to reduce the data flash logging rate
+    float _flare_time_start;        // Time that flare phase initiates
 
     enum class Autorotation_Phase {
         ENTRY,

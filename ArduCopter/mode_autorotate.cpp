@@ -83,7 +83,7 @@ void ModeAutorotate::run()
     }
 
     // Current time
-    now = millis(); //milliseconds
+    now = AP_HAL::millis(); //milliseconds
 
     // Initialise internal variables
     float curr_vel_z = inertial_nav.get_velocity().z;   // Current vertical descent
@@ -105,8 +105,12 @@ void ModeAutorotate::run()
     }
 
     // Check for flare initiation conditions
-    if (g2.arot.should_flare()  &&  (phase_switch != FLARE  ||  phase_switch != TOUCH_DOWN)){
-        phase_switch = FLARE;
+    if (phase_switch != FLARE  &&  phase_switch != TOUCH_DOWN){
+        // should_flare function must be called within the nested if to prevend peak accel from 
+        // being updated once the flare is initiated
+        if (g2.arot.should_flare()){
+            phase_switch = FLARE;
+        }
     }
 
 
@@ -148,15 +152,17 @@ void ModeAutorotate::run()
             // Set target head speed in head speed controller
             g2.arot.set_target_head_speed(_target_head_speed);
 
-            // Run airspeed/attitude controller
+            // Update time step
             g2.arot.set_dt(G_Dt);
+
+            // Run airspeed/attitude controller
             g2.arot.update_forward_speed_controller();
 
             // Retrieve pitch target
             _pitch_target = g2.arot.get_pitch();
 
             // Update controllers
-            _flags.bad_rpm = g2.arot.update_hs_glide_controller(G_Dt); //run head speed/ collective controller
+            _flags.bad_rpm = g2.arot.update_hs_glide_controller(); //run head speed/ collective controller
 
             break;
         }
@@ -184,15 +190,17 @@ void ModeAutorotate::run()
                 _flags.ss_glide_initial = 0;
             }
 
-            // Run airspeed/attitude controller
+            // Update time step
             g2.arot.set_dt(G_Dt);
+
+            // Run airspeed/attitude controller
             g2.arot.update_forward_speed_controller();
 
             // Retrieve pitch target 
             _pitch_target = g2.arot.get_pitch();
 
             // Update head speed/ collective controller
-            _flags.bad_rpm = g2.arot.update_hs_glide_controller(G_Dt); 
+            _flags.bad_rpm = g2.arot.update_hs_glide_controller(); 
             // Attitude controller is updated in navigation switch-case statements
 
             break;
@@ -207,6 +215,12 @@ void ModeAutorotate::run()
                     gcs().send_text(MAV_SEVERITY_INFO, "Flare Phase");
                 #endif
 
+                // Set flare initiate time
+                _flare_time_start = now;
+
+                // Set initial conditions in controller
+                g2.arot.set_flare_initial_conditions();
+
                 // Set following trim low pass cut off frequency
                 g2.arot.set_col_cutoff_freq(0.8f);
 
@@ -214,25 +228,28 @@ void ModeAutorotate::run()
                 _fwd_speed_target = 10;
                 g2.arot.set_desired_fwd_speed(_fwd_speed_target);
 
-                // Set target head speed ratio in head speed controller
-                g2.arot.set_target_head_speed(100/_param_head_speed_set_point);
-
-                // Prevent running the initial glide functions again
+                // Prevent running the initial flare functions again
                 _flags.flare_initial = 0;
             }
 
-            // Run airspeed/attitude controller
+            // Set flare time in controller
+            g2.arot.set_flare_time(now - _flare_time_start);
+
+            // Update time step
             g2.arot.set_dt(G_Dt);
+
+            // Run airspeed/attitude controller
             g2.arot.update_forward_speed_controller();
 
             // Retrieve pitch target 
             _pitch_target = g2.arot.get_pitch();
 
-            // Update head speed/ collective controller
-            _flags.bad_rpm = g2.arot.update_hs_glide_controller(G_Dt); 
-            // Attitude controller is updated in navigation switch-case statements
+            // Calculate new head speed target based on positional trajectory
+            //float accel_adjust = g2.arot.update_flare_controller();
 
-            //motors->set_throttle(0.75f);
+            // Update head speed/ collective controller
+            _flags.bad_rpm = g2.arot.update_hs_glide_controller(); 
+            // Attitude controller is updated in navigation switch-case statements
 
             break;
         }
@@ -345,6 +362,24 @@ void ModeAutorotate::run()
     if (_flags.bad_rpm) {
         warning_message(1);
     }
+
+
+
+
+//Write to data flash log
+    AP::logger().Write("ARO3",
+                       "TimeUS,AZ",
+                         "Qf",
+                        AP_HAL::micros64(),
+                        (double) g2.arot.update_flare_controller());
+
+
+
+
+
+
+
+
 
 } // End function run()
 
