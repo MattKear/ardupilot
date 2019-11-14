@@ -6,6 +6,8 @@
 //Autorotation controller defaults
 #define AROT_BAIL_OUT_TIME                            2.0f     // Default time for bail out controller to run (unit: s)
 #define AROT_FLARE_MIN_Z_ACCEL_PEAK                   1.2f     // Minimum permissible peak acceleration factor for the flare phase (unit: -)
+#define AROT_FLARE_TIME_PERIOD_MIN                    0.5f
+
 
 // Head Speed (HS) controller specific default definitions
 #define HS_CONTROLLER_COLLECTIVE_CUTOFF_FREQ          2.0f     // low-pass filter on accel error (unit: hz)
@@ -151,6 +153,20 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("TD_ALT_TARG", 21, AC_Autorotation, _param_td_alt_targ, 50),
 
+    // @Param: LOG
+    // @DisplayName: Logging bitmask
+    // @Description: 1: Glide phase tuning, 2: Flare phase tuning
+    // @Range: 0 2
+    // @User: Advanced
+    AP_GROUPINFO("LOG", 22, AC_Autorotation, _param_log_bitmask, 0),
+
+    // @Param: F_T_RATIO
+    // @DisplayName: Time period to execute the flare
+    // @Description: The ratio of the time phase that the controller will use to correct miss alignments to the target trajectories
+    // @Range: 0.05 0.5
+    // @Increment: 0.01
+    // @User: Advanced
+    AP_GROUPINFO("F_T_RATIO", 23, AC_Autorotation, _param_flare_correction_ratio, 0.1),
 
     AP_GROUPEND
 };
@@ -185,7 +201,7 @@ void AC_Autorotation::init_hs_controller()
 }
 
 
-bool AC_Autorotation::update_hs_glide_controller(float dt)
+bool AC_Autorotation::update_hs_glide_controller(void)
 {
     // Reset rpm health flag
     _flags.bad_rpm = false;
@@ -208,7 +224,7 @@ bool AC_Autorotation::update_hs_glide_controller(float dt)
         _p_term_hs = _p_hs.get_p(_head_speed_error);
 
         // Adjusting collective trim using feed forward (not yet been updated, so this value is the previous time steps collective position)
-        _ff_term_hs = col_trim_lpf.apply(_collective_out, dt);
+        _ff_term_hs = col_trim_lpf.apply(_collective_out, _dt);
 
         // Calculate collective position to be set
         _collective_out = _p_term_hs + _ff_term_hs;
@@ -287,10 +303,12 @@ float AC_Autorotation::get_rpm(bool update_counter)
 }
 
 
-void AC_Autorotation::Log_Write_Autorotation(void)
+void AC_Autorotation::log_write_autorotation(void)
 {
-    //Write to data flash log
-    AP::logger().Write("AROT",
+    // Write logs useful for tuning glide phase
+    if (1 & _param_log_bitmask) {
+        //Write to data flash log
+        AP::logger().Write("AR1G",
                        "TimeUS,P,hserr,ColOut,FFCol,CRPM,SpdF,CmdV,p,ff,AccO,AccT,PitT",
                          "Qffffffffffff",
                         AP_HAL::micros64(),
@@ -306,6 +324,18 @@ void AC_Autorotation::Log_Write_Autorotation(void)
                         (double)_accel_out,
                         (double)_accel_target,
                         (double)_pitch_target);
+    }
+
+    if(1<<1 & _param_log_bitmask){
+        //Write to data flash log
+        AP::logger().Write("AR2F",
+                       "TimeUS,ZATarg,ZVTarg,AltTarg",
+                         "Qfff",
+                        AP_HAL::micros64(),
+                        (double)_z_accel_target,
+                        (double)_z_vel_target,
+                        (double)_alt_target);
+    }
 }
 
 
@@ -406,20 +436,22 @@ float AC_Autorotation::calc_speed_forward(void)
 // Determine whether or not the flare phase should be initiated
 bool AC_Autorotation::should_flare(void)
 {
-
     bool ret;
 
-    // Determine peak acceleration if the flare was initiated in this state
-    float accel_z_peak = 2.0f * (-_param_vel_z_td - _inav.get_velocity().z) / _param_flare_time_period;
+    // Protect against divide by zero
+    float flare_time_period = MAX(AROT_FLARE_TIME_PERIOD_MIN,_param_flare_time_period);
+
+    // Determine peak acceleration if the flare was initiated in this state (cm/s/s)
+    _flare_accel_z_peak = 2.0f * (-_param_vel_z_td - _inav.get_velocity().z) / flare_time_period;
 
     // Compare the calculated peak acceleration to the allowable limits
-    if ((accel_z_peak < (AROT_FLARE_MIN_Z_ACCEL_PEAK-1) * GRAVITY_MSS * 100.0f)  || (accel_z_peak > (_param_flare_accel_z_max-1) * GRAVITY_MSS * 100.0f)){
+    if ((_flare_accel_z_peak < (AROT_FLARE_MIN_Z_ACCEL_PEAK-1) * GRAVITY_MSS * 100.0f)  || (_flare_accel_z_peak > (_param_flare_accel_z_max-1) * GRAVITY_MSS * 100.0f)){
         //return false;
         ret = false;
     }
 
     // Determine the altitude that the flare would complete
-    uint32_t td_alt_predicted = 0.237334852f * accel_z_peak * _param_flare_time_period * _param_flare_time_period  +  _inav.get_velocity().z * _param_flare_time_period  +  _inav.get_position().z;
+    uint32_t td_alt_predicted = 0.237334852f * _flare_accel_z_peak * flare_time_period * flare_time_period  +  _inav.get_velocity().z * flare_time_period  +  _inav.get_position().z;
 
     // Compare the prediced altitude to the acceptable range
     if ((td_alt_predicted < _param_td_alt_targ * 0.5f)  ||  (td_alt_predicted > _param_td_alt_targ * 1.5f)){
@@ -431,15 +463,16 @@ bool AC_Autorotation::should_flare(void)
 
     //Write to data flash log
     AP::logger().Write("ARO2",
-                       "TimeUS,AcMxC,AcMnL,AcMxL,VelE,VelS,ZCal",
-                         "Qffffff",
+                       "TimeUS,AcMxC,AcMnL,AcMxL,VelE,VelS,ZCal,time",
+                         "Qfffffff",
                         AP_HAL::micros64(),
-                        (double)accel_z_peak,
+                        (double)_flare_accel_z_peak,
                         (double)((AROT_FLARE_MIN_Z_ACCEL_PEAK-1) * GRAVITY_MSS * 100.0f),
                         (double)((_param_flare_accel_z_max-1) * GRAVITY_MSS * 100.0f),
                         (double)-_param_vel_z_td,
                         (double)_inav.get_velocity().z,
-                        (double)td_alt_predicted);
+                        (double)td_alt_predicted,
+                        (double)_flare_time);
 
     // All checks pass, initiate flare
     //return true;
@@ -447,15 +480,87 @@ bool AC_Autorotation::should_flare(void)
 }
 
 
+//set initial conditions for flare targets
+void AC_Autorotation::set_flare_initial_conditions(void)
+{
+    _vel_z_initial = _inav.get_velocity().z;
+    _last_vel_z = _vel_z_initial;
+    _alt_z_initial = _inav.get_position().z;
+}
+
+
+// Adjust head speed target based on desired trajectories
+void AC_Autorotation::set_flare_head_speed(void)
+{
 
 
 
 
+}
 
 
+// Return head speed error from flare phase target
+float AC_Autorotation::calc_hs_error_flare(void)
+{
+    // Calculate desired head speed
+    //float hs_target
+
+ return 1.0f;
+
+}
 
 
+/* Use altitude, velocity, and acceleration to come up with a collective position.  Acceleration
+can be deamed to have a relationship to collective position.  Use the new collective position to 
+feed into head speed controller.  The head speed controller can be used to reverse calculate what 
+the target head speed should be.  Compare the head speed target calced from acceleration to the ideal
+head speed trajectory to determine an error between desired for kinematics and desired for head speed 
+trajectory.  Use energy to weight the coparative difference using a ratio and that will give the new 
+target.  That target can then be fed through the actual head speed controller to generate the final output.
+This should creat a system whereby the realtive components can be compared using physical relasionships
+and won't require PID tuning beyond the original head speed controller.
 
+alt error ==> converted and added to velocity target ==> velocity error ==> converted and added to acceleration 
+target ==> acceleration error converted to collective position (linear prediction based on hover col position 
+and current col position?)  ==>  Collective position fed through reverse HS controller  ==>  target hs basied on 
+accel  ==>  compare that to target head speed from ideal trajectory  ==>  Create energy weighted average target HS
+==>  use target HS in HS to collective output controller. */
 
+float AC_Autorotation::update_flare_controller(void)
+{
+    // Protect against divide by zero
+    float flare_correction_ratio = MAX(0.05,_param_flare_correction_ratio);
+    float flare_time_period = MAX(AROT_FLARE_TIME_PERIOD_MIN,_param_flare_time_period);
+
+    // Calculate the target altitude trajectory
+    _alt_target = _flare_accel_z_peak / 4.0f * (_flare_time * _flare_time - flare_time_period * flare_time_period / (M_PI * M_2PI) * sinf((_flare_time * M_2PI)/flare_time_period)  -  flare_time_period * flare_time_period / M_2PI)  +  _vel_z_initial * _flare_time  +  _alt_z_initial;
+
+    // Calculate error and convert to velocity correction
+    int32_t z_vel_correction;
+    z_vel_correction = (_alt_target - _inav.get_position().z) / (flare_correction_ratio * flare_time_period);
+
+    // Calculate the target velocity trajectory
+    _z_vel_target = _flare_accel_z_peak / 2.0f * (_flare_time - flare_time_period * sinf(_flare_time * M_2PI / flare_time_period) / M_2PI)  +  _vel_z_initial;
+
+    // Calculate error
+    int32_t z_accel_correction;
+    z_accel_correction = (_z_vel_target - _inav.get_velocity().z + z_vel_correction) / (flare_correction_ratio * flare_time_period);
+
+    // Calculate desired acceleration
+    _z_accel_target = _flare_accel_z_peak * (1 - cosf((_flare_time * M_2PI)/flare_time_period)) / 2.0f;
+
+    // Approximate accleration
+    float z_accel_measured;
+    z_accel_measured = (_inav.get_velocity().z - _last_vel_z)/_dt;
+
+    // Store velocity
+    _last_vel_z = _inav.get_velocity().z;
+
+    //Calculate error
+    float z_accel_adjustment;
+    z_accel_adjustment = _z_accel_target - z_accel_measured + z_accel_correction;
+
+    return z_accel_adjustment;
+}
 
 
