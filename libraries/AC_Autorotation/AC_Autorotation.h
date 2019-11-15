@@ -43,7 +43,7 @@ public:
     void set_dt(float delta_sec);
     bool should_flare(void);  // Function to determine whether or not the flare phase should be initiated
     void set_flare_head_speed(void);
-    float update_flare_controller(void);
+    void update_flare_controller(void);
     void set_flare_time(float ft) { _flare_time = ft/1000.0f; }  // Set flare time and convert from millis to seconds
     void set_flare_initial_conditions(void);
     float calc_hs_error_flare(void);
@@ -89,6 +89,9 @@ private:
     int16_t _z_vel_target;
     int32_t _alt_target;
 
+    float _p_term_col;
+    float _ff_term_col;
+
     LowPassFilterFloat _accel_target_filter; // acceleration target filter
 
     //--------Parameter Values--------
@@ -109,6 +112,8 @@ private:
     AP_Int16 _param_td_alt_targ;
     AP_Int8 _param_log_bitmask;
     AP_Float _param_flare_correction_ratio;
+    AP_Float _param_col_flare_cutoff_freq;
+    AP_Float _param_flare_p;
 
     //--------Internal Flags--------
     struct controller_flags {
@@ -117,7 +122,7 @@ private:
     } _flags;
 
     //--------Internal Functions--------
-    void set_collective(float _collective_filter_cutoff);
+    void set_collective(void);
 
     // low pass filter for collective trim
     LowPassFilterFloat col_trim_lpf;

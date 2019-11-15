@@ -87,6 +87,7 @@ void ModeAutorotate::run()
 
     // Initialise internal variables
     float curr_vel_z = inertial_nav.get_velocity().z;   // Current vertical descent
+    int32_t curr_alt = inertial_nav.get_position().z;
 
     //----------------------------------------------------------------
     //                  State machine logic
@@ -101,6 +102,17 @@ void ModeAutorotate::run()
         if ((now - _entry_time_start)/1000.0f > AUTOROTATE_ENTRY_TIME) {
             // Flight phase can be progressed to steady state glide
             phase_switch = Autorotation_Phase::SS_GLIDE;
+        }
+    }
+
+    // Check for flare exit conditions
+    if (phase_switch != TOUCH_DOWN  &&  phase_switch != BAIL_OUT  &&  _param_td_alt_targ >= curr_alt) {
+            phase_switch = TOUCH_DOWN;
+    }
+    if (phase_switch == FLARE){
+        // This must be nested to recall sensible value of _flare_time_start
+        if ((_flare_time_start - now)/1000.0f >= _param_flare_time_period) {
+            phase_switch = TOUCH_DOWN;
         }
     }
 
@@ -245,7 +257,7 @@ void ModeAutorotate::run()
             _pitch_target = g2.arot.get_pitch();
 
             // Calculate new head speed target based on positional trajectory
-            //float accel_adjust = g2.arot.update_flare_controller();
+            g2.arot.update_flare_controller();
 
             // Update head speed/ collective controller
             _flags.bad_rpm = g2.arot.update_hs_glide_controller(); 
@@ -256,6 +268,7 @@ void ModeAutorotate::run()
 
         case Autorotation_Phase::TOUCH_DOWN:
         {
+            //Do nothing for now
             break;
         }
 
@@ -367,11 +380,11 @@ void ModeAutorotate::run()
 
 
 //Write to data flash log
-    AP::logger().Write("ARO3",
-                       "TimeUS,AZ",
-                         "Qf",
-                        AP_HAL::micros64(),
-                        (double) g2.arot.update_flare_controller());
+//    AP::logger().Write("ARO3",
+ //                      "TimeUS,AZ",
+  //                       "Qf",
+   //                     AP_HAL::micros64(),
+    //                    (double) g2.arot.update_flare_controller());
 
 
 

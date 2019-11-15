@@ -168,6 +168,23 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("F_T_RATIO", 23, AC_Autorotation, _param_flare_correction_ratio, 0.1),
 
+    // @Param: COL_FILT_F
+    // @DisplayName: Flare Phase Collective Filter
+    // @Description: Cut-off frequency for collective low pass filter.  For the flare phase.  Acts as a following trim.
+    // @Units: Hz
+    // @Range: 0.2 1
+    // @Increment: 0.01
+    // @User: Advanced
+    AP_GROUPINFO("COL_FILT_F", 24, AC_Autorotation, _param_col_flare_cutoff_freq, 0.8),
+
+    // @Param: COL_F_P
+    // @DisplayName: Collective P term for flare controller
+    // @Description: 
+    // @Range:
+    // @Increment:
+    // @User: Advanced
+    AP_GROUPINFO("COL_F_P", 25, AC_Autorotation, _param_flare_p, HS_CONTROLLER_ENTRY_COL_FILTER),
+
     AP_GROUPEND
 };
 
@@ -237,18 +254,18 @@ bool AC_Autorotation::update_hs_glide_controller(void)
     }
 
     // Send collective to setting to motors output library
-    set_collective(HS_CONTROLLER_COLLECTIVE_CUTOFF_FREQ);
+    set_collective();
 
     return _flags.bad_rpm_warning;
 }
 
 
 // Function to set collective and collective filter in motor library
-void AC_Autorotation::set_collective(float collective_filter_cutoff)
+void AC_Autorotation::set_collective(void)
 {
     AP_Motors *motors = AP::motors();
     if (motors) {
-        motors->set_throttle_filter_cutoff(collective_filter_cutoff);
+        motors->set_throttle_filter_cutoff(HS_CONTROLLER_COLLECTIVE_CUTOFF_FREQ);
         motors->set_throttle(_collective_out);
     }
 }
@@ -306,7 +323,7 @@ float AC_Autorotation::get_rpm(bool update_counter)
 void AC_Autorotation::log_write_autorotation(void)
 {
     // Write logs useful for tuning glide phase
-    if (1 & _param_log_bitmask) {
+    if (1<<0 & _param_log_bitmask) {
         //Write to data flash log
         AP::logger().Write("AR1G",
                        "TimeUS,P,hserr,ColOut,FFCol,CRPM,SpdF,CmdV,p,ff,AccO,AccT,PitT",
@@ -329,12 +346,14 @@ void AC_Autorotation::log_write_autorotation(void)
     if(1<<1 & _param_log_bitmask){
         //Write to data flash log
         AP::logger().Write("AR2F",
-                       "TimeUS,ZATarg,ZVTarg,AltTarg",
-                         "Qfff",
+                       "TimeUS,ZATarg,ZVTarg,AltTarg,FP,FFF",
+                         "Qfffff",
                         AP_HAL::micros64(),
                         (double)_z_accel_target,
                         (double)_z_vel_target,
-                        (double)_alt_target);
+                        (double)_alt_target,
+                        (double)_p_term_col,
+                        (double)_ff_term_col);
     }
 }
 
@@ -526,7 +545,7 @@ and current col position?)  ==>  Collective position fed through reverse HS cont
 accel  ==>  compare that to target head speed from ideal trajectory  ==>  Create energy weighted average target HS
 ==>  use target HS in HS to collective output controller. */
 
-float AC_Autorotation::update_flare_controller(void)
+void AC_Autorotation::update_flare_controller(void)
 {
     // Protect against divide by zero
     float flare_correction_ratio = MAX(0.05,_param_flare_correction_ratio);
@@ -560,7 +579,25 @@ float AC_Autorotation::update_flare_controller(void)
     float z_accel_adjustment;
     z_accel_adjustment = _z_accel_target - z_accel_measured + z_accel_correction;
 
-    return z_accel_adjustment;
+    //gcs().send_text(MAV_SEVERITY_INFO, "z_accel_adjustment = %.3f",z_accel_adjustment);
+
+    // Set collective trim low pass filter cut off frequency
+    col_trim_lpf.set_cutoff_frequency(_param_col_flare_cutoff_freq);
+
+    _p_term_col = z_accel_adjustment / 1000.0f * _param_flare_p;
+
+    //float temp = _param_flare_p;
+    //gcs().send_text(MAV_SEVERITY_INFO, "_p_term_col = %.3f",_p_term_col);
+    //gcs().send_text(MAV_SEVERITY_INFO, "_param_flare_p = %.3f",temp);
+
+    // Adjusting collective trim using feed forward (not yet been updated, so this value is the previous time steps collective position)
+    _ff_term_col = col_trim_lpf.apply(_collective_out, _dt);
+
+    // Calculate collective position to be set
+    _collective_out = _p_term_col + _ff_term_col;
+
+    // Send collective to setting to motors output library
+    set_collective();
 }
 
 
