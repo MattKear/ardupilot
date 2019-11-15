@@ -1438,6 +1438,8 @@ private:
     uint16_t log_counter;           // Used to reduce the data flash logging rate
     float _flare_time_start;        // Time that flare phase initiates
 
+
+
     // --- Values to be retrieved from parameters in set in the autorotation library ---
     int16_t _param_head_speed_set_point;
     int16_t _param_accel_max;
@@ -1446,6 +1448,8 @@ private:
     float _param_col_entry_cutoff_freq;
     float _param_col_glide_cutoff_freq;
     float _param_bail_time;
+    float _param_flare_time_period;
+    int32_t _param_td_alt_targ;
 
     enum autorotation_phase {
         ENTRY,
