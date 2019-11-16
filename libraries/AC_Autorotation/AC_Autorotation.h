@@ -29,7 +29,7 @@ public:
     float get_rpm(bool update_counter);  // Function fetches fresh rpm update and continues sensor health monitoring
     void set_target_head_speed(float ths) { _target_head_speed = ths; }  // Sets the normalised target head speed
     void set_col_cutoff_freq(float freq) { _col_cutoff_freq = freq; }  // Sets the collective low pass filter cut off frequency
-    void get_param_values(int16_t &set_point_hs, int16_t &accel, int16_t &targ_s, float &ent_freq, float &glide_freq, float &bail_time, float &flare_time, int32_t &td_alt);  // Enables the parameter values to be retrieved by the autorotation flight mode
+    void get_param_values(int16_t &set_point_hs, int16_t &accel, int16_t &targ_s, float &ent_freq, float &glide_freq, float &flare_freq, float &bail_time, float &flare_time, int32_t &td_alt);  // Enables the parameter values to be retrieved by the autorotation flight mode
     float get_last_collective() const { return _collective_out; }
     bool is_enable(void) { return _param_enable; }
     void log_write_autorotation(void);
@@ -40,7 +40,7 @@ public:
     void set_dt(float delta_sec);
     bool should_flare(void);  // Function to determine whether or not the flare phase should be initiated
     void set_flare_head_speed(void);
-    void update_flare_controller(void);
+    float update_flare_controller(void);
     void set_flare_time(float ft) { _flare_time = ft/1000.0f; }  // Set flare time and convert from millis to seconds
     void set_flare_initial_conditions(void);
     float calc_hs_error_flare(void);
@@ -87,8 +87,8 @@ private:
     int16_t _z_vel_target;
     int32_t _alt_target;
 
-    float _p_term_col;
-    float _ff_term_col;
+    float _p_term_pitch;
+    float _pitch_out;
 
     LowPassFilterFloat _accel_target_filter; // acceleration target filter
 

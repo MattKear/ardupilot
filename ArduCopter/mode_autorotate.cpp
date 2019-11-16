@@ -40,7 +40,7 @@ bool ModeAutorotate::init(bool ignore_checks)
     gcs().send_text(MAV_SEVERITY_INFO, "Autorotation initiated");
 
     // Retrieve parameter values from autorotation library
-    g2.arot.get_param_values(_param_head_speed_set_point, _param_accel_max, _param_target_fwd_speed, _param_col_entry_cutoff_freq, _param_col_glide_cutoff_freq, _param_bail_time, _param_flare_time_period, _param_td_alt_targ);
+    g2.arot.get_param_values(_param_head_speed_set_point, _param_accel_max, _param_target_fwd_speed, _param_col_entry_cutoff_freq, _param_col_glide_cutoff_freq, _param_col_flare_cutoff_freq, _param_bail_time, _param_flare_time_period, _param_td_alt_targ);
 
      // Set all inial flags to on
     _flags.entry_initial = 1;
@@ -101,7 +101,7 @@ void ModeAutorotate::run()
 
     // Timer from entry phase to progress to glide phase
     if (phase_switch == ENTRY){
-        if (now - _entry_time_start > AUTOROTATE_ENTRY_TIME) {
+        if ((now - _entry_time_start)/1000.0f > AUTOROTATE_ENTRY_TIME) {
             // Flight phase can be progressed to steady state glide
             phase_switch = SS_GLIDE;
         }
@@ -110,11 +110,13 @@ void ModeAutorotate::run()
     // Check for flare exit conditions
     if (phase_switch != TOUCH_DOWN  &&  phase_switch != BAIL_OUT  &&  _param_td_alt_targ >= curr_alt) {
             phase_switch = TOUCH_DOWN;
+            gcs().send_text(MAV_SEVERITY_INFO, "TD Reason Alt");
     }
     if (phase_switch == FLARE){
         // This must be nested to recall sensible value of _flare_time_start
         if ((_flare_time_start - now)/1000.0f >= _param_flare_time_period) {
             phase_switch = TOUCH_DOWN;
+            gcs().send_text(MAV_SEVERITY_INFO, "TD Reason Time");
         }
     }
 
@@ -239,11 +241,7 @@ void ModeAutorotate::run()
                 g2.arot.set_flare_initial_conditions();
 
                 // Set following trim low pass cut off frequency
-                g2.arot.set_col_cutoff_freq(0.8f);
-
-                // Set desired forward speed target
-                _fwd_speed_target = 10;
-                g2.arot.set_desired_fwd_speed(_fwd_speed_target);
+                g2.arot.set_col_cutoff_freq(_param_col_flare_cutoff_freq);
 
                 // Prevent running the initial flare functions again
                 _flags.flare_initial = 0;
@@ -255,17 +253,14 @@ void ModeAutorotate::run()
             // Update time step
             g2.arot.set_dt(G_Dt);
 
-            // Run airspeed/attitude controller
-            g2.arot.update_forward_speed_controller();
-
-            // Retrieve pitch target 
-            _pitch_target = g2.arot.get_pitch();
-
-            // Calculate new head speed target based on positional trajectory
-            g2.arot.update_flare_controller();
+            // Set target head speed in head speed controller
+            g2.arot.set_target_head_speed(HEAD_SPEED_TARGET_RATIO);
 
             // Update head speed/ collective controller
             _flags.bad_rpm = g2.arot.update_hs_glide_controller(); 
+
+            // Calculate new head speed target based on positional trajectory
+            _pitch_target = g2.arot.update_flare_controller();
             // Attitude controller is updated in navigation switch-case statements
 
             break;
@@ -273,7 +268,38 @@ void ModeAutorotate::run()
 
         case TOUCH_DOWN:
         {
-            //Do nothing for now
+            // Touch down phase functions to be run only once
+            if (_flags.touch_down_initial == 1) {
+
+                #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+                    gcs().send_text(MAV_SEVERITY_INFO, "Touch Down Phase");
+                #endif
+
+                // Initialise position and desired velocity
+                if (!pos_control->is_active_z()) {
+                    pos_control->relax_alt_hold_controllers(g2.arot.get_last_collective());
+                }
+
+                // Set acceleration limit
+                int16_t end_vel = 50;
+                int32_t accel_linear = (end_vel * end_vel  -  curr_vel_z * curr_vel_z) / (2 * curr_alt);
+                pos_control->set_max_accel_z(abs(accel_linear));
+
+                // Set speed limit
+                pos_control->set_max_speed_z(curr_vel_z, 0.0f);
+
+                _flags.touch_down_initial = 0;
+            }
+
+            // Set position controller
+            pos_control->set_alt_target_from_climb_rate(-70, G_Dt, true);
+
+            // Update controllers
+            pos_control->update_z_controller();
+
+
+            _pitch_target = 0.0f;
+
             break;
         }
 

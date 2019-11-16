@@ -1447,6 +1447,7 @@ private:
     float _param_td_alt;
     float _param_col_entry_cutoff_freq;
     float _param_col_glide_cutoff_freq;
+    float _param_col_flare_cutoff_freq;
     float _param_bail_time;
     float _param_flare_time_period;
     int32_t _param_td_alt_targ;
