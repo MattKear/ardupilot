@@ -346,14 +346,17 @@ void AC_Autorotation::log_write_autorotation(void)
     if(1<<1 & _param_log_bitmask){
         //Write to data flash log
         AP::logger().Write("AR2F",
-                       "TimeUS,ZATarg,ZVTarg,AltTarg,FP,FFF",
-                         "Qfffff",
+                       "TimeUS,ZATarg,ZVTarg,AltTarg,FP,PitOut,AcMxC,AcMnL,AcMxL",
+                         "Qffffffff",
                         AP_HAL::micros64(),
                         (double)_z_accel_target,
                         (double)_z_vel_target,
                         (double)_alt_target,
-                        (double)_p_term_col,
-                        (double)_ff_term_col);
+                        (double)_p_term_pitch,
+                        (double)_pitch_out,
+                        (double)_flare_accel_z_peak,
+                        (double)((AROT_FLARE_MIN_Z_ACCEL_PEAK-1) * GRAVITY_MSS * 100.0f),
+                        (double)((_param_flare_accel_z_max-1) * GRAVITY_MSS * 100.0f));
     }
 }
 
@@ -455,8 +458,6 @@ float AC_Autorotation::calc_speed_forward(void)
 // Determine whether or not the flare phase should be initiated
 bool AC_Autorotation::should_flare(void)
 {
-    bool ret;
-
     // Protect against divide by zero
     float flare_time_period = MAX(AROT_FLARE_TIME_PERIOD_MIN,_param_flare_time_period);
 
@@ -465,8 +466,7 @@ bool AC_Autorotation::should_flare(void)
 
     // Compare the calculated peak acceleration to the allowable limits
     if ((_flare_accel_z_peak < (AROT_FLARE_MIN_Z_ACCEL_PEAK-1) * GRAVITY_MSS * 100.0f)  || (_flare_accel_z_peak > (_param_flare_accel_z_max-1) * GRAVITY_MSS * 100.0f)){
-        //return false;
-        ret = false;
+        return false;
     }
 
     // Determine the altitude that the flare would complete
@@ -474,28 +474,10 @@ bool AC_Autorotation::should_flare(void)
 
     // Compare the prediced altitude to the acceptable range
     if ((td_alt_predicted < _param_td_alt_targ * 0.5f)  ||  (td_alt_predicted > _param_td_alt_targ * 1.5f)){
-        //return false;
-        ret = false;
-    } else {
-        ret = true;
+        return false;
     }
 
-    //Write to data flash log
-    AP::logger().Write("ARO2",
-                       "TimeUS,AcMxC,AcMnL,AcMxL,VelE,VelS,ZCal,time",
-                         "Qfffffff",
-                        AP_HAL::micros64(),
-                        (double)_flare_accel_z_peak,
-                        (double)((AROT_FLARE_MIN_Z_ACCEL_PEAK-1) * GRAVITY_MSS * 100.0f),
-                        (double)((_param_flare_accel_z_max-1) * GRAVITY_MSS * 100.0f),
-                        (double)-_param_vel_z_td,
-                        (double)_inav.get_velocity().z,
-                        (double)td_alt_predicted,
-                        (double)_flare_time);
-
-    // All checks pass, initiate flare
-    //return true;
-    return ret;
+    return true;
 }
 
 
@@ -505,6 +487,7 @@ void AC_Autorotation::set_flare_initial_conditions(void)
     _vel_z_initial = _inav.get_velocity().z;
     _last_vel_z = _vel_z_initial;
     _alt_z_initial = _inav.get_position().z;
+    _pitch_out = _pitch_target;
 }
 
 
@@ -545,7 +528,7 @@ and current col position?)  ==>  Collective position fed through reverse HS cont
 accel  ==>  compare that to target head speed from ideal trajectory  ==>  Create energy weighted average target HS
 ==>  use target HS in HS to collective output controller. */
 
-void AC_Autorotation::update_flare_controller(void)
+float AC_Autorotation::update_flare_controller(void)
 {
     // Protect against divide by zero
     float flare_correction_ratio = MAX(0.05,_param_flare_correction_ratio);
@@ -584,20 +567,16 @@ void AC_Autorotation::update_flare_controller(void)
     // Set collective trim low pass filter cut off frequency
     col_trim_lpf.set_cutoff_frequency(_param_col_flare_cutoff_freq);
 
-    _p_term_col = z_accel_adjustment / 1000.0f * _param_flare_p;
-
-    //float temp = _param_flare_p;
-    //gcs().send_text(MAV_SEVERITY_INFO, "_p_term_col = %.3f",_p_term_col);
-    //gcs().send_text(MAV_SEVERITY_INFO, "_param_flare_p = %.3f",temp);
-
-    // Adjusting collective trim using feed forward (not yet been updated, so this value is the previous time steps collective position)
-    _ff_term_col = col_trim_lpf.apply(_collective_out, _dt);
+    _p_term_pitch = z_accel_adjustment / 100.0f * _param_flare_p;
 
     // Calculate collective position to be set
-    _collective_out = _p_term_col + _ff_term_col;
+    _pitch_out = _p_term_pitch;
 
-    // Send collective to setting to motors output library
-    set_collective();
+    //float temp = _param_flare_p;
+    //gcs().send_text(MAV_SEVERITY_INFO, "_p_term_pitch = %.3f",_p_term_pitch);
+    //gcs().send_text(MAV_SEVERITY_INFO, "_pitch_out = %.3f",_pitch_out);
+
+    return _pitch_out;
 }
 
 
