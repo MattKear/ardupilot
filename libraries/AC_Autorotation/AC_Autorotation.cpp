@@ -244,8 +244,8 @@ AC_Autorotation::AC_Autorotation(AP_InertialNav& inav) :
         AP_Param::setup_object_defaults(this, var_info);
     }
 
-// Initialisation of head speed controller
-void AC_Autorotation::init_hs_controller()
+// Initialisation of autorotation controller
+void AC_Autorotation::init_arot_controller()
 {
     // Set initial collective position to be the collective position on initialisation
     _collective_out = 0.4f;
@@ -259,6 +259,10 @@ void AC_Autorotation::init_hs_controller()
     // Reset RPM health monitoring
     _unhealthy_rpm_counter = 0;
     _healthy_rpm_counter = 0;
+
+    // Protect against divide by zero
+    _flare_correction_ratio = MAX(0.05,_param_flare_correction_ratio);
+    _flare_time_period = MAX(AROT_FLARE_TIME_PERIOD_MIN,_param_flare_time_period);
 }
 
 
@@ -530,11 +534,8 @@ float AC_Autorotation::calc_speed_forward(void)
 // Determine whether or not the flare phase should be initiated
 bool AC_Autorotation::should_flare(void)
 {
-    // Protect against divide by zero
-    float flare_time_period = MAX(AROT_FLARE_TIME_PERIOD_MIN,_param_flare_time_period);
-
     // Determine peak acceleration if the flare was initiated in this state (cm/s/s)
-    _flare_accel_z_peak = 2.0f * (-_param_vel_z_td - _inav.get_velocity().z) / flare_time_period;
+    _flare_accel_z_peak = 2.0f * (-_param_vel_z_td - _inav.get_velocity().z) / _flare_time_period;
 
     // Compare the calculated peak acceleration to the allowable limits
     if ((_flare_accel_z_peak < (AROT_FLARE_MIN_Z_ACCEL_PEAK-1) * GRAVITY_MSS * 100.0f)  || (_flare_accel_z_peak > (_param_flare_accel_z_max-1) * GRAVITY_MSS * 100.0f)){
@@ -542,7 +543,7 @@ bool AC_Autorotation::should_flare(void)
     }
 
     // Determine the altitude that the flare would complete
-    uint32_t td_alt_predicted = 0.237334852f * _flare_accel_z_peak * flare_time_period * flare_time_period  +  _inav.get_velocity().z * flare_time_period  +  _inav.get_position().z;
+    uint32_t td_alt_predicted = 0.237334852f * _flare_accel_z_peak * _flare_time_period * _flare_time_period  +  _inav.get_velocity().z * _flare_time_period  +  _inav.get_position().z;
 
     // Compare the prediced altitude to the acceptable range
     if ((td_alt_predicted < _param_td_alt_targ * 0.5f)  ||  (td_alt_predicted > _param_td_alt_targ * 1.5f)){
@@ -554,33 +555,12 @@ bool AC_Autorotation::should_flare(void)
 
 
 //set initial conditions for flare targets
-void AC_Autorotation::set_flare_initial_conditions(void)
+void AC_Autorotation::set_flare_initial_cond(void)
 {
     _vel_z_initial = _inav.get_velocity().z;
     _last_vel_z = _vel_z_initial;
     _alt_z_initial = _inav.get_position().z;
-    _pitch_out = _pitch_target;
-}
-
-
-// Adjust head speed target based on desired trajectories
-void AC_Autorotation::set_flare_head_speed(void)
-{
-
-
-
-
-}
-
-
-// Return head speed error from flare phase target
-float AC_Autorotation::calc_hs_error_flare(void)
-{
-    // Calculate desired head speed
-    //float hs_target
-
- return 1.0f;
-
+    _pitch_out = _pitch_target;  //TODO: move flare controller to just continue using pitch target. Dont create pitch_out variable.
 }
 
 
@@ -602,42 +582,25 @@ accel  ==>  compare that to target head speed from ideal trajectory  ==>  Create
 
 float AC_Autorotation::update_flare_controller(void)
 {
-    // Protect against divide by zero
-    float flare_correction_ratio = MAX(0.05,_param_flare_correction_ratio);
-    float flare_time_period = MAX(AROT_FLARE_TIME_PERIOD_MIN,_param_flare_time_period);
-
     // Calculate the target altitude trajectory
-    _alt_target = _flare_accel_z_peak / 4.0f * (_flare_time * _flare_time - flare_time_period * flare_time_period / (M_PI * M_2PI) * sinf((_flare_time * M_2PI)/flare_time_period)  -  flare_time_period * flare_time_period / M_2PI)  +  _vel_z_initial * _flare_time  +  _alt_z_initial;
+    _alt_target = calc_position_target(_flare_accel_z_peak, _vel_z_initial, _alt_z_initial);
 
-    // Calculate error and convert to velocity correction
-    int32_t z_vel_correction;
-    z_vel_correction = (_alt_target - _inav.get_position().z) / (flare_correction_ratio * flare_time_period);
+    // Calculate the target velocity trajectories
+    _z_vel_target = calc_velocity_target(_flare_accel_z_peak, _vel_z_initial, _alt_target, _inav.get_position().z);
 
-    // Calculate the target velocity trajectory
-    _z_vel_target = _flare_accel_z_peak / 2.0f * (_flare_time - flare_time_period * sinf(_flare_time * M_2PI / flare_time_period) / M_2PI)  +  _vel_z_initial;
+    // Calculate the target acceleration trajectories
+    _z_accel_target = calc_acceleration_target(_flare_accel_z_peak, _z_vel_target, _inav.get_velocity().z);
 
-    // Calculate error
-    int32_t z_accel_correction;
-    z_accel_correction = (_z_vel_target - _inav.get_velocity().z + z_vel_correction) / (flare_correction_ratio * flare_time_period);
-
-    // Calculate desired acceleration
-    _z_accel_target = _flare_accel_z_peak * (1 - cosf((_flare_time * M_2PI)/flare_time_period)) / 2.0f;
-
-    // Approximate accleration
-    float z_accel_measured;
-    z_accel_measured = (_inav.get_velocity().z - _last_vel_z)/_dt;
+    // Approximate current acceleration
+    float z_accel_measured = (_inav.get_velocity().z - _last_vel_z)/_dt;
 
     // Store velocity
     _last_vel_z = _inav.get_velocity().z;
 
     //Calculate error
-    float z_accel_adjustment;
-    z_accel_adjustment = _z_accel_target - z_accel_measured + z_accel_correction;
+    float z_accel_adjustment = _z_accel_target - z_accel_measured;
 
     //gcs().send_text(MAV_SEVERITY_INFO, "z_accel_adjustment = %.3f",z_accel_adjustment);
-
-    // Set collective trim low pass filter cut off frequency
-    col_trim_lpf.set_cutoff_frequency(_param_col_flare_cutoff_freq);
 
     _p_term_pitch = z_accel_adjustment / 100.0f * _param_flare_p;
 
@@ -651,4 +614,49 @@ float AC_Autorotation::update_flare_controller(void)
     return _pitch_out;
 }
 
+
+int32_t AC_Autorotation::calc_position_target(float accel_peak, int16_t vel_initial, int32_t pos_initial)
+{
+    int32_t pos_target = accel_peak / 4.0f * (_flare_time * _flare_time - _flare_time_period * _flare_time_period / (M_PI * M_2PI) * sinf((_flare_time * M_2PI)/_flare_time_period)  -  _flare_time_period * _flare_time_period / M_2PI)  +  vel_initial * _flare_time  +  pos_initial;
+    return pos_target;
+}
+
+
+// Overloaded function: Determine the velocity target without altitude correction
+int16_t AC_Autorotation::calc_velocity_target(float accel_peak, int16_t vel_initial)
+{
+    // Calculate the target velocity trajectory
+    int16_t vel_target = accel_peak / 2.0f * (_flare_time - _flare_time_period * sinf(_flare_time * M_2PI / _flare_time_period) / M_2PI)  +  vel_initial;
+    return vel_target;
+}
+
+
+// Overloaded function: Determine the velocity target with altitude correction
+int16_t AC_Autorotation::calc_velocity_target(float accel_peak, int16_t vel_initial, int32_t pos_target, int32_t pos_measured)
+{
+    // Calculate the target velocity trajectory
+    int16_t vel_target = accel_peak / 2.0f * (_flare_time - _flare_time_period * sinf(_flare_time * M_2PI / _flare_time_period) / M_2PI)  +  vel_initial;
+
+    // Calculate velocity correction based on altitude error
+    int16_t vel_correction = (pos_target - pos_measured) / (_flare_correction_ratio * _flare_time_period);
+
+    // Adjust velocity target
+    int16_t adjusted_vel_target = vel_target + vel_correction;
+    return adjusted_vel_target;
+}
+
+
+// Determine the acceleration target and correct target to compensate for velocity error
+float AC_Autorotation::calc_acceleration_target(float accel_peak, int16_t vel_target, int16_t vel_measured)
+{
+    // Calculate desired acceleration
+    float accel_target = accel_peak * (1 - cosf((_flare_time * M_2PI)/_flare_time_period)) / 2.0f;
+
+    // Calculate acceleration correction based on velocity error
+    float accel_correction = (vel_target - vel_measured) / (_flare_correction_ratio * _flare_time_period);
+
+    // Adjust acceleration target
+    float adjusted_accel_target = accel_target + accel_correction;
+    return adjusted_accel_target;
+}
 

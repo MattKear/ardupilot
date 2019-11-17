@@ -31,7 +31,7 @@ bool ModeAutorotate::init(bool ignore_checks)
 
     // Initialise head speed/collective controller
     // This must be done before RPM value is fetched
-    g2.arot.init_hs_controller();
+    g2.arot.init_arot_controller();
 
     // Retrive rpm and start rpm sensor health checks
     _initial_rpm = g2.arot.get_rpm(true);
@@ -238,7 +238,7 @@ void ModeAutorotate::run()
                 _flare_time_start = now;
 
                 // Set initial conditions in controller
-                g2.arot.set_flare_initial_conditions();
+                g2.arot.set_flare_initial_cond();
 
                 // Set following trim low pass cut off frequency
                 g2.arot.set_col_cutoff_freq(_param_col_flare_cutoff_freq);
