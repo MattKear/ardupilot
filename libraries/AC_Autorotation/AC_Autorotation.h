@@ -22,7 +22,7 @@ public:
     AC_Autorotation(AP_InertialNav& inav);
 
     //--------Functions--------
-    void init_arot_controller(void);  // Initialise autorotation controller
+    void init_arot_controller(int16_t angle_max);  // Initialise autorotation controller
     void init_fwd_spd_controller(void);  // Initialise forward speed controller
     bool update_hs_glide_controller(void);  // Update head speed controller
     float get_rpm(void) const { return _current_rpm; }  // Function just returns the rpm as last read in this library
@@ -77,16 +77,26 @@ private:
     float _vel_ff;                   // Forward velocity Feed Forward term.
     float _accel_out;                // Acceleration value used to calculate pitch target.
     float _flare_time;               // Flare time, used for computing target trajectories.
-    float _flare_accel_z_peak;       // Calculated peak acceleration for target trajectory
+    float _flare_accel_z_peak;
+    float _flare_accel_fwd_peak;
+    float _flare_accel_peak;         // Calculated peak acceleration for target trajectory.
+    int16_t _flare_pitch_ang_max;      // Maximum pitch angle expected in flare phase.
     int16_t _last_vel_z;
+    int16_t _last_vel_fwd;
     int16_t _vel_z_initial;
+    int16_t _vel_fwd_initial;
     int32_t _alt_z_initial;
-    float _z_accel_target;
+    float _adjusted_z_accel_target;
+    float _adjusted_fwd_accel_target;
     int16_t _z_vel_target;
+    int16_t _fwd_vel_target;
     int32_t _alt_target;
+    float _angle_max;
+    float _flare_fwd_accel_target;
+    float _flare_z_accel_targ;
 
     float _p_term_pitch;
-    float _pitch_out;
+    int16_t _pitch_out;
     float _flare_time_period;
     float _flare_correction_ratio;
 
@@ -111,6 +121,7 @@ private:
     AP_Float _param_flare_correction_ratio;
     AP_Float _param_col_flare_cutoff_freq;
     AP_Float _param_flare_p;
+    AP_Int16 _param_angle_max;
 
     //--------Internal Flags--------
     struct controller_flags {
@@ -123,7 +134,7 @@ private:
     int32_t calc_position_target(float accel_peak, int16_t vel_initial, int32_t pos_initial);
     int16_t calc_velocity_target(float accel_peak, int16_t vel_initial);  // Overloaded function: Determine the velocity target without altitude correction
     int16_t calc_velocity_target(float accel_peak, int16_t vel_initial, int32_t pos_target, int32_t pos_measured);  // Overloaded function: Determine the velocity target with altitude correction
-    float calc_acceleration_target(float accel_peak, int16_t vel_target, int16_t vel_measured);
+    float calc_acceleration_target(float &accel_target, float accel_peak, int16_t vel_target, int16_t vel_measured);
 
     // low pass filter for collective trim
     LowPassFilterFloat col_trim_lpf;

@@ -31,7 +31,7 @@ bool ModeAutorotate::init(bool ignore_checks)
 
     // Initialise head speed/collective controller
     // This must be done before RPM value is fetched
-    g2.arot.init_arot_controller();
+    g2.arot.init_arot_controller(copter.aparm.angle_max);
 
     // Retrive rpm and start rpm sensor health checks
     _initial_rpm = g2.arot.get_rpm(true);
