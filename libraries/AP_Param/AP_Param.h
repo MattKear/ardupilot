@@ -283,6 +283,12 @@ public:
     /// @return                 true if the variable is found
     static bool set_by_name(const char *name, float value);
 
+    /// gat a value by name
+    ///
+    /// @param  name            The full name of the variable to be found.
+    /// @return                 The value of the varable
+    static float get_by_name(const char *name);
+
     /// set and save a value by name
     ///
     /// @param  name            The full name of the variable to be found.
