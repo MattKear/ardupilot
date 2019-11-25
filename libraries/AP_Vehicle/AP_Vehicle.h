@@ -53,6 +53,8 @@ public:
 
     bool virtual set_mode(const uint8_t new_mode, const ModeReason reason) = 0;
 
+    uint8_t get_button_mask() {return button.get_mask();};
+
     /*
       common parameters for fixed wing aircraft
      */
