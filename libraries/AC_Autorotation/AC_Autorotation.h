@@ -11,6 +11,7 @@
 #include <AP_InertialNav/AP_InertialNav.h>
 #include <AP_AHRS/AP_AHRS.h>
 #include <AP_HAL/AP_HAL.h>
+#include <GCS_MAVLink/GCS.h>
 
 
 class AC_Autorotation
@@ -31,8 +32,11 @@ public:
     int16_t get_hs_set_point(void) { return _param_head_speed_set_point; }
     float get_col_entry_freq(void) { return _param_col_entry_cutoff_freq; }
     float get_col_glide_freq(void) { return _param_col_glide_cutoff_freq; }
+    float get_col_flare_freq(void) { return _param_col_flare_cutoff_freq; }
     float get_bail_time(void) { return _param_bail_time; }
     float get_last_collective() const { return _collective_out; }
+    float get_flare_time_period() const { return _param_flare_time_period; }
+    int16_t get_td_alt_targ() const { return _param_td_alt_targ; }
     bool is_enable(void) { return _param_enable; }
     void log_write_autorotation(void);
     void update_forward_speed_controller(void);  // Update foward speed controller
@@ -93,7 +97,7 @@ private:
     int16_t _z_vel_target;
     int16_t _fwd_vel_target;
     int32_t _alt_target;
-    float _angle_max;
+    int16_t _angle_max;
     float _flare_fwd_accel_target;
     float _flare_z_accel_targ;
 

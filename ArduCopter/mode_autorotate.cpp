@@ -106,24 +106,24 @@ void ModeAutorotate::run()
     }
 
     // Check for flare exit conditions
-    if (phase_switch != TOUCH_DOWN  &&  phase_switch != BAIL_OUT  &&  _param_td_alt_targ >= curr_alt) {
-            phase_switch = TOUCH_DOWN;
+    if (phase_switch != Autorotation_Phase::TOUCH_DOWN  &&  phase_switch != Autorotation_Phase::BAIL_OUT  &&  g2.arot.get_td_alt_targ() >= curr_alt) {
+            phase_switch = Autorotation_Phase::TOUCH_DOWN;
             gcs().send_text(MAV_SEVERITY_INFO, "TD Reason Alt");
     }
-    if (phase_switch == FLARE){
+    if (phase_switch == Autorotation_Phase::FLARE){
         // This must be nested to recall sensible value of _flare_time_start
-        if ((_flare_time_start - now)/1000.0f >= _param_flare_time_period) {
-            phase_switch = TOUCH_DOWN;
+        if ((_flare_time_start - now)/1000.0f >= g2.arot.get_flare_time_period()) {
+            phase_switch = Autorotation_Phase::TOUCH_DOWN;
             gcs().send_text(MAV_SEVERITY_INFO, "TD Reason Time");
         }
     }
 
     // Check for flare initiation conditions
-    if (phase_switch != FLARE  &&  phase_switch != TOUCH_DOWN){
+    if (phase_switch != Autorotation_Phase::FLARE  &&  phase_switch != Autorotation_Phase::TOUCH_DOWN){
         // should_flare function must be called within the nested if to prevend peak accel from 
         // being updated once the flare is initiated
         if (g2.arot.should_flare()){
-            phase_switch = FLARE;
+            phase_switch = Autorotation_Phase::FLARE;
         }
     }
 
@@ -236,7 +236,7 @@ void ModeAutorotate::run()
                 g2.arot.set_flare_initial_cond();
 
                 // Set following trim low pass cut off frequency
-                g2.arot.set_col_cutoff_freq(_param_col_flare_cutoff_freq);
+                g2.arot.set_col_cutoff_freq(g2.arot.get_col_flare_freq());
 
                 // Prevent running the initial flare functions again
                 _flags.flare_initial = 0;

@@ -125,7 +125,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Range: 30 200
     // @Increment: 1
     // @User: Advanced
-    AP_GROUPINFO("TD_VEL_Z", 18, AC_Autorotation, _param_vel_z_td, 50),
+    AP_GROUPINFO("TD_VEL_Z", 12, AC_Autorotation, _param_vel_z_td, 50),
 
     // @Param: F_PERIOD
     // @DisplayName: Time period to execute the flare
@@ -134,7 +134,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Range: 0.5 2.0
     // @Increment: 0.1
     // @User: Advanced
-    AP_GROUPINFO("F_PERIOD", 19, AC_Autorotation, _param_flare_time_period, 0.9),
+    AP_GROUPINFO("F_PERIOD", 13, AC_Autorotation, _param_flare_time_period, 0.9),
 
     // @Param: F_ACC_ZMAX
     // @DisplayName: Maximum allowable vertical acceleration during flare
@@ -142,7 +142,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Range: 1.2 2.5
     // @Increment: 0.1
     // @User: Advanced
-    AP_GROUPINFO("F_ACC_ZMAX", 20, AC_Autorotation, _param_flare_accel_z_max, 1.5),
+    AP_GROUPINFO("F_ACC_ZMAX", 14, AC_Autorotation, _param_flare_accel_z_max, 1.5),
 
     // @Param: TD_ALT_TARG
     // @DisplayName: Target altitude to initiate touch down phase
@@ -151,14 +151,14 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Range: 30 150
     // @Increment: 1
     // @User: Advanced
-    AP_GROUPINFO("TD_ALT_TARG", 21, AC_Autorotation, _param_td_alt_targ, 50),
+    AP_GROUPINFO("TD_ALT_TARG", 15, AC_Autorotation, _param_td_alt_targ, 50),
 
     // @Param: LOG
     // @DisplayName: Logging bitmask
     // @Description: 1: Glide phase tuning, 2: Flare phase tuning
     // @Range: 0 2
     // @User: Advanced
-    AP_GROUPINFO("LOG", 22, AC_Autorotation, _param_log_bitmask, 0),
+    AP_GROUPINFO("LOG", 16, AC_Autorotation, _param_log_bitmask, 0),
 
     // @Param: F_T_RATIO
     // @DisplayName: Time period to execute the flare
@@ -166,7 +166,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Range: 0.05 0.5
     // @Increment: 0.01
     // @User: Advanced
-    AP_GROUPINFO("F_T_RATIO", 23, AC_Autorotation, _param_flare_correction_ratio, 0.1),
+    AP_GROUPINFO("F_T_RATIO", 17, AC_Autorotation, _param_flare_correction_ratio, 0.1),
 
     // @Param: COL_FILT_F
     // @DisplayName: Flare Phase Collective Filter
@@ -175,7 +175,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Range: 0.2 1
     // @Increment: 0.01
     // @User: Advanced
-    AP_GROUPINFO("COL_FILT_F", 24, AC_Autorotation, _param_col_flare_cutoff_freq, 0.8),
+    AP_GROUPINFO("COL_FILT_F", 18, AC_Autorotation, _param_col_flare_cutoff_freq, 0.8),
 
     // @Param: COL_F_P
     // @DisplayName: Collective P term for flare controller
@@ -183,7 +183,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Range:
     // @Increment:
     // @User: Advanced
-    AP_GROUPINFO("COL_F_P", 25, AC_Autorotation, _param_flare_p, HS_CONTROLLER_ENTRY_COL_FILTER),
+    AP_GROUPINFO("COL_F_P", 19, AC_Autorotation, _param_flare_p, HS_CONTROLLER_ENTRY_COL_FILTER),
 
     // @Param: ANGLE_MAX
     // @DisplayName: Pitch Angle Limit
@@ -192,7 +192,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Range: 1000 8000
     // @Increment: 100
     // @User: Advanced
-    AP_GROUPINFO("ANGLE_MAX", 26, AC_Autorotation, _param_angle_max, 0),
+    AP_GROUPINFO("ANGLE_MAX", 20, AC_Autorotation, _param_angle_max, 0),
 
     AP_GROUPEND
 };
@@ -227,12 +227,8 @@ void AC_Autorotation::init_hs_controller()
     _flare_correction_ratio = MAX(0.05,_param_flare_correction_ratio);
     _flare_time_period = MAX(AROT_FLARE_TIME_PERIOD_MIN,_param_flare_time_period);
 
-    // Get angle max if param set to 0
-    if (_param_angle_max == 0) {
-        _angle_max = angle_max; // (cdeg)
-    } else {
-        _angle_max = _param_angle_max; // (cdeg)
-    }
+    // Get angle max if param set lower than limti
+    _angle_max = MAX(_param_angle_max,15); // (cdeg)
 }
 
 
