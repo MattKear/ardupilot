@@ -37,6 +37,7 @@ public:
     float get_last_collective() const { return _collective_out; }
     float get_flare_time_period() const { return _param_flare_time_period; }
     int16_t get_td_alt_targ() const { return _param_td_alt_targ; }
+    int16_t get_td_vel_targ() const { return _param_vel_z_td; }
     bool is_enable(void) { return _param_enable; }
     void log_write_autorotation(void);
     void update_forward_speed_controller(void);  // Update foward speed controller
@@ -105,6 +106,9 @@ private:
     int16_t _pitch_out;
     float _flare_time_period;
     float _flare_correction_ratio;
+
+    //temp variables
+    int8_t logger_count;
 
     LowPassFilterFloat _accel_target_filter; // acceleration target filter
 

@@ -47,7 +47,7 @@ bool ModeAutorotate::init(bool ignore_checks)
     // Display message 
     gcs().send_text(MAV_SEVERITY_INFO, "Autorotation initiated");
 
-     // Set all inial flags to on
+     // Set all initial flags to on
     _flags.entry_initial = 1;
     _flags.ss_glide_initial = 1;
     _flags.flare_initial = 1;
@@ -57,6 +57,8 @@ bool ModeAutorotate::init(bool ignore_checks)
     _flags.straight_ahead_initial = 1;
     _flags.bail_out_initial = 1;
     _msg_flags.bad_rpm = true;
+    _msg_flags.flare_exit_td_alt = true;
+    _msg_flags.flare_exit_timer = true;
 
     // Setting default starting switches
     phase_switch = Autorotation_Phase::ENTRY;
@@ -108,13 +110,13 @@ void ModeAutorotate::run()
     // Check for flare exit conditions
     if (phase_switch != Autorotation_Phase::TOUCH_DOWN  &&  phase_switch != Autorotation_Phase::BAIL_OUT  &&  g2.arot.get_td_alt_targ() >= curr_alt) {
             phase_switch = Autorotation_Phase::TOUCH_DOWN;
-            gcs().send_text(MAV_SEVERITY_INFO, "TD Reason Alt");
+            message_handler(Msg_Num::FLARE_EXIT_ALT);
     }
     if (phase_switch == Autorotation_Phase::FLARE){
         // This must be nested to recall sensible value of _flare_time_start
         if ((_flare_time_start - now)/1000.0f >= g2.arot.get_flare_time_period()) {
             phase_switch = Autorotation_Phase::TOUCH_DOWN;
-            gcs().send_text(MAV_SEVERITY_INFO, "TD Reason Time");
+            message_handler(Msg_Num::FLARE_EXIT_TIMER);
         }
     }
 
@@ -252,7 +254,7 @@ void ModeAutorotate::run()
             g2.arot.set_target_head_speed(HEAD_SPEED_TARGET_RATIO);
 
             // Update head speed/ collective controller
-            _flags.bad_rpm = g2.arot.update_hs_glide_controller(); 
+            //_flags.bad_rpm = g2.arot.update_hs_glide_controller(); 
 
             // Calculate new head speed target based on positional trajectory
             _pitch_target = g2.arot.update_flare_controller();
@@ -287,7 +289,7 @@ void ModeAutorotate::run()
             }
 
             // Set position controller
-            pos_control->set_alt_target_from_climb_rate(-70, G_Dt, true);
+            pos_control->set_alt_target_from_climb_rate(abs(g2.arot.get_td_vel_targ())*-1, G_Dt, true);
 
             // Update controllers
             pos_control->update_z_controller();
@@ -399,7 +401,7 @@ void ModeAutorotate::run()
 
     // Output warning messaged if rpm signal is bad
     if (_flags.bad_rpm) {
-        warning_message(1);
+        message_handler(Msg_Num::POOR_RPM_SENSOR);
     }
 
 
@@ -422,16 +424,36 @@ void ModeAutorotate::run()
 
 } // End function run()
 
-void ModeAutorotate::warning_message(uint8_t message_n)
+void ModeAutorotate::message_handler(Msg_Num message_n)
 {
     switch (message_n) {
-        case 1:
+        case Msg_Num::POOR_RPM_SENSOR:
         {
             if (_msg_flags.bad_rpm) {
                 // Bad rpm sensor health.
                 gcs().send_text(MAV_SEVERITY_INFO, "Warning: Poor RPM Sensor Health");
                 gcs().send_text(MAV_SEVERITY_INFO, "Action: Minimum Collective Applied");
                 _msg_flags.bad_rpm = false;
+            }
+            break;
+        }
+
+        case Msg_Num::FLARE_EXIT_ALT:
+        {
+            if (_msg_flags.flare_exit_td_alt) {
+                // Userful to know for tuning whether the Touch down phase was initiated due to 
+                gcs().send_text(MAV_SEVERITY_INFO, "TD Reason Alt");
+                _msg_flags.flare_exit_td_alt = false;
+            }
+            break;
+        }
+
+        case Msg_Num::FLARE_EXIT_TIMER:
+        {
+            if (_msg_flags.flare_exit_td_alt) {
+                // Userful to know for tuning whether the Touch down phase was initiated due to 
+                gcs().send_text(MAV_SEVERITY_INFO, "TD Reason Timer");
+                _msg_flags.flare_exit_timer = false;
             }
             break;
         }

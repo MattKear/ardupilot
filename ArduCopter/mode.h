@@ -1470,10 +1470,17 @@ private:
 
     struct message_flags {
             bool bad_rpm                   : 1;
+            bool flare_exit_td_alt         : 1;
+            bool flare_exit_timer          : 1;
     } _msg_flags;
 
+    enum class Msg_Num {
+        POOR_RPM_SENSOR,
+        FLARE_EXIT_ALT,
+        FLARE_EXIT_TIMER};
+
     //--- Internal functions ---
-    void warning_message(uint8_t message_n);    //Handles output messages to the terminal
+    void message_handler(Msg_Num message_n);    //Handles output messages to the terminal
 
 };
 #endif
