@@ -22,8 +22,10 @@ public:
     AC_Autorotation(AP_InertialNav& inav);
 
     //--------Functions--------
+    void init(void);
     void init_hs_controller(void);  // Initialise autorotation controller
     void init_fwd_spd_controller(void);  // Initialise forward speed controller
+    void init_flare_controller();
     bool update_hs_glide_controller(void);  // Update head speed controller
     float get_rpm(void) const { return _current_rpm; }  // Function just returns the rpm as last read in this library
     float get_rpm(bool update_counter);  // Function fetches fresh rpm update and continues sensor health monitoring
@@ -47,7 +49,7 @@ public:
     float calc_speed_forward(void);  // Calculates the forward speed in the horizontal plane
     void set_dt(float delta_sec);
     bool should_flare(void);  // Function to determine whether or not the flare phase should be initiated
-    float update_flare_controller(void);
+    void update_flare_controller(void);
     void set_flare_time(float ft) { _flare_time = ft/1000.0f; }  // Set flare time and convert from millis to seconds
     void set_flare_initial_cond(void);
 
@@ -103,7 +105,10 @@ private:
     float _flare_z_accel_targ;
 
     float _p_term_pitch;
-    int16_t _pitch_out;
+    float _p_term_col;
+    float _pitch_out;
+    float _ff_pitch_term;
+
     float _flare_time_period;
     float _flare_correction_ratio;
 
@@ -131,13 +136,16 @@ private:
     AP_Int8 _param_log_bitmask;
     AP_Float _param_flare_correction_ratio;
     AP_Float _param_col_flare_cutoff_freq;
-    AP_Float _param_flare_p;
+    AP_Float _param_flare_col_p;
     AP_Int16 _param_angle_max;
+    AP_Float _param_flare_pitch_p;
+    AP_Float _param_flare_pitch_cutoff_freq;
 
     //--------Internal Flags--------
     struct controller_flags {
             bool bad_rpm             : 1;
             bool bad_rpm_warning     : 1;
+            bool hs_ctrl_running     : 1;
     } _flags;
 
     //--------Internal Functions--------
@@ -149,6 +157,9 @@ private:
 
     // low pass filter for collective trim
     LowPassFilterFloat col_trim_lpf;
+
+    // low pass filter for pitch trim
+    LowPassFilterFloat pitch_trim_lpf;
 
     //--------References to Other Libraries--------
     AP_InertialNav&    _inav;

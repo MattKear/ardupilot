@@ -183,7 +183,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Range:
     // @Increment:
     // @User: Advanced
-    AP_GROUPINFO("COL_F_P", 19, AC_Autorotation, _param_flare_p, HS_CONTROLLER_ENTRY_COL_FILTER),
+    AP_GROUPINFO("COL_F_P", 19, AC_Autorotation, _param_flare_col_p, 3),
 
     // @Param: ANGLE_MAX
     // @DisplayName: Pitch Angle Limit
@@ -193,6 +193,22 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Increment: 100
     // @User: Advanced
     AP_GROUPINFO("ANGLE_MAX", 20, AC_Autorotation, _param_angle_max, 0),
+
+    // @Param: PIT_F_P
+    // @DisplayName: Pitch angle controller p gain for flare phase 
+    // @Description: The p gain for the attitude controller during the flare 
+    // @Range: 0.1 5
+    // @Increment: 0.1
+    // @User: Advanced
+    AP_GROUPINFO("PIT_F_P", 21, AC_Autorotation, _param_flare_pitch_p, 3),
+
+    // @Param: PIT_F_FILT
+    // @DisplayName: Low pass filter cut off frequency for for pitch angle controller during flare phase 
+    // @Description: 
+    // @Range: 
+    // @Increment: 
+    // @User: Advanced
+    AP_GROUPINFO("PIT_F_FILT", 22, AC_Autorotation, _param_flare_pitch_cutoff_freq, 0.5),
 
     AP_GROUPEND
 };
@@ -207,16 +223,11 @@ AC_Autorotation::AC_Autorotation(AP_InertialNav& inav) :
     }
 
 // Initialisation of autorotation controller
-void AC_Autorotation::init_hs_controller()
+void AC_Autorotation::init()
 {
-    // Set initial collective position to be the collective position on initialisation
-    _collective_out = 0.4f;
-
-    // Reset feed forward filter
-    col_trim_lpf.reset(_collective_out);
-
     // Reset flags
     _flags.bad_rpm = false;
+    _flags.hs_ctrl_running = false;
 
     // Reset RPM health monitoring
     _unhealthy_rpm_counter = 0;
@@ -229,6 +240,21 @@ void AC_Autorotation::init_hs_controller()
 
     // Get angle max if param set lower than limti
     _angle_max = MAX(_param_angle_max,15); // (cdeg)
+
+    // Ensure forward speed controller acceleration parameter doesn't exceed hard-coded limit
+    _accel_max = MIN(_param_accel_max, 60.0f);
+}
+
+void AC_Autorotation::init_hs_controller()
+{
+    // Set head speed controller running flag
+    _flags.hs_ctrl_running = true;
+
+    // Set initial collective position to be the collective position on initialisation
+    _collective_out = 0.4f;
+
+    // Reset feed forward filter
+    col_trim_lpf.reset(_collective_out);
 }
 
 
@@ -380,11 +406,8 @@ void AC_Autorotation::log_write_autorotation(void)
 // Initialise forward speed controller
 void AC_Autorotation::init_fwd_spd_controller(void)
 {
-    // Reset I term and acceleration target
+    // Reset I term and acceleration target  <---TODO: check that there is no longer an I term for this to effect
     _accel_target = 0.0f;
-    
-    // Ensure parameter acceleration doesn't exceed hard-coded limit
-    _accel_max = MIN(_param_accel_max, 60.0f);
 
     // Reset cmd vel and last accel to sensible values
     _cmd_vel = calc_speed_forward(); //(cm/s)
@@ -482,28 +505,6 @@ bool AC_Autorotation::should_flare(void)
     _flare_accel_peak = sqrtf(_flare_accel_z_peak * _flare_accel_z_peak + _flare_accel_fwd_peak * _flare_accel_fwd_peak);
     
 
-        float max = (_param_flare_accel_z_max-1) * GRAVITY_MSS * 100.0f;
-        float min = (AROT_FLARE_MIN_Z_ACCEL_PEAK-1) * GRAVITY_MSS * 100.0f;
-        //Write to data flash log
-        AP::logger().Write("AFLA",
-                       "TimeUS,ZAP,FAP,TAP,MAX,MIN",
-                         "Qfffff",
-                        AP_HAL::micros64(),
-                        (double)_flare_accel_z_peak,
-                        (double)_flare_accel_fwd_peak,
-                        (double)_flare_accel_peak,
-                        (double)max,
-                        (double)min);
-
-
-
-
-
-
-
-
-
-
 
     // Compare the calculated peak acceleration to the allowable limits
     if ((_flare_accel_peak < (AROT_FLARE_MIN_Z_ACCEL_PEAK-1) * GRAVITY_MSS * 100.0f)  || (_flare_accel_peak > (_param_flare_accel_z_max-1) * GRAVITY_MSS * 100.0f)){
@@ -560,8 +561,26 @@ and current col position?)  ==>  Collective position fed through reverse HS cont
 accel  ==>  compare that to target head speed from ideal trajectory  ==>  Create energy weighted average target HS
 ==>  use target HS in HS to collective output controller. */
 
-float AC_Autorotation::update_flare_controller(void)
+void AC_Autorotation::init_flare_controller(void)
 {
+    if (!_flags.hs_ctrl_running){
+        _collective_out = 0.5;
+        _pitch_target = 0.0f;  //TODO improve this initial based on current pitch angle
+    }
+
+    // Set collective and pitch trim low pass filter cut off frequency
+    col_trim_lpf.set_cutoff_frequency(_col_cutoff_freq);
+    pitch_trim_lpf.set_cutoff_frequency(_param_flare_pitch_cutoff_freq);
+
+    // Reset feed forward filter
+    col_trim_lpf.reset(_collective_out);
+    pitch_trim_lpf.reset(_pitch_target);
+}
+
+
+void AC_Autorotation::update_flare_controller(void)
+{
+    //------------------------------------------Targets-------------------------------------------------
     // Calculate the target altitude trajectory
     _alt_target = calc_position_target(_flare_accel_z_peak, _vel_z_initial, _alt_z_initial);
 
@@ -573,7 +592,15 @@ float AC_Autorotation::update_flare_controller(void)
     _adjusted_z_accel_target = calc_acceleration_target(_flare_z_accel_targ, _flare_accel_z_peak, _z_vel_target, _inav.get_velocity().z);
     _adjusted_fwd_accel_target = calc_acceleration_target(_flare_fwd_accel_target, _flare_accel_fwd_peak, _fwd_vel_target, calc_speed_forward());
 
-    // Approximate current acceleration
+    // Calculate target acceleration magnitude
+    float flare_accel_mag_target = sqrtf(_adjusted_z_accel_target * _adjusted_z_accel_target + _adjusted_fwd_accel_target * _adjusted_fwd_accel_target);
+
+    // Compute the pitch angle target
+    float pitch_ang_target = atanf(_adjusted_fwd_accel_target/_adjusted_z_accel_target)*(18000.0f/M_PI);
+
+
+    //------------------------------------------Measure-------------------------------------------------
+    // Approximate current accelerations in z and fwd axis
     float z_accel_measured = (_inav.get_velocity().z - _last_vel_z)/_dt;
     float fwd_accel_measured = (calc_speed_forward() - _last_vel_fwd)/_dt;
 
@@ -581,28 +608,59 @@ float AC_Autorotation::update_flare_controller(void)
     _last_vel_z = _inav.get_velocity().z;
     _last_vel_fwd = calc_speed_forward();
 
-    // Calculate target acceleration magnitude
-    float flare_accel_mag_target = sqrtf(_adjusted_z_accel_target * _adjusted_z_accel_target + _adjusted_fwd_accel_target * _adjusted_fwd_accel_target);
 
     // Calculate the measured acceleration magnitude
     float flare_accel_mag_measured = sqrtf(z_accel_measured * z_accel_measured + fwd_accel_measured * fwd_accel_measured);
 
+    // Compute the measured pitch angle
+    float pitch_ang_measured = atanf(fwd_accel_measured/z_accel_measured)*(18000.0f/M_PI);
+
+
+
+
+    //------------------------------------------Compute Errors-------------------------------------------------
+    // Magnitude
+    float flare_mag_error = flare_accel_mag_target - flare_accel_mag_measured;
+
+    // Angle
+    float pitch_ang_error = pitch_ang_target - pitch_ang_measured;
+
+
+
+
+
+    // Calculate the p term, based on angle error
+    _p_term_pitch = pitch_ang_error * _param_flare_pitch_p;
+
     // Calculate the p term, based on magnitude error
-    _p_term_pitch = (flare_accel_mag_target - flare_accel_mag_measured) * _param_flare_p;
+    _p_term_col = flare_mag_error * _param_flare_col_p;
 
-    // Compute the pitch angle feed forward
-    //int16_t pitch_ang_ff = atanf(_fwd_accel_target/_adjusted_z_accel_target)*(18000.0f/M_PI);
+    // Adjusting collective trim using feed forward (not yet been updated, so this value is the previous time steps collective position)
+    _ff_term_hs = col_trim_lpf.apply(_collective_out, _dt);
 
-    // Calculate collective position to be set
-    _pitch_out = _p_term_pitch;
+    _ff_pitch_term = pitch_trim_lpf.apply(_pitch_out, _dt);
 
-    _pitch_out = constrain_int16(_pitch_out,-_angle_max,_angle_max);
 
-    //gcs().send_text(MAV_SEVERITY_INFO, "_p_term_pitch = %.3f",_p_term_pitch);
-    //gcs().send_text(MAV_SEVERITY_INFO, "pitch_ang_ff = %.3i",pitch_ang_ff);
-    //gcs().send_text(MAV_SEVERITY_INFO, "_pitch_out = %.3i",_pitch_out);
+    // Calculate pitch attittude to be set
+    _pitch_out = _p_term_pitch + _ff_pitch_term;
+    _pitch_target = constrain_float(_pitch_out,-_angle_max,_angle_max);
 
-    return _pitch_out;
+    // Calculate the collective position to be set
+    _collective_out = _p_term_col + _ff_term_hs;
+
+            //Write to data flash log
+        AP::logger().Write("AFLA",
+                       "TimeUS,ANGT,FT,ZT,FM,ZM,ANGM,PIT",
+                         "Qfffffff",
+                        AP_HAL::micros64(),
+                        (double)pitch_ang_target,
+                        (double)_adjusted_fwd_accel_target,
+                        (double)_adjusted_z_accel_target,
+                        (double)fwd_accel_measured,
+                        (double)z_accel_measured,
+                        (double)pitch_ang_measured,
+                        (double)_pitch_target);
+
 }
 
 
@@ -644,12 +702,11 @@ float AC_Autorotation::calc_acceleration_target(float &accel_target, float accel
     accel_target = accel_peak * (1 - cosf((_flare_time * M_2PI)/_flare_time_period)) / 2.0f;
 
     // Calculate acceleration correction based on velocity error
-    //float accel_correction = (vel_target - vel_measured) / (_flare_correction_ratio * _flare_time_period);
+    float accel_correction = (vel_target - vel_measured) / (_flare_correction_ratio * _flare_time_period);
 
     // Adjust acceleration target
-    //float adjusted_accel_target = accel_target + accel_correction;
-    //return adjusted_accel_target;
+    float adjusted_accel_target = accel_target + accel_correction;
+    return adjusted_accel_target;
 
-    return accel_target;
 }
 

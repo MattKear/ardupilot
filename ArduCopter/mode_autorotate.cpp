@@ -38,8 +38,7 @@ bool ModeAutorotate::init(bool ignore_checks)
 
     // Initialise controllers
     // This must be done before RPM value is fetched
-    g2.arot.init_hs_controller();
-    g2.arot.init_fwd_spd_controller();
+    g2.arot.init();
 
     // Retrive rpm and start rpm sensor health checks
     _initial_rpm = g2.arot.get_rpm(true);
@@ -139,6 +138,10 @@ void ModeAutorotate::run()
         {
             // Entry phase functions to be run only once
             if (_flags.entry_initial == 1) {
+
+                // Init head speed and forward speed controllers
+                g2.arot.init_hs_controller();
+                g2.arot.init_fwd_spd_controller();
 
                 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
                     gcs().send_text(MAV_SEVERITY_INFO, "Entry Phase");
@@ -251,13 +254,16 @@ void ModeAutorotate::run()
             g2.arot.set_dt(G_Dt);
 
             // Set target head speed in head speed controller
-            g2.arot.set_target_head_speed(HEAD_SPEED_TARGET_RATIO);
+            //g2.arot.set_target_head_speed(HEAD_SPEED_TARGET_RATIO);
 
             // Update head speed/ collective controller
             //_flags.bad_rpm = g2.arot.update_hs_glide_controller(); 
 
-            // Calculate new head speed target based on positional trajectory
-            _pitch_target = g2.arot.update_flare_controller();
+            // Update the flare controller 
+            g2.arot.update_flare_controller();
+
+            // update pitch target after the flare controller is run.
+            _pitch_target = g2.arot.get_pitch();
             // Attitude controller is updated in navigation switch-case statements
 
             break;
@@ -289,10 +295,10 @@ void ModeAutorotate::run()
             }
 
             // Set position controller
-            pos_control->set_alt_target_from_climb_rate(abs(g2.arot.get_td_vel_targ())*-1, G_Dt, true);
+            //pos_control->set_alt_target_from_climb_rate(abs(g2.arot.get_td_vel_targ())*-1, G_Dt, true);
 
             // Update controllers
-            pos_control->update_z_controller();
+            //pos_control->update_z_controller();
 
 
             _pitch_target = 0.0f;
