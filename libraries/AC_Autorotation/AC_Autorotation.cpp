@@ -5,7 +5,7 @@
 
 //Autorotation controller defaults
 #define AROT_BAIL_OUT_TIME                            2.0f     // Default time for bail out controller to run (unit: s)
-#define AROT_FLARE_MIN_Z_ACCEL_PEAK                   1.2f     // Minimum permissible peak acceleration factor for the flare phase (unit: -)
+#define AROT_FLARE_MIN_ACCEL_PEAK                   1.2f     // Minimum permissible peak acceleration factor for the flare phase (unit: -)
 #define AROT_FLARE_TIME_PERIOD_MIN                    0.5f
 
 
@@ -75,14 +75,14 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("COL_FILT_G", 6, AC_Autorotation, _param_col_glide_cutoff_freq, HS_CONTROLLER_GLIDE_COL_FILTER),
 
-    // @Param: AS_ACC_MAX
+    // @Param: FWD_ACC_MX
     // @DisplayName: Forward Acceleration Limit
     // @Description: Maximum forward acceleration to apply in speed controller.
     // @Units: cm/s/s
     // @Range: 30 60
     // @Increment: 10
     // @User: Advanced
-    AP_GROUPINFO("AS_ACC_MAX", 7, AC_Autorotation, _param_accel_max, FWD_SPD_CONTROLLER_MAX_ACCEL),
+    AP_GROUPINFO("FWD_ACC_MX", 7, AC_Autorotation, _param_accel_max, FWD_SPD_CONTROLLER_MAX_ACCEL),
 
     // @Param: BAIL_TIME
     // @DisplayName: Bail Out Timer
@@ -136,13 +136,13 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("F_PERIOD", 13, AC_Autorotation, _param_flare_time_period, 0.9),
 
-    // @Param: F_ACC_ZMAX
-    // @DisplayName: Maximum allowable vertical acceleration during flare
+    // @Param: F_ACC_MAX
+    // @DisplayName: Maximum allowable acceleration to be applied by the collective during flare
     // @Description: Multiplier of acceleration due to gravity 'g'.  Cannot be smaller that 1.2.
     // @Range: 1.2 2.5
     // @Increment: 0.1
     // @User: Advanced
-    AP_GROUPINFO("F_ACC_ZMAX", 14, AC_Autorotation, _param_flare_accel_z_max, 1.5),
+    AP_GROUPINFO("F_COL_AC_MX", 14, AC_Autorotation, _param_flare_col_accel_max, 1.5),
 
     // @Param: TD_ALT_TARG
     // @DisplayName: Target altitude to initiate touch down phase
@@ -374,7 +374,7 @@ void AC_Autorotation::log_write_autorotation(void)
                         (double)_collective_out,
                         (double)_ff_term_hs,
                         (double)_current_rpm,
-                        (double)_speed_forward,
+                        (double)calc_speed_forward(),
                         (double)_cmd_vel,
                         (double)_vel_p,
                         (double)_vel_ff,
@@ -397,9 +397,25 @@ void AC_Autorotation::log_write_autorotation(void)
                         (double)_adjusted_fwd_accel_target,
                         (double)_p_term_pitch,
                         (double)_pitch_out,
-                        (double)_flare_accel_peak,
+                        (double)_flare_resultant_accel_peak,
                         (double)_flare_pitch_ang_max);
     }
+
+    auto &ahrs = AP::ahrs();
+    Vector3f accel_ef_blended = ahrs.get_accel_ef_blended(); //(m/s/s)
+    float z_accel_measured = accel_ef_blended.z*-100.0f;  //(cm/s/s)  The negative accounts for the change in convention.  Here Z is positive down.  In AHRS z is positive up.
+    float fwd_accel_measured = (accel_ef_blended.x*ahrs.cos_yaw() + accel_ef_blended.y*ahrs.sin_yaw())* 100; //(cm/s)
+
+    if(1<<1 & _param_log_bitmask){
+        //Write to data flash log
+        AP::logger().Write("ARFT",
+                       "TimeUS,ZAM,FAM",
+                         "Qff",
+                        AP_HAL::micros64(),
+                        (double)z_accel_measured,
+                        (double)fwd_accel_measured);
+    }
+
 }
 
 
@@ -502,17 +518,16 @@ bool AC_Autorotation::should_flare(void)
     _flare_accel_fwd_peak = 2.0f * (0.0f - calc_speed_forward()) / _flare_time_period;  // Assumed touch down forward speed of 0 m/s
 
     // Resolve the magnitude of the total peak acceleration
-    _flare_accel_peak = sqrtf(_flare_accel_z_peak * _flare_accel_z_peak + _flare_accel_fwd_peak * _flare_accel_fwd_peak);
-
+    _flare_resultant_accel_peak = sqrtf(_flare_accel_z_peak * _flare_accel_z_peak + _flare_accel_fwd_peak * _flare_accel_fwd_peak);
 
     // Compare the calculated peak acceleration to the allowable limits
-    if ((_flare_accel_peak < AROT_FLARE_MIN_Z_ACCEL_PEAK * GRAVITY_MSS * 100.0f)  || (_flare_accel_peak > _param_flare_accel_z_max * GRAVITY_MSS * 100.0f)){
+    if ((_flare_resultant_accel_peak < AROT_FLARE_MIN_ACCEL_PEAK * GRAVITY_MSS * 100.0f)  || (_flare_resultant_accel_peak > _param_flare_col_accel_max * GRAVITY_MSS * 100.0f)){
         //gcs().send_text(MAV_SEVERITY_INFO, "Magnitude Fail");
         return false;
     }
 
     // Compute the maximum pitch angle
-    _flare_pitch_ang_max = atanf(_flare_accel_fwd_peak/_flare_accel_z_peak)*(18000.0f/M_PI);  //(cdeg)
+    _flare_pitch_ang_max = acosf(_flare_accel_fwd_peak/_flare_accel_z_peak)*(18000.0f/M_PI);  //(cdeg)
 
     // Compare the calculated max angle limit to the parameter defined limit
     if (fabsf(_flare_pitch_ang_max) > fabsf(_angle_max)) {
@@ -531,9 +546,9 @@ bool AC_Autorotation::should_flare(void)
                         AP_HAL::micros64(),
                         (double)_inav.get_velocity().z,
                         (double)_param_vel_z_td,
-                        (double)_flare_accel_peak,
-                        (double)(AROT_FLARE_MIN_Z_ACCEL_PEAK * GRAVITY_MSS * 100.0f),
-                        (double)(_param_flare_accel_z_max * GRAVITY_MSS * 100.0f),
+                        (double)_flare_resultant_accel_peak,
+                        (double)(AROT_FLARE_MIN_ACCEL_PEAK * GRAVITY_MSS * 100.0f),
+                        (double)(_param_flare_col_accel_max * GRAVITY_MSS * 100.0f),
                         (double)td_alt_predicted);
 
     // Compare the prediced altitude to the acceptable range

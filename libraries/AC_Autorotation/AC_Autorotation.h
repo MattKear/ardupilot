@@ -88,7 +88,7 @@ private:
     float _flare_time;               // Flare time, used for computing target trajectories.
     float _flare_accel_z_peak;
     float _flare_accel_fwd_peak;
-    float _flare_accel_peak;         // Calculated peak acceleration for target trajectory.
+    float _flare_resultant_accel_peak;         // Calculated peak acceleration for target trajectory.
     int16_t _flare_pitch_ang_max;      // Maximum pitch angle expected in flare phase.
     int16_t _last_vel_z;
     int16_t _last_vel_fwd;
@@ -131,7 +131,7 @@ private:
     AP_Float _param_fwd_k_ff;
     AP_Int16 _param_vel_z_td;
     AP_Float _param_flare_time_period;
-    AP_Float _param_flare_accel_z_max;
+    AP_Float _param_flare_col_accel_max;
     AP_Int16 _param_td_alt_targ;
     AP_Int8 _param_log_bitmask;
     AP_Float _param_flare_correction_ratio;
