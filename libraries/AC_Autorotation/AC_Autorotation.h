@@ -53,6 +53,8 @@ public:
     void set_flare_time(float ft) { _flare_time = ft/1000.0f; }  // Set flare time and convert from millis to seconds
     void set_flare_initial_cond(void);
 
+    void set_collective(void);
+
     // User Settable Parameters
     static const struct AP_Param::GroupInfo var_info[];
 
@@ -112,6 +114,8 @@ private:
     float _flare_time_period;
     float _flare_correction_ratio;
 
+    float _drag_initial;
+
     //temp variables
     int8_t logger_count;
 
@@ -149,11 +153,11 @@ private:
     } _flags;
 
     //--------Internal Functions--------
-    void set_collective(void);
     int32_t calc_position_target(float accel_peak, int16_t vel_initial, int32_t pos_initial);
     int16_t calc_velocity_target(float accel_peak, int16_t vel_initial);  // Overloaded function: Determine the velocity target without altitude correction
     int16_t calc_velocity_target(float accel_peak, int16_t vel_initial, int32_t pos_target, int32_t pos_measured);  // Overloaded function: Determine the velocity target with altitude correction
     float calc_acceleration_target(float &accel_target, float accel_peak, int16_t vel_target, int16_t vel_measured);
+    void get_acceleration(float &z_accel, float &fwd_accel);
 
     // low pass filter for collective trim
     LowPassFilterFloat col_trim_lpf;

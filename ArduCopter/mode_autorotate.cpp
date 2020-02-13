@@ -113,7 +113,7 @@ void ModeAutorotate::run()
     }
     if (phase_switch == Autorotation_Phase::FLARE){
         // This must be nested to recall sensible value of _flare_time_start
-        if ((_flare_time_start - now)/1000.0f >= g2.arot.get_flare_time_period()) {
+        if ((now - _flare_time_start)/1000.0f >= g2.arot.get_flare_time_period()) {
             phase_switch = Autorotation_Phase::TOUCH_DOWN;
             message_handler(Msg_Num::FLARE_EXIT_TIMER);
         }
@@ -261,6 +261,7 @@ void ModeAutorotate::run()
 
             // Update the flare controller 
             g2.arot.update_flare_controller();
+            g2.arot.set_collective();
 
             // update pitch target after the flare controller is run.
             _pitch_target = g2.arot.get_pitch();
