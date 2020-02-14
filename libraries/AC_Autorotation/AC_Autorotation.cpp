@@ -401,21 +401,6 @@ void AC_Autorotation::log_write_autorotation(void)
                         (double)_flare_pitch_ang_max);
     }
 
-    auto &ahrs = AP::ahrs();
-    Vector3f accel_ef_blended = ahrs.get_accel_ef_blended(); //(m/s/s)
-    float z_accel_measured = accel_ef_blended.z*-100.0f;  //(cm/s/s)  The negative accounts for the change in convention.  Here Z is positive down.  In AHRS z is positive up.
-    float fwd_accel_measured = (accel_ef_blended.x*ahrs.cos_yaw() + accel_ef_blended.y*ahrs.sin_yaw())* 100; //(cm/s)
-
-    if(1<<1 & _param_log_bitmask){
-        //Write to data flash log
-        AP::logger().Write("ARFT",
-                       "TimeUS,ZAM,FAM",
-                         "Qff",
-                        AP_HAL::micros64(),
-                        (double)z_accel_measured,
-                        (double)fwd_accel_measured);
-    }
-
 }
 
 
@@ -593,7 +578,7 @@ void AC_Autorotation::set_flare_initial_cond(void)
     auto &ahrs = AP::ahrs();  //TODO: get AHRS singleton 
 
     // Approximate mass normalised drag in forward direction in NED frame using measurements
-    _drag_initial = (GRAVITY_MSS * 100.0f - z_accel_measure) * tanf(degrees(ahrs.get_pitch())) - fwd_accel_measure; //(cm/s/s)
+    _drag_initial = z_accel_measure * tanf(ahrs.get_pitch()) + fwd_accel_measure; //(cm/s/s)
 }
 
 
@@ -633,35 +618,36 @@ void AC_Autorotation::init_flare_controller(void)
 void AC_Autorotation::update_flare_controller(void)
 {
     // Measure speeds
-    //int16_t z_vel_measured = _inav.get_velocity().z;
+    int16_t z_vel_measured = _inav.get_velocity().z;
     int16_t fwd_vel_measured = calc_speed_forward();
 
     //------------------------------------------Targets-------------------------------------------------
     // Calculate the target altitude trajectory
-    //_alt_target = calc_position_target(_flare_accel_z_peak, _vel_z_initial, _alt_z_initial);
+    _alt_target = calc_position_target(_flare_accel_z_peak, _vel_z_initial, _alt_z_initial);
 
     // Calculate the target velocity trajectories
-    //_z_vel_target = calc_velocity_target(_flare_accel_z_peak, _vel_z_initial, _alt_target, _inav.get_position().z);
-    //_fwd_vel_target = calc_velocity_target(_flare_accel_fwd_peak, _vel_fwd_initial);
+    _z_vel_target = calc_velocity_target(_flare_accel_z_peak, _vel_z_initial, _alt_target, _inav.get_position().z);
+    _fwd_vel_target = calc_velocity_target(_flare_accel_fwd_peak, _vel_fwd_initial);
 
     // Calculate the target delta acceleration trajectories
-    //_adjusted_z_accel_target = calc_acceleration_target(_flare_z_accel_targ, _flare_accel_z_peak, _z_vel_target, z_vel_measured);
-    _adjusted_z_accel_target = calc_acceleration_target(_flare_z_accel_targ, _flare_accel_z_peak, 0, 0);
-    //_adjusted_fwd_accel_target = calc_acceleration_target(_flare_fwd_accel_target, _flare_accel_fwd_peak, _fwd_vel_target, fwd_vel_measured);
-    _adjusted_fwd_accel_target = calc_acceleration_target(_flare_fwd_accel_target, _flare_accel_fwd_peak, 0, 0);
+    _adjusted_z_accel_target = calc_acceleration_target(_flare_z_accel_targ, _flare_accel_z_peak, _z_vel_target, z_vel_measured);
+    //_adjusted_z_accel_target = calc_acceleration_target(_flare_z_accel_targ, _flare_accel_z_peak, 0, 0);
+    _adjusted_fwd_accel_target = calc_acceleration_target(_flare_fwd_accel_target, _flare_accel_fwd_peak, _fwd_vel_target, fwd_vel_measured);
+    //_adjusted_fwd_accel_target = calc_acceleration_target(_flare_fwd_accel_target, _flare_accel_fwd_peak, 0, 0);
 
     // Account for gravity
     _adjusted_z_accel_target = abs(_adjusted_z_accel_target) +  GRAVITY_MSS * 100.0f;
 
     // Account for drag
-    _adjusted_fwd_accel_target = abs(_adjusted_fwd_accel_target) - (_drag_initial * fwd_vel_measured * fwd_vel_measured / (_vel_fwd_initial * _vel_fwd_initial));
-    _adjusted_fwd_accel_target = _adjusted_fwd_accel_target*-1;
+    float drag = _drag_initial * fwd_vel_measured * fwd_vel_measured / (_vel_fwd_initial * _vel_fwd_initial);
+    _total_fwd_accel_target = _adjusted_fwd_accel_target - drag;
+
 
     // Calculate target acceleration magnitude
-    float flare_accel_mag_target = sqrtf(_adjusted_z_accel_target * _adjusted_z_accel_target + _adjusted_fwd_accel_target * _adjusted_fwd_accel_target);
+    float flare_accel_mag_target = sqrtf(_adjusted_z_accel_target * _adjusted_z_accel_target + _total_fwd_accel_target * _total_fwd_accel_target);
 
     // Compute the pitch angle target
-    float pitch_ang_target = degrees(acosf(_adjusted_fwd_accel_target/flare_accel_mag_target)) - 90.0f;
+    float pitch_ang_target = degrees(acosf(_total_fwd_accel_target/flare_accel_mag_target)) - 90.0f;
 
 
     //------------------------------------------Measure-------------------------------------------------
@@ -696,7 +682,7 @@ void AC_Autorotation::update_flare_controller(void)
     _p_term_pitch = pitch_ang_error * _param_flare_pitch_p;
 
     // Calculate the p term, based on magnitude error
-    _p_term_col = flare_mag_error * _param_flare_col_p;
+    _p_term_col = flare_mag_error * _param_flare_col_p / 1000;
 
     // Adjusting collective trim using feed forward (not yet been updated, so this value is the previous time steps collective position)
     _ff_term_hs = col_trim_lpf.apply(_collective_out, _dt);
@@ -716,11 +702,12 @@ void AC_Autorotation::update_flare_controller(void)
 
             //Write to data flash log
         AP::logger().Write("AFLA",
-                       "TimeUS,ANGT,FT,ZT,FM,ZM,ANGM",
-                         "Qffffff",
+                       "TimeUS,ANGT,DFAT,TFAT,ZAT,FAM,ZAM,ANGM",
+                         "Qfffffff",
                         AP_HAL::micros64(),
                         (double)pitch_ang_target,
                         (double)_adjusted_fwd_accel_target,
+                        (double)_total_fwd_accel_target,
                         (double)_adjusted_z_accel_target,
                         (double)fwd_accel_measured,
                         (double)z_accel_measured,
@@ -729,13 +716,14 @@ void AC_Autorotation::update_flare_controller(void)
 
             //Write to data flash log
         AP::logger().Write("AFL2",
-                       "TimeUS,PIT,MAGM,MAGT,DI",
-                         "Qffff",
+                       "TimeUS,MAGM,MAGT,TAN,DI,DRAG",
+                         "Qfffff",
                         AP_HAL::micros64(),
-                        (double)_pitch_out,
                         (double)flare_accel_mag_measured,
                         (double)flare_accel_mag_target,
-                        (double)_drag_initial);
+                        (double)tanf(ahrs.get_pitch()),
+                        (double)_drag_initial,
+                        (double)drag);
 
 
 }
@@ -791,7 +779,7 @@ float AC_Autorotation::calc_acceleration_target(float &accel_target, float accel
 void AC_Autorotation::get_acceleration(float& z_accel, float& fwd_accel)
 {
     auto &ahrs = AP::ahrs();
-    Vector3f accel_ef_blended = ahrs.get_accel_ef_blended(); //(m/s/s)
-    z_accel = accel_ef_blended.z*-100.0f;  //(cm/s/s)  The negative accounts for the change in convention.  Here Z is positive down.  In AHRS z is positive up.
-    fwd_accel = (accel_ef_blended.x*ahrs.cos_yaw() + accel_ef_blended.y*ahrs.sin_yaw())* 100; //(cm/s/s)
+    Vector3f accel_ef_blended = ahrs.get_accel_ef_blended(); // (m/s/s)
+    z_accel = accel_ef_blended.z*-100.0f; // (cm/s/s) negatice is for change of conventions from NED to the convention used here
+    fwd_accel = (accel_ef_blended.x*ahrs.cos_yaw() + accel_ef_blended.y*ahrs.sin_yaw())* 100; // (cm/s/s)
 }

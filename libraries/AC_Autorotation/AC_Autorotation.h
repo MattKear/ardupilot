@@ -99,6 +99,7 @@ private:
     int32_t _alt_z_initial;
     float _adjusted_z_accel_target;
     float _adjusted_fwd_accel_target;
+    float _total_fwd_accel_target;
     int16_t _z_vel_target;
     int16_t _fwd_vel_target;
     int32_t _alt_target;

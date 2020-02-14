@@ -1441,6 +1441,7 @@ private:
     float _target_pitch_adjust;     // Target pitch rate used during bail out phase
     uint16_t log_counter;           // Used to reduce the data flash logging rate
     float _flare_time_start;        // Time that flare phase initiates
+    int16_t _td_vel;
 
     enum class Autorotation_Phase {
         ENTRY,
