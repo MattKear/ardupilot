@@ -89,7 +89,9 @@ private:
     float _accel_out;                // Acceleration value used to calculate pitch target.
     float _flare_time;               // Flare time, used for computing target trajectories.
     float _flare_accel_z_peak;
+    float _flare_delta_accel_z_peak;
     float _flare_accel_fwd_peak;
+    float _flare_delta_accel_fwd_peak;
     float _flare_resultant_accel_peak;         // Calculated peak acceleration for target trajectory.
     int16_t _flare_pitch_ang_max;      // Maximum pitch angle expected in flare phase.
     int16_t _last_vel_z;
@@ -100,6 +102,7 @@ private:
     float _adjusted_z_accel_target;
     float _adjusted_fwd_accel_target;
     float _total_fwd_accel_target;
+    float _total_z_accel_target;
     int16_t _z_vel_target;
     int16_t _fwd_vel_target;
     int32_t _alt_target;
@@ -119,6 +122,7 @@ private:
 
     //temp variables
     int8_t logger_count;
+    bool msg_write_once = true;
 
     LowPassFilterFloat _accel_target_filter; // acceleration target filter
 

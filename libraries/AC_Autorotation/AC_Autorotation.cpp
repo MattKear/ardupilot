@@ -508,8 +508,11 @@ bool AC_Autorotation::should_flare(void)
     get_acceleration(z_accel_measure, fwd_accel_measure);
 
     // Determine peak acceleration if the flare was initiated in this state (cm/s/s)
-    _flare_accel_z_peak = 2.0f * (-_param_vel_z_td - z_vel) / _flare_time_period + GRAVITY_MSS*100.0f;
-    _flare_accel_fwd_peak = 2.0f * (0.0f - fwd_vel) / _flare_time_period;  // Assumed touch down forward speed of 0 m/s
+    _flare_delta_accel_z_peak = 2.0f * (-_param_vel_z_td - z_vel) / _flare_time_period;
+    _flare_delta_accel_fwd_peak = 2.0f * (0.0f - fwd_vel) / _flare_time_period;  // Assumed touch down forward speed of 0 m/s
+
+    //Account for gravity in peak z acceleration
+    _flare_accel_z_peak = _flare_delta_accel_z_peak + GRAVITY_MSS*100.0f;
 
     // Account for drag in forward acceleration
     auto &ahrs = AP::ahrs();
@@ -537,7 +540,7 @@ bool AC_Autorotation::should_flare(void)
     }
 
     // Determine the altitude that the flare would complete
-    uint32_t td_alt_predicted = 0.237334852f * (_flare_accel_z_peak-(GRAVITY_MSS*100.0f)) * _flare_time_period * _flare_time_period  +  z_vel * _flare_time_period  +  _inav.get_position().z;
+    uint32_t td_alt_predicted = 0.237334852f * (_flare_delta_accel_z_peak) * _flare_time_period * _flare_time_period  +  z_vel * _flare_time_period  +  _inav.get_position().z;
 
 
         //Write to data flash log
@@ -623,20 +626,34 @@ void AC_Autorotation::update_flare_controller(void)
 
     //------------------------------------------Targets-------------------------------------------------
     // Calculate the target altitude trajectory
-    _alt_target = calc_position_target(_flare_accel_z_peak, _vel_z_initial, _alt_z_initial);
+    _alt_target = calc_position_target(_flare_delta_accel_z_peak, _vel_z_initial, _alt_z_initial);
+
+
+    if (msg_write_once) {
+        //gcs().send_text(MAV_SEVERITY_INFO, "_flare_accel_z_peak = %f",_flare_accel_z_peak);
+        //gcs().send_text(MAV_SEVERITY_INFO, "_vel_z_initial = %i",_vel_z_initial);
+        //gcs().send_text(MAV_SEVERITY_INFO, "_alt_z_initial = %i",_alt_z_initial);
+        //gcs().send_text(MAV_SEVERITY_INFO, "_flare_time_period = %f",_flare_time_period);
+        //gcs().send_text(MAV_SEVERITY_INFO, "Magnitude Fail");
+        msg_write_once = false;
+    }
+
+
+
+
 
     // Calculate the target velocity trajectories
-    _z_vel_target = calc_velocity_target(_flare_accel_z_peak, _vel_z_initial, _alt_target, _inav.get_position().z);
-    _fwd_vel_target = calc_velocity_target(_flare_accel_fwd_peak, _vel_fwd_initial);
+    _z_vel_target = calc_velocity_target(_flare_delta_accel_z_peak, _vel_z_initial, _alt_target, _inav.get_position().z);
+    _fwd_vel_target = calc_velocity_target(_flare_delta_accel_fwd_peak, _vel_fwd_initial);
 
     // Calculate the target delta acceleration trajectories
-    _adjusted_z_accel_target = calc_acceleration_target(_flare_z_accel_targ, _flare_accel_z_peak, _z_vel_target, z_vel_measured);
+    _adjusted_z_accel_target = calc_acceleration_target(_flare_z_accel_targ, _flare_delta_accel_z_peak, _z_vel_target, z_vel_measured);
     //_adjusted_z_accel_target = calc_acceleration_target(_flare_z_accel_targ, _flare_accel_z_peak, 0, 0);
-    _adjusted_fwd_accel_target = calc_acceleration_target(_flare_fwd_accel_target, _flare_accel_fwd_peak, _fwd_vel_target, fwd_vel_measured);
+    _adjusted_fwd_accel_target = calc_acceleration_target(_flare_fwd_accel_target, _flare_delta_accel_fwd_peak, _fwd_vel_target, fwd_vel_measured);
     //_adjusted_fwd_accel_target = calc_acceleration_target(_flare_fwd_accel_target, _flare_accel_fwd_peak, 0, 0);
 
     // Account for gravity
-    _adjusted_z_accel_target = abs(_adjusted_z_accel_target) +  GRAVITY_MSS * 100.0f;
+    _total_z_accel_target = _adjusted_z_accel_target +  (GRAVITY_MSS * 100.0f);
 
     // Account for drag
     float drag = _drag_initial * fwd_vel_measured * fwd_vel_measured / (_vel_fwd_initial * _vel_fwd_initial);
@@ -644,7 +661,7 @@ void AC_Autorotation::update_flare_controller(void)
 
 
     // Calculate target acceleration magnitude
-    float flare_accel_mag_target = sqrtf(_adjusted_z_accel_target * _adjusted_z_accel_target + _total_fwd_accel_target * _total_fwd_accel_target);
+    float flare_accel_mag_target = sqrtf(_total_z_accel_target * _total_z_accel_target + _total_fwd_accel_target * _total_fwd_accel_target);
 
     // Compute the pitch angle target
     float pitch_ang_target = degrees(acosf(_total_fwd_accel_target/flare_accel_mag_target)) - 90.0f;
@@ -702,36 +719,50 @@ void AC_Autorotation::update_flare_controller(void)
 
             //Write to data flash log
         AP::logger().Write("AFLA",
-                       "TimeUS,ANGT,DFAT,TFAT,ZAT,FAM,ZAM,ANGM",
-                         "Qfffffff",
+                       "TimeUS,ANGT,ANGM,MAGT,MAGM,DI,DRAG",
+                         "Qffffff",
                         AP_HAL::micros64(),
                         (double)pitch_ang_target,
-                        (double)_adjusted_fwd_accel_target,
-                        (double)_total_fwd_accel_target,
-                        (double)_adjusted_z_accel_target,
-                        (double)fwd_accel_measured,
-                        (double)z_accel_measured,
-                        (double)pitch_ang_measured);
-
-
-            //Write to data flash log
-        AP::logger().Write("AFL2",
-                       "TimeUS,MAGM,MAGT,TAN,DI,DRAG",
-                         "Qfffff",
-                        AP_HAL::micros64(),
-                        (double)flare_accel_mag_measured,
+                        (double)pitch_ang_measured,
                         (double)flare_accel_mag_target,
-                        (double)tanf(ahrs.get_pitch()),
+                        (double)flare_accel_mag_measured,
                         (double)_drag_initial,
                         (double)drag);
 
 
+            //Write to data flash log
+        AP::logger().Write("AFLB",
+                       "TimeUS,AFAT,TFAT,AZAT,TZAT",
+                         "Qffff",
+                        AP_HAL::micros64(),
+                        (double)_adjusted_fwd_accel_target,
+                        (double)_total_fwd_accel_target,
+                        (double)_adjusted_z_accel_target,
+                        (double)_total_z_accel_target);
+
+
+            //Write to data flash log
+        AP::logger().Write("AFLC",
+                       "TimeUS,ALTT,ALTM,AZVT,FVT",
+                         "Qffff",
+                        AP_HAL::micros64(),
+                        (double)_alt_target,
+                        (double)_inav.get_position().z,
+                        (double)_z_vel_target,
+                        (double)_fwd_vel_target);
+
+
+
+
+
+
+
 }
 
-
+//_alt_target = calc_position_target(_flare_accel_z_peak, _vel_z_initial, _alt_z_initial);
 int32_t AC_Autorotation::calc_position_target(float accel_peak, int16_t vel_initial, int32_t pos_initial)
 {
-    int32_t pos_target = accel_peak / 4.0f * (_flare_time * _flare_time - _flare_time_period * _flare_time_period / (M_PI * M_2PI) * sinf((_flare_time * M_2PI)/_flare_time_period)  -  _flare_time_period * _flare_time_period / M_2PI)  +  vel_initial * _flare_time  +  pos_initial;
+    int32_t pos_target = ((accel_peak / 4.0f) * ((_flare_time * _flare_time)   +   ((_flare_time_period * _flare_time_period) / (M_PI * M_2PI)) * (cosf((M_2PI * _flare_time)/_flare_time_period) - 1)))  +  (vel_initial * _flare_time)  +  pos_initial;
     return pos_target;
 }
 
@@ -755,7 +786,7 @@ int16_t AC_Autorotation::calc_velocity_target(float accel_peak, int16_t vel_init
     int16_t vel_correction = (pos_target - pos_measured) / (_flare_correction_ratio * _flare_time_period);
 
     // Adjust velocity target
-    int16_t adjusted_vel_target = vel_target + vel_correction;
+    int16_t adjusted_vel_target = vel_target - vel_correction;
     return adjusted_vel_target;
 }
 
