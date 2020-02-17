@@ -161,7 +161,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     AP_GROUPINFO("LOG", 16, AC_Autorotation, _param_log_bitmask, 0),
 
     // @Param: F_T_RATIO
-    // @DisplayName: Time period to execute the flare
+    // @DisplayName: P Gain for velocity adjustments
     // @Description: The ratio of the time phase that the controller will use to correct miss alignments to the target trajectories
     // @Range: 0.05 0.5
     // @Increment: 0.01
@@ -209,6 +209,23 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Increment: 
     // @User: Advanced
     AP_GROUPINFO("PIT_F_FILT", 22, AC_Autorotation, _param_flare_pitch_cutoff_freq, 0.5),
+
+    // @Param: POS_FILT
+    // @DisplayName: Low pass filter cut off frequency for position
+    // @Description: 
+    // @Range: 
+    // @Increment: 
+    // @User: Advanced
+    AP_GROUPINFO("POS_FILT", 23, AC_Autorotation, _param_pos_cutoff_freq, 0.5),
+
+    // @Param: POS_P
+    // @DisplayName: P Gain for position adjustment
+    // @Description: 
+    // @Range: 
+    // @Increment: 
+    // @User: Advanced
+    AP_GROUPINFO("POS_P", 24, AC_Autorotation, _param_pos_kp, 0.5),
+
 
     AP_GROUPEND
 };
@@ -611,10 +628,13 @@ void AC_Autorotation::init_flare_controller(void)
     // Set collective and pitch trim low pass filter cut off frequency
     col_trim_lpf.set_cutoff_frequency(_col_cutoff_freq);
     pitch_trim_lpf.set_cutoff_frequency(_param_flare_pitch_cutoff_freq);
+    pitch_trim_lpf.set_cutoff_frequency(_param_pos_cutoff_freq);
 
     // Reset feed forward filter
     col_trim_lpf.reset(_collective_out);
     pitch_trim_lpf.reset(_pitch_target);
+    pos_ff_lpf.reset(0.0);
+    _fwd_vel_correction = 0.0;
 }
 
 
@@ -623,34 +643,27 @@ void AC_Autorotation::update_flare_controller(void)
     // Measure speeds
     int16_t z_vel_measured = _inav.get_velocity().z;
     int16_t fwd_vel_measured = calc_speed_forward();
+    int32_t z_pos_measured = _inav.get_position().z;
 
     //------------------------------------------Targets-------------------------------------------------
     // Calculate the target altitude trajectory
     _alt_target = calc_position_target(_flare_delta_accel_z_peak, _vel_z_initial, _alt_z_initial);
 
-
-    if (msg_write_once) {
-        //gcs().send_text(MAV_SEVERITY_INFO, "_flare_accel_z_peak = %f",_flare_accel_z_peak);
-        //gcs().send_text(MAV_SEVERITY_INFO, "_vel_z_initial = %i",_vel_z_initial);
-        //gcs().send_text(MAV_SEVERITY_INFO, "_alt_z_initial = %i",_alt_z_initial);
-        //gcs().send_text(MAV_SEVERITY_INFO, "_flare_time_period = %f",_flare_time_period);
-        //gcs().send_text(MAV_SEVERITY_INFO, "Magnitude Fail");
-        msg_write_once = false;
-    }
-
-
-
-
-
     // Calculate the target velocity trajectories
-    _z_vel_target = calc_velocity_target(_flare_delta_accel_z_peak, _vel_z_initial, _alt_target, _inav.get_position().z);
+    //_z_vel_target = calc_velocity_target(_flare_delta_accel_z_peak, _vel_z_initial, _alt_target, _inav.get_position().z);
+    _z_vel_target = calc_velocity_target(_flare_delta_accel_z_peak, _vel_z_initial);
     _fwd_vel_target = calc_velocity_target(_flare_delta_accel_fwd_peak, _vel_fwd_initial);
+
+    // Calculate and apply adjustment to velocity for position - cross coupling is used here for more effective control using pitch angle
+    float _ff_z_pos_correction = pos_ff_lpf.apply(_fwd_vel_correction, _dt);
+    float p_z_pos_correction = (_alt_target - z_pos_measured)/_flare_time_period * _param_pos_kp;
+    _fwd_vel_correction = p_z_pos_correction + _ff_z_pos_correction;
+    _fwd_vel_target = _fwd_vel_target - _fwd_vel_correction;
 
     // Calculate the target delta acceleration trajectories
     _adjusted_z_accel_target = calc_acceleration_target(_flare_z_accel_targ, _flare_delta_accel_z_peak, _z_vel_target, z_vel_measured);
-    //_adjusted_z_accel_target = calc_acceleration_target(_flare_z_accel_targ, _flare_accel_z_peak, 0, 0);
     _adjusted_fwd_accel_target = calc_acceleration_target(_flare_fwd_accel_target, _flare_delta_accel_fwd_peak, _fwd_vel_target, fwd_vel_measured);
-    //_adjusted_fwd_accel_target = calc_acceleration_target(_flare_fwd_accel_target, _flare_accel_fwd_peak, 0, 0);
+
 
     // Account for gravity
     _total_z_accel_target = _adjusted_z_accel_target +  (GRAVITY_MSS * 100.0f);
@@ -743,15 +756,26 @@ void AC_Autorotation::update_flare_controller(void)
 
             //Write to data flash log
         AP::logger().Write("AFLC",
-                       "TimeUS,ALTT,ALTM,AZVT,FVT",
-                         "Qffff",
+                       "TimeUS,ALTT,ALTM,ZCP,ZCFF,AZVT,FVT,FVC",
+                         "Qfffffff",
                         AP_HAL::micros64(),
                         (double)_alt_target,
                         (double)_inav.get_position().z,
+                        (double)p_z_pos_correction,
+                        (double)_ff_z_pos_correction,
                         (double)_z_vel_target,
-                        (double)_fwd_vel_target);
+                        (double)_fwd_vel_target,
+                        (double)_fwd_vel_correction);
 
 
+            //Write to data flash log
+        AP::logger().Write("ACOL",
+                       "TimeUS,OUT,KP,KFF",
+                         "Qfff",
+                        AP_HAL::micros64(),
+                        (double)_collective_out,
+                        (double)_p_term_col,
+                        (double)_ff_term_hs);
 
 
 
@@ -777,18 +801,18 @@ int16_t AC_Autorotation::calc_velocity_target(float accel_peak, int16_t vel_init
 
 
 // Overloaded function: Determine the velocity target with altitude correction
-int16_t AC_Autorotation::calc_velocity_target(float accel_peak, int16_t vel_initial, int32_t pos_target, int32_t pos_measured)
-{
-    // Calculate the target velocity trajectory
-    int16_t vel_target = accel_peak / 2.0f * (_flare_time - _flare_time_period * sinf(_flare_time * M_2PI / _flare_time_period) / M_2PI)  +  vel_initial;
-
-    // Calculate velocity correction based on altitude error
-    int16_t vel_correction = (pos_target - pos_measured) / (_flare_correction_ratio * _flare_time_period);
-
-    // Adjust velocity target
-    int16_t adjusted_vel_target = vel_target - vel_correction;
-    return adjusted_vel_target;
-}
+//int16_t AC_Autorotation::calc_velocity_target(float accel_peak, int16_t vel_initial, int32_t pos_target, int32_t pos_measured)
+//{
+//    // Calculate the target velocity trajectory
+//    int16_t vel_target = accel_peak / 2.0f * (_flare_time - _flare_time_period * sinf(_flare_time * M_2PI / _flare_time_period) / M_2PI)  +  vel_initial;
+//
+//    // Calculate velocity correction based on altitude error
+//    int16_t vel_correction = (pos_target - pos_measured) / (_flare_correction_ratio * _flare_time_period);
+//
+//    // Adjust velocity target
+//    int16_t adjusted_vel_target = vel_target - vel_correction;
+//    return adjusted_vel_target;
+//}
 
 
 // Determine the acceleration target and correct target to compensate for velocity error

@@ -119,10 +119,10 @@ private:
     float _flare_correction_ratio;
 
     float _drag_initial;
+    float _fwd_vel_correction;
 
     //temp variables
     int8_t logger_count;
-    bool msg_write_once = true;
 
     LowPassFilterFloat _accel_target_filter; // acceleration target filter
 
@@ -149,6 +149,8 @@ private:
     AP_Int16 _param_angle_max;
     AP_Float _param_flare_pitch_p;
     AP_Float _param_flare_pitch_cutoff_freq;
+    AP_Float _param_pos_cutoff_freq;
+    AP_Float _param_pos_kp;
 
     //--------Internal Flags--------
     struct controller_flags {
@@ -169,6 +171,9 @@ private:
 
     // low pass filter for pitch trim
     LowPassFilterFloat pitch_trim_lpf;
+
+    // low pass filter for position
+    LowPassFilterFloat pos_ff_lpf;
 
     //--------References to Other Libraries--------
     AP_InertialNav&    _inav;
