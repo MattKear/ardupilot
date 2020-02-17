@@ -136,7 +136,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("F_PERIOD", 13, AC_Autorotation, _param_flare_time_period, 0.9),
 
-    // @Param: F_ACC_MAX
+    // @Param: F_COL_AC_MX
     // @DisplayName: Maximum allowable acceleration to be applied by the collective during flare
     // @Description: Multiplier of acceleration due to gravity 'g'.  Cannot be smaller that 1.2.
     // @Range: 1.2 2.5
@@ -620,21 +620,25 @@ accel  ==>  compare that to target head speed from ideal trajectory  ==>  Create
 
 void AC_Autorotation::init_flare_controller(void)
 {
+
+    gcs().send_text(MAV_SEVERITY_INFO, "Flare CTRL Init");
+
     if (!_flags.hs_ctrl_running){
+        auto &ahrs = AP::ahrs();
         _collective_out = 0.5;
-        _pitch_target = 0.0f;  //TODO improve this initial based on current pitch angle
+        _pitch_target = degrees(ahrs.get_pitch())*100;
     }
 
-    // Set collective and pitch trim low pass filter cut off frequency
+    // Set low pass filter cut off frequencies
     col_trim_lpf.set_cutoff_frequency(_col_cutoff_freq);
     pitch_trim_lpf.set_cutoff_frequency(_param_flare_pitch_cutoff_freq);
-    pitch_trim_lpf.set_cutoff_frequency(_param_pos_cutoff_freq);
+    pos_ff_lpf.set_cutoff_frequency(_param_pos_cutoff_freq);
 
     // Reset feed forward filter
     col_trim_lpf.reset(_collective_out);
     pitch_trim_lpf.reset(_pitch_target);
     pos_ff_lpf.reset(0.0);
-    _fwd_vel_correction = 0.0;
+    _z_vel_correction = 0.0;
 }
 
 
@@ -655,10 +659,11 @@ void AC_Autorotation::update_flare_controller(void)
     _fwd_vel_target = calc_velocity_target(_flare_delta_accel_fwd_peak, _vel_fwd_initial);
 
     // Calculate and apply adjustment to velocity for position - cross coupling is used here for more effective control using pitch angle
-    float _ff_z_pos_correction = pos_ff_lpf.apply(_fwd_vel_correction, _dt);
+    float _ff_z_pos_correction = pos_ff_lpf.apply(_z_vel_correction, _dt);
     float p_z_pos_correction = (_alt_target - z_pos_measured)/_flare_time_period * _param_pos_kp;
-    _fwd_vel_correction = p_z_pos_correction + _ff_z_pos_correction;
-    _fwd_vel_target = _fwd_vel_target - _fwd_vel_correction;
+    _ff_z_pos_correction = constrain_float(_ff_z_pos_correction, -1*fabsf(_vel_z_initial), fabsf(_vel_z_initial));
+    _z_vel_correction = p_z_pos_correction + _ff_z_pos_correction;
+    _z_vel_target = _z_vel_target + _z_vel_correction;
 
     // Calculate the target delta acceleration trajectories
     _adjusted_z_accel_target = calc_acceleration_target(_flare_z_accel_targ, _flare_delta_accel_z_peak, _z_vel_target, z_vel_measured);
@@ -698,8 +703,8 @@ void AC_Autorotation::update_flare_controller(void)
 
 
     //------------------------------------------Compute Errors-------------------------------------------------
-    // Magnitude
-    float flare_mag_error = flare_accel_mag_target - flare_accel_mag_measured;
+    // Magnitude error normalized by gravity
+    float flare_mag_error = (flare_accel_mag_target - flare_accel_mag_measured)/(GRAVITY_MSS * 100.0f);
 
     // Angle
     float pitch_ang_error = pitch_ang_target - pitch_ang_measured;
@@ -712,7 +717,7 @@ void AC_Autorotation::update_flare_controller(void)
     _p_term_pitch = pitch_ang_error * _param_flare_pitch_p;
 
     // Calculate the p term, based on magnitude error
-    _p_term_col = flare_mag_error * _param_flare_col_p / 1000;
+    _p_term_col = flare_mag_error * _param_flare_col_p;
 
     // Adjusting collective trim using feed forward (not yet been updated, so this value is the previous time steps collective position)
     _ff_term_hs = col_trim_lpf.apply(_collective_out, _dt);
@@ -725,9 +730,9 @@ void AC_Autorotation::update_flare_controller(void)
     _pitch_out = constrain_float(_pitch_out,-_angle_max,_angle_max);
     _pitch_target = _pitch_out;
 
-    // Calculate the collective position to be set
+    // Calculate the collective position to be set and constrain to collective limit
     _collective_out = _p_term_col + _ff_term_hs;
-
+    _collective_out = constrain_float(_collective_out, 0.0f, 1.0f);
 
 
             //Write to data flash log
@@ -756,7 +761,7 @@ void AC_Autorotation::update_flare_controller(void)
 
             //Write to data flash log
         AP::logger().Write("AFLC",
-                       "TimeUS,ALTT,ALTM,ZCP,ZCFF,AZVT,FVT,FVC",
+                       "TimeUS,ALTT,ALTM,ZCP,ZCFF,AZVT,FVT,ZVC",
                          "Qfffffff",
                         AP_HAL::micros64(),
                         (double)_alt_target,
@@ -765,7 +770,7 @@ void AC_Autorotation::update_flare_controller(void)
                         (double)_ff_z_pos_correction,
                         (double)_z_vel_target,
                         (double)_fwd_vel_target,
-                        (double)_fwd_vel_correction);
+                        (double)_z_vel_correction);
 
 
             //Write to data flash log

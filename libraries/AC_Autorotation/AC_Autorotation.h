@@ -119,7 +119,7 @@ private:
     float _flare_correction_ratio;
 
     float _drag_initial;
-    float _fwd_vel_correction;
+    float _z_vel_correction;
 
     //temp variables
     int8_t logger_count;

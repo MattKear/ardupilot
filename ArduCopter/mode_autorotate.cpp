@@ -240,8 +240,10 @@ void ModeAutorotate::run()
                 // Set initial conditions in controller
                 g2.arot.set_flare_initial_cond();
 
-                // Set following trim low pass cut off frequency
+                // Set following trim low pass cut off frequency.  This must be set before flare controller is init.
                 g2.arot.set_col_cutoff_freq(g2.arot.get_col_flare_freq());
+
+                g2.arot.init_flare_controller();
 
                 // Prevent running the initial flare functions again
                 _flags.flare_initial = 0;
