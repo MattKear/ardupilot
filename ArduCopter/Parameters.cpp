@@ -1050,7 +1050,7 @@ ParametersG2::ParametersG2(void)
     ,mode_systemid_ptr(&copter.mode_systemid)
 #endif
 #if MODE_AUTOROTATE_ENABLED == ENABLED
-    ,arot(copter.inertial_nav)
+    ,arot(copter.inertial_nav, *copter.attitude_control)
 #endif
     ,button_ptr(&copter.button)
 {

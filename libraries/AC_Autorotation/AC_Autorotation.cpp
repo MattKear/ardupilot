@@ -3,23 +3,33 @@
 #include <AP_RPM/AP_RPM.h>
 #include <AP_AHRS/AP_AHRS.h>
 
-//Autorotation controller defaults
+// Autorotation controller defaults
 #define AROT_BAIL_OUT_TIME                            2.0f     // Default time for bail out controller to run (unit: s)
-#define AROT_FLARE_MIN_ACCEL_PEAK                   1.2f     // Minimum permissible peak acceleration factor for the flare phase (unit: -)
+#define AROT_FLARE_MIN_ACCEL_PEAK                     1.2f     // Minimum permissible peak acceleration factor for the flare phase (unit: -)
 #define AROT_FLARE_TIME_PERIOD_MIN                    0.5f
-
+#define AROT_ANGLE_MAX_MIN                            1500     // The minimum that the max attitude angle limit is allowed to be (unit: cdeg)
 
 // Head Speed (HS) controller specific default definitions
 #define HS_CONTROLLER_COLLECTIVE_CUTOFF_FREQ          2.0f     // low-pass filter on accel error (unit: hz)
 #define HS_CONTROLLER_HEADSPEED_P                     0.7f     // Default P gain for head speed controller (unit: -)
-#define HS_CONTROLLER_ENTRY_COL_FILTER                0.7f    // Default low pass filter frequency during the entry phase (unit: Hz)
-#define HS_CONTROLLER_GLIDE_COL_FILTER                0.1f    // Default low pass filter frequency during the glide phase (unit: Hz)
+#define HS_CONTROLLER_ENTRY_COL_FILTER                0.7f     // Default low pass filter frequency during the entry phase (unit: Hz)
+#define HS_CONTROLLER_GLIDE_COL_FILTER                0.1f     // Default low pass filter frequency during the glide phase (unit: Hz)
 
 // Speed Height controller specific default definitions for autorotation use
 #define FWD_SPD_CONTROLLER_GND_SPEED_TARGET           1100     // Default target ground speed for speed height controller (unit: cm/s)
-#define FWD_SPD_CONTROLLER_MAX_ACCEL                  60      // Default acceleration limit for speed height controller (unit: cm/s/s)
-#define AP_FW_VEL_P                       0.9f
-#define AP_FW_VEL_FF                      0.15f
+#define FWD_SPD_CONTROLLER_MAX_ACCEL                  60       // Default acceleration limit for speed height controller (unit: cm/s/s)
+#define AP_FW_VEL_P                                   1.0f
+#define AP_FW_VEL_FF                                  0.15f
+
+// Flare and touch down phase specific default definitions
+#define AROT_TD_TARGET_VEL_DEFAULT                    50       // Default target touch down speed (unit: cm/s)
+#define AROT_FLARE_TIME_PERIOD_DEFAULT                4.5f     // Default time period to execute the flare phase (unit: s)
+#define AROT_FLARE_MAX_ACCEL_DEFAULT                  2.0f     // Default peak acceleration to be applied by collective.  Multiple of acceleration due to gravity (unit: -)
+#define AROT_TD_TARGET_ALT_DEFAULT                    50       // Default altitude target to transition from flare phase to touch down phase (unit: cm)
+#define AROT_FLARE_COLLECTIVE_FILTER_DEFAULT          0.5f     // Default low pass filter cut off frequency for collective during flare phase (unit: Hz)
+#define AROT_FLARE_COLLECTIVE_P_GAIN_DEFAULT          0.2f     // Default P gain for collective controller during the flare phase (unit: -)
+#define AROT_FLARE_PITCH_P_GAIN_DEFAULT               3.0f     // Default P gain for pitch controller during the flare phase (unit: -)
+#define AROT_FLARE_PITCH_FILTER_DEFAULT               500      // Default low pass filter cut off frequency for pitch controller during flare phase (unit: Hz)
 
 
 const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
@@ -125,24 +135,24 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Range: 30 200
     // @Increment: 1
     // @User: Advanced
-    AP_GROUPINFO("TD_VEL_Z", 12, AC_Autorotation, _param_vel_z_td, 50),
+    AP_GROUPINFO("TD_VEL_Z", 12, AC_Autorotation, _param_vel_z_td, AROT_TD_TARGET_VEL_DEFAULT),
 
     // @Param: F_PERIOD
     // @DisplayName: Time period to execute the flare
-    // @Description: The target time period in which the controller will attempt to complete the flare phase
+    // @Description: The target time period in which the controller will attempt to complete the flare phase. Light disc loaded aircraft will require shorter times and heavier loaded aircraft will perform better over longer periods.
     // @Units: s
-    // @Range: 0.5 2.0
+    // @Range: 1.0 8.0
     // @Increment: 0.1
     // @User: Advanced
-    AP_GROUPINFO("F_PERIOD", 13, AC_Autorotation, _param_flare_time_period, 0.9),
+    AP_GROUPINFO("F_PERIOD", 13, AC_Autorotation, _param_flare_time_period, AROT_FLARE_TIME_PERIOD_DEFAULT),
 
-    // @Param: F_COL_AC_MX
-    // @DisplayName: Maximum allowable acceleration to be applied by the collective during flare
+    // @Param: F_ACCEL_MX
+    // @DisplayName: Maximum allowable acceleration to be applied by the collective during flare phase
     // @Description: Multiplier of acceleration due to gravity 'g'.  Cannot be smaller that 1.2.
     // @Range: 1.2 2.5
     // @Increment: 0.1
     // @User: Advanced
-    AP_GROUPINFO("F_COL_AC_MX", 14, AC_Autorotation, _param_flare_col_accel_max, 1.5),
+    AP_GROUPINFO("F_ACCEL_MX", 14, AC_Autorotation, _param_flare_col_accel_max, AROT_FLARE_MAX_ACCEL_DEFAULT),
 
     // @Param: TD_ALT_TARG
     // @DisplayName: Target altitude to initiate touch down phase
@@ -151,7 +161,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Range: 30 150
     // @Increment: 1
     // @User: Advanced
-    AP_GROUPINFO("TD_ALT_TARG", 15, AC_Autorotation, _param_td_alt_targ, 50),
+    AP_GROUPINFO("TD_ALT_TARG", 15, AC_Autorotation, _param_td_alt_targ, AROT_TD_TARGET_ALT_DEFAULT),
 
     // @Param: LOG
     // @DisplayName: Logging bitmask
@@ -166,7 +176,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Range: 0.05 0.5
     // @Increment: 0.01
     // @User: Advanced
-    AP_GROUPINFO("F_T_RATIO", 17, AC_Autorotation, _param_flare_correction_ratio, 0.1),
+    AP_GROUPINFO("F_T_RATIO", 17, AC_Autorotation, _param_flare_correction_ratio, 0.2),
 
     // @Param: COL_FILT_F
     // @DisplayName: Flare Phase Collective Filter
@@ -175,19 +185,19 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Range: 0.2 1
     // @Increment: 0.01
     // @User: Advanced
-    AP_GROUPINFO("COL_FILT_F", 18, AC_Autorotation, _param_col_flare_cutoff_freq, 0.8),
+    AP_GROUPINFO("COL_FILT_F", 18, AC_Autorotation, _param_col_flare_cutoff_freq, AROT_FLARE_COLLECTIVE_FILTER_DEFAULT),
 
     // @Param: COL_F_P
-    // @DisplayName: Collective P term for flare controller
+    // @DisplayName: P term gain for flare collective controller
     // @Description: 
     // @Range:
     // @Increment:
     // @User: Advanced
-    AP_GROUPINFO("COL_F_P", 19, AC_Autorotation, _param_flare_col_p, 3),
+    AP_GROUPINFO("COL_F_P", 19, AC_Autorotation, _param_flare_col_p, AROT_FLARE_COLLECTIVE_P_GAIN_DEFAULT),
 
     // @Param: ANGLE_MAX
     // @DisplayName: Pitch Angle Limit
-    // @Description: The maximum pitch angle (positive or negative) to be applied throughout the autorotation manouver.  If left at zero the 
+    // @Description: The maximum pitch angle (positive or negative) to be applied throughout the autorotation manoeuver.  If left at zero the 
     // @Units: cdeg
     // @Range: 1000 8000
     // @Increment: 100
@@ -200,7 +210,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Range: 0.1 5
     // @Increment: 0.1
     // @User: Advanced
-    AP_GROUPINFO("PIT_F_P", 21, AC_Autorotation, _param_flare_pitch_p, 3),
+    AP_GROUPINFO("PIT_F_P", 21, AC_Autorotation, _param_flare_pitch_p, AROT_FLARE_PITCH_P_GAIN_DEFAULT),
 
     // @Param: PIT_F_FILT
     // @DisplayName: Low pass filter cut off frequency for for pitch angle controller during flare phase 
@@ -208,7 +218,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Range: 
     // @Increment: 
     // @User: Advanced
-    AP_GROUPINFO("PIT_F_FILT", 22, AC_Autorotation, _param_flare_pitch_cutoff_freq, 0.5),
+    AP_GROUPINFO("PIT_F_FILT", 22, AC_Autorotation, _param_flare_pitch_cutoff_freq, AROT_FLARE_PITCH_FILTER_DEFAULT),
 
     // @Param: POS_FILT
     // @DisplayName: Low pass filter cut off frequency for position
@@ -216,7 +226,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Range: 
     // @Increment: 
     // @User: Advanced
-    AP_GROUPINFO("POS_FILT", 23, AC_Autorotation, _param_pos_cutoff_freq, 0.5),
+    AP_GROUPINFO("POS_FILT", 23, AC_Autorotation, _param_pos_cutoff_freq, 0.001),
 
     // @Param: POS_P
     // @DisplayName: P Gain for position adjustment
@@ -231,8 +241,9 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
 };
 
 // Constructor
-AC_Autorotation::AC_Autorotation(AP_InertialNav& inav) :
+AC_Autorotation::AC_Autorotation(AP_InertialNav& inav, AC_AttitudeControl& attitude_control) :
     _inav(inav),
+    _attitude_control(attitude_control),
     _p_hs(HS_CONTROLLER_HEADSPEED_P),
     _p_fw_vel(AP_FW_VEL_P)
     {
@@ -255,8 +266,12 @@ void AC_Autorotation::init()
     _flare_correction_ratio = MAX(0.05,_param_flare_correction_ratio);
     _flare_time_period = MAX(AROT_FLARE_TIME_PERIOD_MIN,_param_flare_time_period);
 
-    // Get angle max if param set lower than limti
-    _angle_max = MAX(_param_angle_max,15); // (cdeg)
+    // Get angle max from attitude controller if param set 0
+    if (_param_angle_max == 0) {
+        _angle_max = _attitude_control.lean_angle_max();
+    }
+    // Prevent angle max from being less than hardcoded limit
+    _angle_max = MAX(_param_angle_max, AROT_ANGLE_MAX_MIN); // (cdeg)
 
     // Ensure forward speed controller acceleration parameter doesn't exceed hard-coded limit
     _accel_max = MIN(_param_accel_max, 60.0f);
@@ -601,28 +616,9 @@ void AC_Autorotation::set_flare_initial_cond(void)
     _drag_initial = z_accel_measure * tanf(ahrs.get_pitch()) + fwd_accel_measure; //(cm/s/s)
 }
 
-
-/* Use altitude, velocity, and acceleration to come up with a collective position.  Acceleration
-can be deamed to have a relationship to collective position.  Use the new collective position to 
-feed into head speed controller.  The head speed controller can be used to reverse calculate what 
-the target head speed should be.  Compare the head speed target calced from acceleration to the ideal
-head speed trajectory to determine an error between desired for kinematics and desired for head speed 
-trajectory.  Use energy to weight the coparative difference using a ratio and that will give the new 
-target.  That target can then be fed through the actual head speed controller to generate the final output.
-This should creat a system whereby the realtive components can be compared using physical relasionships
-and won't require PID tuning beyond the original head speed controller.
-
-alt error ==> converted and added to velocity target ==> velocity error ==> converted and added to acceleration 
-target ==> acceleration error converted to collective position (linear prediction based on hover col position 
-and current col position?)  ==>  Collective position fed through reverse HS controller  ==>  target hs basied on 
-accel  ==>  compare that to target head speed from ideal trajectory  ==>  Create energy weighted average target HS
-==>  use target HS in HS to collective output controller. */
-
+// Init flare controller.  Must be called after the flare cut off frequencies are set.
 void AC_Autorotation::init_flare_controller(void)
 {
-
-    gcs().send_text(MAV_SEVERITY_INFO, "Flare CTRL Init");
-
     if (!_flags.hs_ctrl_running){
         auto &ahrs = AP::ahrs();
         _collective_out = 0.5;
@@ -654,7 +650,6 @@ void AC_Autorotation::update_flare_controller(void)
     _alt_target = calc_position_target(_flare_delta_accel_z_peak, _vel_z_initial, _alt_z_initial);
 
     // Calculate the target velocity trajectories
-    //_z_vel_target = calc_velocity_target(_flare_delta_accel_z_peak, _vel_z_initial, _alt_target, _inav.get_position().z);
     _z_vel_target = calc_velocity_target(_flare_delta_accel_z_peak, _vel_z_initial);
     _fwd_vel_target = calc_velocity_target(_flare_delta_accel_fwd_peak, _vel_fwd_initial);
 
@@ -796,29 +791,13 @@ int32_t AC_Autorotation::calc_position_target(float accel_peak, int16_t vel_init
 }
 
 
-// Overloaded function: Determine the velocity target without altitude correction
+// Determine the velocity target without altitude correction
 int16_t AC_Autorotation::calc_velocity_target(float accel_peak, int16_t vel_initial)
 {
     // Calculate the target velocity trajectory
     int16_t vel_target = accel_peak / 2.0f * (_flare_time - _flare_time_period * sinf(_flare_time * M_2PI / _flare_time_period) / M_2PI)  +  vel_initial;
     return vel_target;
 }
-
-
-// Overloaded function: Determine the velocity target with altitude correction
-//int16_t AC_Autorotation::calc_velocity_target(float accel_peak, int16_t vel_initial, int32_t pos_target, int32_t pos_measured)
-//{
-//    // Calculate the target velocity trajectory
-//    int16_t vel_target = accel_peak / 2.0f * (_flare_time - _flare_time_period * sinf(_flare_time * M_2PI / _flare_time_period) / M_2PI)  +  vel_initial;
-//
-//    // Calculate velocity correction based on altitude error
-//    int16_t vel_correction = (pos_target - pos_measured) / (_flare_correction_ratio * _flare_time_period);
-//
-//    // Adjust velocity target
-//    int16_t adjusted_vel_target = vel_target - vel_correction;
-//    return adjusted_vel_target;
-//}
-
 
 // Determine the acceleration target and correct target to compensate for velocity error
 float AC_Autorotation::calc_acceleration_target(float &accel_target, float accel_peak, int16_t vel_target, int16_t vel_measured)

@@ -9,6 +9,7 @@
 #include <Filter/LowPassFilter.h>
 #include <AC_PID/AC_P.h>
 #include <AP_InertialNav/AP_InertialNav.h>
+#include <AC_AttitudeControl/AC_AttitudeControl.h>
 #include <AP_AHRS/AP_AHRS.h>
 #include <AP_HAL/AP_HAL.h>
 #include <GCS_MAVLink/GCS.h>
@@ -19,7 +20,7 @@ class AC_Autorotation
 public:
 
     //Constructor
-    AC_Autorotation(AP_InertialNav& inav);
+    AC_Autorotation(AP_InertialNav& inav, AC_AttitudeControl&  _attitude_control);
 
     //--------Functions--------
     void init(void);
@@ -161,8 +162,7 @@ private:
 
     //--------Internal Functions--------
     int32_t calc_position_target(float accel_peak, int16_t vel_initial, int32_t pos_initial);
-    int16_t calc_velocity_target(float accel_peak, int16_t vel_initial);  // Overloaded function: Determine the velocity target without altitude correction
-    int16_t calc_velocity_target(float accel_peak, int16_t vel_initial, int32_t pos_target, int32_t pos_measured);  // Overloaded function: Determine the velocity target with altitude correction
+    int16_t calc_velocity_target(float accel_peak, int16_t vel_initial);  // Determine the velocity target without altitude correction
     float calc_acceleration_target(float &accel_target, float accel_peak, int16_t vel_target, int16_t vel_measured);
     void get_acceleration(float &z_accel, float &fwd_accel);
 
@@ -176,6 +176,7 @@ private:
     LowPassFilterFloat pos_ff_lpf;
 
     //--------References to Other Libraries--------
-    AP_InertialNav&    _inav;
+    AP_InertialNav&      _inav;
+    AC_AttitudeControl&  _attitude_control;
 
 };
