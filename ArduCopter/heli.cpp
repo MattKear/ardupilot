@@ -76,14 +76,22 @@ void Copter::update_heli_control_dynamics(void)
     // Use Leaky_I if we are not moving fast
     attitude_control->use_leaky_i(!heli_flags.dynamic_flight);
 
-    if (ap.land_complete || (is_zero(motors->get_desired_rotor_speed()))){
-        // if we are landed or there is no rotor power demanded, decrement slew scalar
-        hover_roll_trim_scalar_slew--;        
+    if (ap.land_complete || (is_zero(motors->get_desired_rotor_speed())) || heli_flags.in_autorotation) {
+        // if we are landed, there is no rotor power demanded, or in an autorotation then decrement slew scalar
+        hover_roll_trim_scalar_slew--;
     } else {
         // if we are not landed and motor power is demanded, increment slew scalar
         hover_roll_trim_scalar_slew++;
     }
     hover_roll_trim_scalar_slew = constrain_int16(hover_roll_trim_scalar_slew, 0, scheduler.get_loop_rate_hz());
+
+    //Write to data flash log
+        AP::logger().Write("ASLW",
+                       "TimeUS,SLEW",
+                         "Qf",
+                        AP_HAL::micros64(),
+                        (double)hover_roll_trim_scalar_slew);
+
 
     // set hover roll trim scalar, will ramp from 0 to 1 over 1 second after we think helicopter has taken off
     attitude_control->set_hover_roll_trim_scalar((float) hover_roll_trim_scalar_slew/(float) scheduler.get_loop_rate_hz());
