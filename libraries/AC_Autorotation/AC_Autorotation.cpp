@@ -433,6 +433,18 @@ void AC_Autorotation::log_write_autorotation(void)
                         (double)_flare_pitch_ang_max);
     }
 
+
+    float z_accel_measured;
+    float fwd_accel_measured;
+    get_acceleration(z_accel_measured, fwd_accel_measured);
+
+     AP::logger().Write("ARTR",
+                       "TimeUS,VFWD,AZM,AFM",
+                         "Qfff",
+                        AP_HAL::micros64(),
+                        (double)calc_speed_forward(),
+                        (double)z_accel_measured,
+                        (double)fwd_accel_measured);
 }
 
 
@@ -548,7 +560,7 @@ bool AC_Autorotation::should_flare(void)
 
     // Account for drag in forward acceleration
     auto &ahrs = AP::ahrs();
-    float current_drag = (GRAVITY_MSS * 100.0f - z_accel_measure) * tanf(degrees(ahrs.get_pitch())) - fwd_accel_measure; //(cm/s/s)
+    float current_drag = z_accel_measure * tanf(ahrs.get_pitch()) + fwd_accel_measure; //(cm/s/s)
     int16_t fwd_vel_prediction = _flare_accel_fwd_peak * _flare_time_period / 4 + fwd_vel;  //this is the approximate velocity at the peak acceleration
     float fwd_accel_delta = abs(_flare_accel_fwd_peak) - current_drag * fwd_vel_prediction * fwd_vel_prediction / (fwd_vel * fwd_vel);  //this is approximately the delta decceleration force required
     fwd_accel_delta = fwd_accel_delta*-1;
