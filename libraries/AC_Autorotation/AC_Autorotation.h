@@ -144,14 +144,15 @@ private:
     AP_Float _param_flare_col_accel_max;
     AP_Int16 _param_td_alt_targ;
     AP_Int8 _param_log_bitmask;
-    AP_Float _param_flare_correction_ratio;
+    AP_Float _param_flare_z_vel_kp;
     AP_Float _param_col_flare_cutoff_freq;
     AP_Float _param_flare_col_p;
     AP_Int16 _param_angle_max;
     AP_Float _param_flare_pitch_p;
     AP_Float _param_flare_pitch_cutoff_freq;
     AP_Float _param_pos_cutoff_freq;
-    AP_Float _param_pos_kp;
+    AP_Float _param_z_pos_kp;
+    AP_Float _param_flare_fwd_vel_kp;
 
     //--------Internal Flags--------
     struct controller_flags {
@@ -163,7 +164,7 @@ private:
     //--------Internal Functions--------
     int32_t calc_position_target(float accel_peak, int16_t vel_initial, int32_t pos_initial);
     int16_t calc_velocity_target(float accel_peak, int16_t vel_initial);  // Determine the velocity target without altitude correction
-    float calc_acceleration_target(float &accel_target, float accel_peak, int16_t vel_target, int16_t vel_measured);
+    float calc_acceleration_target(float &accel_target, float accel_peak, int16_t vel_target, int16_t vel_measured, float kp);
     void get_acceleration(float &z_accel, float &fwd_accel);
 
     // low pass filter for collective trim

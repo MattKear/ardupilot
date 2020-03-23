@@ -5,7 +5,7 @@
 
 // Autorotation controller defaults
 #define AROT_BAIL_OUT_TIME                            2.0f     // Default time for bail out controller to run (unit: s)
-#define AROT_FLARE_MIN_ACCEL_PEAK                     1.2f     // Minimum permissible peak acceleration factor for the flare phase (unit: -)
+#define AROT_FLARE_MIN_ACCEL_PEAK                     1.05f     // Minimum permissible peak acceleration factor for the flare phase (unit: -)
 #define AROT_FLARE_TIME_PERIOD_MIN                    0.5f
 #define AROT_ANGLE_MAX_MIN                            1500     // The minimum that the max attitude angle limit is allowed to be (unit: cdeg)
 
@@ -170,13 +170,13 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("LOG", 16, AC_Autorotation, _param_log_bitmask, 0),
 
-    // @Param: F_T_RATIO
+    // @Param: F_ZVEL_P
     // @DisplayName: P Gain for velocity adjustments
-    // @Description: The ratio of the time phase that the controller will use to correct miss alignments to the target trajectories
+    // @Description: The proportional gain for corrections to acceleration targets based on velocity error.
     // @Range: 0.05 0.5
     // @Increment: 0.01
     // @User: Advanced
-    AP_GROUPINFO("F_T_RATIO", 17, AC_Autorotation, _param_flare_correction_ratio, 0.2),
+    AP_GROUPINFO("F_ZVEL_P", 17, AC_Autorotation, _param_flare_z_vel_kp, 0.2),
 
     // @Param: COL_FILT_F
     // @DisplayName: Flare Phase Collective Filter
@@ -234,7 +234,15 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Range: 
     // @Increment: 
     // @User: Advanced
-    AP_GROUPINFO("POS_P", 24, AC_Autorotation, _param_pos_kp, 0.5),
+    AP_GROUPINFO("POS_P", 24, AC_Autorotation, _param_z_pos_kp, 0.5),
+
+    // @Param: F_FVEL_P
+    // @DisplayName: P Gain for forward velocity adjustments
+    // @Description: The proportional gain for corrections to forward acceleration targets based on velocity error.
+    // @Range: 0.05 0.5
+    // @Increment: 0.01
+    // @User: Advanced
+    AP_GROUPINFO("F_FVEL_P", 25, AC_Autorotation, _param_flare_fwd_vel_kp, 0.2),
 
 
     AP_GROUPEND
@@ -263,7 +271,6 @@ void AC_Autorotation::init()
 
     // Protect against divide by zero
     _param_head_speed_set_point = MAX(_param_head_speed_set_point,500);
-    _flare_correction_ratio = MAX(0.05,_param_flare_correction_ratio);
     _flare_time_period = MAX(AROT_FLARE_TIME_PERIOD_MIN,_param_flare_time_period);
 
     // Get angle max from attitude controller if param set 0
@@ -553,7 +560,7 @@ bool AC_Autorotation::should_flare(void)
 
     // Determine peak acceleration if the flare was initiated in this state (cm/s/s)
     _flare_delta_accel_z_peak = 2.0f * (-_param_vel_z_td - z_vel) / _flare_time_period;
-    _flare_delta_accel_fwd_peak = 2.0f * (0.0f - fwd_vel) / _flare_time_period;  // Assumed touch down forward speed of 0 m/s
+    _flare_delta_accel_fwd_peak = 2.0f * (500.0f - fwd_vel) / _flare_time_period;  // Assumed touch down forward speed of 0 m/s
 
     //Account for gravity in peak z acceleration
     _flare_accel_z_peak = _flare_delta_accel_z_peak + GRAVITY_MSS*100.0f;
@@ -666,15 +673,17 @@ void AC_Autorotation::update_flare_controller(void)
     _fwd_vel_target = calc_velocity_target(_flare_delta_accel_fwd_peak, _vel_fwd_initial);
 
     // Calculate and apply adjustment to velocity for position - cross coupling is used here for more effective control using pitch angle
-    float _ff_z_pos_correction = pos_ff_lpf.apply(_z_vel_correction, _dt);
-    float p_z_pos_correction = (_alt_target - z_pos_measured)/_flare_time_period * _param_pos_kp;
-    _ff_z_pos_correction = constrain_float(_ff_z_pos_correction, -1*fabsf(_vel_z_initial), fabsf(_vel_z_initial));
-    _z_vel_correction = p_z_pos_correction + _ff_z_pos_correction;
-    _z_vel_target = _z_vel_target + _z_vel_correction;
+    //float _ff_z_pos_correction = pos_ff_lpf.apply(_z_vel_correction, _dt);
+
+    float p_z_pos_correction = (_alt_target - z_pos_measured)/_flare_time_period * _param_z_pos_kp;
+
+    //_ff_z_pos_correction = constrain_float(_ff_z_pos_correction, -1*fabsf(_vel_z_initial), fabsf(_vel_z_initial));
+
+    _z_vel_target = _z_vel_target + p_z_pos_correction;
 
     // Calculate the target delta acceleration trajectories
-    _adjusted_z_accel_target = calc_acceleration_target(_flare_z_accel_targ, _flare_delta_accel_z_peak, _z_vel_target, z_vel_measured);
-    _adjusted_fwd_accel_target = calc_acceleration_target(_flare_fwd_accel_target, _flare_delta_accel_fwd_peak, _fwd_vel_target, fwd_vel_measured);
+    _adjusted_z_accel_target = calc_acceleration_target(_flare_z_accel_targ, _flare_delta_accel_z_peak, _z_vel_target, z_vel_measured, _param_flare_z_vel_kp);
+    _adjusted_fwd_accel_target = calc_acceleration_target(_flare_fwd_accel_target, _flare_delta_accel_fwd_peak, _fwd_vel_target, fwd_vel_measured, _param_flare_fwd_vel_kp);
 
 
     // Account for gravity
@@ -768,16 +777,15 @@ void AC_Autorotation::update_flare_controller(void)
 
             //Write to data flash log
         AP::logger().Write("AFLC",
-                       "TimeUS,ALTT,ALTM,ZCP,ZCFF,AZVT,FVT,ZVC",
-                         "Qfffffff",
+                       "TimeUS,ALTT,ALTM,ZCP,AZVT,FVT,ZVM",
+                         "Qffffff",
                         AP_HAL::micros64(),
                         (double)_alt_target,
                         (double)_inav.get_position().z,
                         (double)p_z_pos_correction,
-                        (double)_ff_z_pos_correction,
                         (double)_z_vel_target,
                         (double)_fwd_vel_target,
-                        (double)_z_vel_correction);
+                        (double)z_vel_measured);
 
 
             //Write to data flash log
@@ -812,13 +820,13 @@ int16_t AC_Autorotation::calc_velocity_target(float accel_peak, int16_t vel_init
 }
 
 // Determine the acceleration target and correct target to compensate for velocity error
-float AC_Autorotation::calc_acceleration_target(float &accel_target, float accel_peak, int16_t vel_target, int16_t vel_measured)
+float AC_Autorotation::calc_acceleration_target(float &accel_target, float accel_peak, int16_t vel_target, int16_t vel_measured, float kp)
 {
     // Calculate desired acceleration
     accel_target = accel_peak * (1 - cosf((_flare_time * M_2PI)/_flare_time_period)) / 2.0f;
 
     // Calculate acceleration correction based on velocity error
-    float accel_correction = (vel_target - vel_measured) / (_flare_correction_ratio * _flare_time_period);
+    float accel_correction = (vel_target - vel_measured) / _flare_time_period * kp;
 
     // Adjust acceleration target
     float adjusted_accel_target = accel_target + accel_correction;
