@@ -260,6 +260,24 @@ private:
     // transition failure milliseconds
     AP_Int16 transition_failure;
 
+    // transition type, airspeed based or entirely time based
+    AP_Int8 _transition_type;
+
+    // the initial tilt angular rate used in transitions
+    AP_Int16 _initial_tilt_ang_rate;
+
+    // the angle at which the initial transition phase stops and the hold timer begins
+    AP_Int16 _tran_wait_angle;
+
+    // the time in milliseconds that the transition will hold the wait angle before continuing
+    AP_Int16 _tran_wait_time;
+
+    // the tilt angular rate used in the final phase of transitions
+    AP_Int16 _final_tilt_ang_rate;
+
+    // the angle in which the copter controller will no longer assist in the transition, for tilt rotors
+    AP_Int16 _tilt_ang_assist;
+
     // Quadplane trim, degrees
     AP_Float ahrs_trim_pitch;
     float _last_ahrs_trim_pitch;
@@ -347,6 +365,8 @@ private:
     // timer start for transition
     uint32_t transition_start_ms;
     uint32_t transition_low_airspeed_ms;
+    uint32_t transition_hold_ms;
+    uint32_t transition_final_phase_ms;
 
     Location last_auto_target;
 
@@ -365,6 +385,9 @@ private:
         TRANSITION_TIMER,
         TRANSITION_ANGLE_WAIT_FW,
         TRANSITION_ANGLE_WAIT_VTOL,
+        TRANSITION_TILT_INITIAL_RATE,
+        TRANSITION_TILT_ANGLE_HOLD,
+        TRANSITION_TILT_FINAL_RATE,
         TRANSITION_DONE
     } transition_state;
 
@@ -440,6 +463,7 @@ private:
         float current_tilt;
         float current_throttle;
         bool motors_active:1;
+        int16_t time_tilt_rate;
     } tilt;
 
     enum tailsitter_input {
@@ -470,6 +494,9 @@ private:
         AP_Int16 motor_mask;
     } tailsitter;
 
+    //used for controling the message output when switching off copter assist
+    bool _last_switch;
+
     // the attitude view of the VTOL attitude controller
     AP_AHRS_View *ahrs_view;
 
@@ -498,6 +525,12 @@ private:
     }
     bool tiltrotor_fully_fwd(void);
     float tilt_max_change(bool up);
+
+    // set tilt rate for use in time based transitions
+    void set_tilt_rate(int16_t rate);
+
+    // return true when tiltrotor fame is configured
+    bool is_tiltrotor(void) const;
 
     void afs_terminate(void);
     bool guided_mode_enabled(void);

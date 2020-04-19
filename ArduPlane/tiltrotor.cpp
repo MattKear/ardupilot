@@ -7,6 +7,23 @@
 
 
 /*
+  return true when flying a tiltrotor
+ */
+bool QuadPlane::is_tiltrotor(void) const
+{
+    return available() 
+        && (tilt.tilt_mask > 0);
+}
+
+/*
+  set the tilt rotor rate for time based transitions
+ */
+void QuadPlane::set_tilt_rate(int16_t rate)
+{
+    tilt.time_tilt_rate = constrain_int16(rate/100, 0, 90); //(deg/s)
+}
+
+/*
   calculate maximum tilt change as a proportion from 0 to 1 of tilt
  */
 float QuadPlane::tilt_max_change(bool up)
@@ -14,8 +31,12 @@ float QuadPlane::tilt_max_change(bool up)
     float rate;
     if (up || tilt.max_rate_down_dps <= 0) {
         rate = tilt.max_rate_up_dps;
-    } else {
+    } else if (_transition_type != 1) {
+        // airspeed based transition
         rate = tilt.max_rate_down_dps;
+    } else {
+        // time and rate based transition
+        rate = tilt.time_tilt_rate;
     }
     if (tilt.tilt_type != TILT_TYPE_BINARY && !up) {
         bool fast_tilt = false;
@@ -234,7 +255,12 @@ void QuadPlane::tilt_compensate_down(float *thrust, uint8_t num_motors)
     // control motor while preventing them trying to do roll and yaw
     // control while angled over. This greatly improves the stability
     // of the last phase of transitions
-    float tilt_threshold = (tilt.max_angle_deg/90.0f);
+    float tilt_threshold;
+    if (_transition_type == 1) {
+        tilt_threshold = ((float)_tilt_ang_assist/9000.0f);
+    } else {
+        tilt_threshold = (tilt.max_angle_deg/90.0f);
+    }
     bool equal_thrust = (tilt.current_tilt > tilt_threshold);
 
     float tilt_total = 0;
@@ -285,7 +311,12 @@ void QuadPlane::tilt_compensate_up(float *thrust, uint8_t num_motors)
     // control motor while preventing them trying to do roll and yaw
     // control while angled over. This greatly improves the stability
     // of the last phase of transitions
-    float tilt_threshold = (tilt.max_angle_deg/90.0f);
+    float tilt_threshold;
+    if (_transition_type == 1) {
+        tilt_threshold = ((float)_tilt_ang_assist/9000.0f);
+    } else {
+        tilt_threshold = (tilt.max_angle_deg/90.0f);
+    }
     bool equal_thrust = (tilt.current_tilt > tilt_threshold);
 
     float tilt_total = 0;
@@ -353,8 +384,13 @@ void QuadPlane::tiltrotor_vectored_yaw(void)
 
     // calculate the basic tilt amount from current_tilt
     float base_output = zero_out + (tilt.current_tilt * (1 - zero_out));
-    
-    float tilt_threshold = (tilt.max_angle_deg/90.0f);
+
+    float tilt_threshold;
+    if (_transition_type == 1) {
+        tilt_threshold = ((float)_tilt_ang_assist/9000.0f);
+    } else {
+        tilt_threshold = (tilt.max_angle_deg/90.0f);
+    }
     bool no_yaw = (tilt.current_tilt > tilt_threshold);
     if (no_yaw) {
         SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorLeft,  1000 * base_output);
