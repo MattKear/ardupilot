@@ -113,7 +113,7 @@ void ModeAutorotate::run()
     //}
     if (phase_switch == Autorotation_Phase::FLARE){
         // This must be nested to recall sensible value of _flare_time_start
-        if ((now - _flare_time_start)/1000.0f >= g2.arot.get_flare_time_period()) {
+        if ((now - _flare_time_start) >= g2.arot.get_flare_time_period()*1000.0f) {
             phase_switch = Autorotation_Phase::TOUCH_DOWN;
             message_handler(Msg_Num::FLARE_EXIT_TIMER);
         }
@@ -357,7 +357,7 @@ void ModeAutorotate::run()
                 _flags.bail_out_initial = 0;
             }
 
-        //if ((now - _bail_time_start)/1000.0f >= BAILOUT_MOTOR_RAMP_TIME) {
+        //if ((now - _bail_time_start) >= BAILOUT_MOTOR_RAMP_TIME*1000.0f) {
             // Update desired vertical speed and pitch target after the bailout motor ramp timer has completed
         //    _desired_v_z -= _target_climb_rate_adjust*G_Dt;
         //    _pitch_target -= _target_pitch_adjust*G_Dt;
@@ -368,7 +368,7 @@ void ModeAutorotate::run()
         // Update controllers
         //pos_control->update_z_controller();
 
-        //if ((now - _bail_time_start)/1000.0f >= _bail_time) {
+        //if ((now - _bail_time_start) >= _bail_time*1000.0f) {
             // Bail out timer complete.  Change flight mode. Do not revert back to auto. Prevent aircraft
             // from continuing mission and potentially flying further away after a power failure.
             if (copter.prev_control_mode == Mode::Number::AUTO) {
