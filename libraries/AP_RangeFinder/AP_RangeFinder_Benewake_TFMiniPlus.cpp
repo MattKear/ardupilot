@@ -102,17 +102,20 @@ bool AP_RangeFinder_Benewake_TFMiniPlus::init()
     if (val[5] * 10000 + val[4] * 100 + val[3] < 20003) {
         hal.console->printf(DRIVER ": minimum required FW version 2.0.3, but version %u.%u.%u found\n",
                             val[5], val[4], val[3]);
+        gcs().send_text(MAV_SEVERITY_INFO, "minimum required FW version 2.0.3");
         goto fail;
     }
 
     hal.console->printf(DRIVER ": found fw version %u.%u.%u\n",
                         val[5], val[4], val[3]);
+    gcs().send_text(MAV_SEVERITY_INFO, "found fw version %i.%i.%i",val[5], val[4], val[3]);
 
     for (i = 0; i < ARRAY_SIZE(cmds); i++) {
         ret = _dev->transfer(cmds[i], cmds[i][1], nullptr, 0);
         if (!ret) {
             hal.console->printf(DRIVER ": Unable to set configuration register %u\n",
                                 cmds[i][2]);
+            gcs().send_text(MAV_SEVERITY_INFO, "Unable to set configuration register %i",cmds[i][2]);
             goto fail;
         }
         hal.scheduler->delay(100);
