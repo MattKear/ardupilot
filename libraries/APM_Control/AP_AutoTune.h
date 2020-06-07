@@ -15,6 +15,7 @@ public:
         AP_Float FF;
         AP_Int16 rmax;
         AP_Int16 imax;
+        AP_Float scale;
     };
 
     enum ATType {

@@ -81,6 +81,10 @@ const AP_Param::GroupInfo AP_RollController::var_info[] = {
 	// @User: User
 	AP_GROUPINFO("FF",        6, AP_RollController, gains.FF,          0.0f),
 
+	// @Param: SCALE
+	// @DisplayName: Scale factor
+	AP_GROUPINFO("SCALE",     7, AP_RollController, gains.scale,          1),
+
 	AP_GROUPEND
 };
 
@@ -168,7 +172,7 @@ int32_t AP_RollController::_get_rate_out(float desired_rate, float scaler, bool 
 	_last_out += _pid_info.I;
 	
 	// Convert to centi-degrees and constrain
-	return constrain_float(_last_out * 100, -4500, 4500);
+	return constrain_float(_last_out * 100 * gains.scale, -4500, 4500);
 }
 
 

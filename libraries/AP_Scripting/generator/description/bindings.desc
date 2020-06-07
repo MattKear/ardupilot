@@ -282,3 +282,27 @@ ap_object AC_PID method set_scale void float -FLT_MAX FLT_MAX
 -- get AC_PID object from vehicle
 singleton AP_Vehicle method get_AC_PID AC_PID AP_Vehicle::AC_PID_TYPE'enum AP_Vehicle::AC_PID_TYPE::RATE_ROLL AP_Vehicle::AC_PID_TYPE::TRACKER_YAW
 singleton AP_Vehicle enum RATE_ROLL RATE_PITCH RATE_YAW RATE_STEER THROTTLE_SPEED PITCH_THROTTLE SAILBOAT_HEEL TRACKER_PITCH TRACKER_YAW
+
+singleton AP_Vehicle method roll_kP float
+singleton AP_Vehicle method roll_kI float
+singleton AP_Vehicle method roll_kD float
+singleton AP_Vehicle method roll_kFF float
+singleton AP_Vehicle method roll_scale float
+
+singleton AP_Vehicle method roll_set_kP void float -FLT_MAX FLT_MAX
+singleton AP_Vehicle method roll_set_kI void float -FLT_MAX FLT_MAX
+singleton AP_Vehicle method roll_set_kD void float -FLT_MAX FLT_MAX
+singleton AP_Vehicle method roll_set_kFF void float -FLT_MAX FLT_MAX
+singleton AP_Vehicle method roll_set_scale void float -FLT_MAX FLT_MAX
+
+singleton AP_Vehicle method pitch_kP float
+singleton AP_Vehicle method pitch_kI float
+singleton AP_Vehicle method pitch_kD float
+singleton AP_Vehicle method pitch_kFF float
+singleton AP_Vehicle method pitch_scale float
+
+singleton AP_Vehicle method pitch_set_kP void float -FLT_MAX FLT_MAX
+singleton AP_Vehicle method pitch_set_kI void float -FLT_MAX FLT_MAX
+singleton AP_Vehicle method pitch_set_kD void float -FLT_MAX FLT_MAX
+singleton AP_Vehicle method pitch_set_kFF void float -FLT_MAX FLT_MAX
+singleton AP_Vehicle method pitch_set_scale void float -FLT_MAX FLT_MAX

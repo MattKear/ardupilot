@@ -1121,6 +1121,32 @@ public:
     bool get_target_location(Location& target_loc) override;
     AC_PID *get_AC_PID(AC_PID_TYPE type) override;
 
+    float roll_kP() override {return rollController.kP();}
+    float roll_kI() override {return rollController.kI();}
+    float roll_kD() override {return rollController.kD();}
+    float roll_kFF() override {return rollController.kFF();}
+    float roll_scale() override {return rollController.scale();}
+
+    void roll_set_kP(float v) override {rollController.set_kP(v);}
+    void roll_set_kI(float v) override {rollController.set_kI(v);}
+    void roll_set_kD(float v) override {rollController.set_kD(v);}
+    void roll_set_kFF(float v)override {rollController.set_kFF(v);}
+    void roll_set_scale(float v) override {rollController.set_scale(v);}
+
+    float pitch_kP() override {return pitchController.kP();}
+    float pitch_kI() override {return pitchController.kI();}
+    float pitch_kD() override {return pitchController.kD();}
+    float pitch_kFF() override {return pitchController.kFF();}
+    float pitch_scale() override {return pitchController.scale();}
+
+    void pitch_set_kP(float v) override {pitchController.set_kP(v);}
+    void pitch_set_kI(float v) override {pitchController.set_kI(v);}
+    void pitch_set_kD(float v) override {pitchController.set_kD(v);}
+    void pitch_set_kFF(float v)override {pitchController.set_kFF(v);}
+    void pitch_set_scale(float v) override {pitchController.set_scale(v);}
+
+
+
 };
 
 extern Plane plane;

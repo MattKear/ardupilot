@@ -98,6 +98,10 @@ const AP_Param::GroupInfo AP_PitchController::var_info[] = {
 	// @User: User
 	AP_GROUPINFO("FF",        8, AP_PitchController, gains.FF,       0.0f),
 
+	// @Param: SCALE
+	// @DisplayName: Scale factor
+	AP_GROUPINFO("SCALE",     9, AP_PitchController, gains.scale,          1),
+
 	AP_GROUPEND
 };
 
@@ -223,7 +227,7 @@ int32_t AP_PitchController::_get_rate_out(float desired_rate, float scaler, bool
     }
     
 	// Convert to centi-degrees and constrain
-	return constrain_float(_last_out * 100, -4500, 4500);
+	return constrain_float(_last_out * 100 * gains.scale, -4500, 4500);
 }
 
 /*

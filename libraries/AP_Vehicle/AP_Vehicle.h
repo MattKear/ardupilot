@@ -191,6 +191,31 @@ public:
     // get AC_PID object for use by scripting
     virtual AC_PID* get_AC_PID(AC_PID_TYPE type) { return nullptr; };
 
+    // plane roll and pitch controllers
+    virtual float roll_kP() {return 0;}
+    virtual float roll_kI() {return 0;}
+    virtual float roll_kD() {return 0;}
+    virtual float roll_kFF() {return 0;}
+    virtual float roll_scale() {return 0;}
+
+    virtual void roll_set_kP(float v){}
+    virtual void roll_set_kI(float v){}
+    virtual void roll_set_kD(float v){}
+    virtual void roll_set_kFF(float v){}
+    virtual void roll_set_scale(float v){}
+
+    virtual float pitch_kP() {return 0;}
+    virtual float pitch_kI() {return 0;}
+    virtual float pitch_kD() {return 0;}
+    virtual float pitch_kFF() {return 0;}
+    virtual float pitch_scale() {return 0;}
+
+    virtual void pitch_set_kP(float v){}
+    virtual void pitch_set_kI(float v){}
+    virtual void pitch_set_kD(float v){}
+    virtual void pitch_set_kFF(float v){}
+    virtual void pitch_set_scale(float v){}
+
 protected:
 
     virtual void init_ardupilot() = 0;
