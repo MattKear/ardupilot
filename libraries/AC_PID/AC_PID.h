@@ -83,6 +83,7 @@ public:
     float get_filt_T_alpha() const;
     float get_filt_E_alpha() const;
     float get_filt_D_alpha() const;
+    AP_Float &scale() { return _scale; }
 
     // set accessors
     void set_kP(const float v) { _kp.set(v); }
@@ -93,6 +94,7 @@ public:
     void set_filt_T_hz(const float v);
     void set_filt_E_hz(const float v);
     void set_filt_D_hz(const float v);
+    void set_scale(const float v) { _scale.set(v); };
 
     // set the desired and actual rates (for logging purposes)
     void set_target_rate(float target) { _pid_info.target = target; }
@@ -119,6 +121,7 @@ protected:
     AP_Float _filt_T_hz;         // PID target filter frequency in Hz
     AP_Float _filt_E_hz;         // PID error filter frequency in Hz
     AP_Float _filt_D_hz;         // PID derivative filter frequency in Hz
+    AP_Float _scale;
 
     // flags
     struct ac_pid_flags {

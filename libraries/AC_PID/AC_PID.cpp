@@ -56,6 +56,11 @@ const AP_Param::GroupInfo AC_PID::var_info[] = {
     // @Units: Hz
     AP_GROUPINFO("FLTD", 11, AC_PID, _filt_D_hz, AC_PID_DFILT_HZ_DEFAULT),
 
+    // @Param: SCAL
+    // @DisplayName: Scale factor for PID output
+    // @Description: Scale factor for PID output
+    AP_GROUPINFO("SCAL", 12, AC_PID, _scale, 1),
+
     AP_GROUPEND
 };
 
@@ -150,7 +155,7 @@ float AC_PID::update_all(float target, float measurement, bool limit)
     _pid_info.P = P_out;
     _pid_info.D = D_out;
 
-    return P_out + _integrator + D_out;
+    return (P_out + _integrator + D_out) * _scale;
 }
 
 //  update_error - set error input to PID controller and calculate outputs
@@ -196,7 +201,7 @@ float AC_PID::update_error(float error, bool limit)
     _pid_info.P = P_out;
     _pid_info.D = D_out;
 
-    return P_out + _integrator + D_out;
+    return (P_out + _integrator + D_out) * _scale;
 }
 
 //  update_i - update the integral
