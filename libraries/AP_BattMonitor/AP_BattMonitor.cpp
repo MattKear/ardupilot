@@ -147,7 +147,7 @@ AP_BattMonitor::init()
             case AP_BattMonitor_Params::BattMonitor_TYPE_FuelLevel_PWM:
                 drivers[instance] = new AP_BattMonitor_FuelLevel_PWM(*this, state[instance], _params[instance]);
                 break;
-#if ENABLE_FUELCELL == ENABLED
+#if ENABLE_FUELCELL
             case AP_BattMonitor_Params::BattMonitor_TYPE_FuelCell_TANK:
             case AP_BattMonitor_Params::BattMonitor_TYPE_FuelCell_BATTERY:
                 drivers[instance] = new AP_BattMonitor_FuelCell(*this, state[instance], _params[instance]);
