@@ -27,6 +27,10 @@
 #define HAL_BATTMON_FUEL_ENABLE 1
 #endif
 
+#ifndef ENABLE_FUELCELL
+#define ENABLE_FUELCELL 1
+#endif
+
 // declare backend class
 class AP_BattMonitor_Backend;
 class AP_BattMonitor_Analog;
