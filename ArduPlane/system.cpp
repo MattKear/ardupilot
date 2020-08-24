@@ -179,6 +179,11 @@ void Plane::init_ardupilot()
     g2.gripper.init();
 #endif
 
+// init fuel cell library
+#if ENABLE_FUELCELL == ENABLED
+    g2.fuelcell.init();
+#endif
+
     // call AP_Vehicle setup code
     vehicle_setup();
 

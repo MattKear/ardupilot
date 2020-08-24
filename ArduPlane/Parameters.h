@@ -572,6 +572,10 @@ public:
 
     // min initial climb in RTL
     AP_Int16        rtl_climb_min;
+
+#if ENABLE_FUELCELL == ENABLED
+    AP_FuelCell fuelcell;
+#endif
 };
 
 extern const AP_Param::Info var_info[];

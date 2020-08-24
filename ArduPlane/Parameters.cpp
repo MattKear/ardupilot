@@ -1271,6 +1271,12 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("RTL_CLIMB_MIN", 27, ParametersG2, rtl_climb_min, 0),
 
+#if ENABLE_FUELCELL == ENABLED
+    // @Group: FUELCEL_
+    // @Path: ../libraries/AP_FuelCell/AP_FuelCell.cpp
+    AP_SUBGROUPINFO(fuelcell, "FUELCEL_", 28, ParametersG2, AP_FuelCell),
+#endif
+
     AP_GROUPEND
 };
 
