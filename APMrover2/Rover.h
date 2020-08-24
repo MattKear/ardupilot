@@ -94,6 +94,10 @@
 #include "GCS_Rover.h"
 #include "AP_Rally.h"
 #include "RC_Channel.h"                  // RC Channel Library
+#if ENABLE_FUELCELL == ENABLED
+#include <AP_FuelCell/AP_FuelCell.h>
+#endif
+
 
 class Rover : public AP_Vehicle {
 public:

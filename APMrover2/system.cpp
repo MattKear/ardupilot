@@ -60,6 +60,10 @@ void Rover::init_ardupilot()
     g2.gripper.init();
 #endif
 
+#if ENABLE_FUELCELL == ENABLED
+    g2.fuelcell.init();
+#endif
+
     g2.fence.init();
 
     // initialise notify system

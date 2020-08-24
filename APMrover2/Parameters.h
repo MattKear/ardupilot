@@ -6,6 +6,7 @@
 #include "AC_Sprayer/AC_Sprayer.h"
 #include "AP_Gripper/AP_Gripper.h"
 #include "AP_Rally.h"
+#include "AP_FuelCell/AP_FuelCell.h"
 
 // Global parameter class.
 //
@@ -398,6 +399,11 @@ public:
 
     // FS options
     AP_Int32 fs_options;
+
+#if ENABLE_FUELCELL == ENABLED
+    AP_FuelCell fuelcell;
+#endif
+
 };
 
 extern const AP_Param::Info var_info[];
