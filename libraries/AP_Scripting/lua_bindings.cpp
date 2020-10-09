@@ -2,6 +2,7 @@
 #include <SRV_Channel/SRV_Channel.h>
 #include <AP_HAL/HAL.h>
 #include <AP_Logger/AP_Logger.h>
+#include <AP_HAL/I2CDevice.h>
 
 #include "lua_bindings.h"
 
@@ -250,10 +251,165 @@ const luaL_Reg AP_Logger_functions[] = {
     {NULL, NULL}
 };
 
+
+static int binding_argcheck(lua_State *L, int expected_arg_count) {
+    const int args = lua_gettop(L);
+    if (args > expected_arg_count) {
+        return luaL_argerror(L, args, "too many arguments");
+    } else if (args < expected_arg_count) {
+        return luaL_argerror(L, args, "too few arguments");
+    }
+    return 0;
+}
+
+static int new_AP_HAL__I2CDevice(lua_State *L) {
+    luaL_checkstack(L, 2, "Out of stack");
+    void *ud = lua_newuserdata(L, sizeof(AP_HAL::I2CDevice *));
+    memset(ud, 0, sizeof(AP_HAL::I2CDevice *));
+    luaL_getmetatable(L, "AP_HAL::I2CDevice");
+    lua_setmetatable(L, -2);
+    return 1;
+}
+
+static AP_HAL::I2CDevice ** check_AP_HAL__I2CDevice(lua_State *L, int arg) {
+    void *data = luaL_checkudata(L, arg, "AP_HAL::I2CDevice");
+    return (AP_HAL::I2CDevice **)data;
+}
+
+
+static int i2c_mgr_get_device_direct(lua_State *L) {
+    binding_argcheck(L, 3);
+    const lua_Integer raw_data_2 = luaL_checkinteger(L, 2);
+    luaL_argcheck(L, ((raw_data_2 >= MAX(0, 0)) && (raw_data_2 <= MIN(4, UINT8_MAX))), 2, "argument out of range");
+    const uint8_t data_2 = static_cast<uint8_t>(raw_data_2);
+    const lua_Integer raw_data_3 = luaL_checkinteger(L, 3);
+    luaL_argcheck(L, ((raw_data_3 >= MAX(0, 0)) && (raw_data_3 <= MIN(UINT8_MAX, UINT8_MAX))), 3, "argument out of range");
+    const uint8_t data_3 = static_cast<uint8_t>(raw_data_3);
+    AP_HAL::I2CDevice *data = hal.i2c_mgr->get_device_direct(
+            data_2,
+            data_3);
+
+    if (data == NULL) {
+        return 0;
+    } else {
+        new_AP_HAL__I2CDevice(L);
+        *check_AP_HAL__I2CDevice(L, -1) = data;
+        return 1;
+    }
+}
+
+const luaL_Reg i2c_mgr_meta[] = {
+    {"get_device_direct", i2c_mgr_get_device_direct},
+    {NULL, NULL}
+};
+
+static int AP_HAL__I2CDevice_set_address(lua_State *L) {
+    binding_argcheck(L, 2);
+    AP_HAL::I2CDevice * ud = *check_AP_HAL__I2CDevice(L, 1);
+    if (ud == NULL) {
+        return luaL_error(L, "Internal error, null pointer");
+    }
+    const lua_Integer raw_data_2 = luaL_checkinteger(L, 2);
+    luaL_argcheck(L, ((raw_data_2 >= MAX(0, 0)) && (raw_data_2 <= MIN(UINT8_MAX, UINT8_MAX))), 2, "argument out of range");
+    const uint8_t data_2 = static_cast<uint8_t>(raw_data_2);
+
+    WITH_SEMAPHORE(ud->get_semaphore());
+    ud->set_address(
+            data_2);
+
+    return 0;
+}
+
+static int AP_HAL__I2CDevice_read_registers(lua_State *L) {
+    binding_argcheck(L, 2);
+    AP_HAL::I2CDevice * ud = *check_AP_HAL__I2CDevice(L, 1);
+    if (ud == NULL) {
+        return luaL_error(L, "Internal error, null pointer");
+    }
+    const lua_Integer raw_data_2 = luaL_checkinteger(L, 2);
+    luaL_argcheck(L, ((raw_data_2 >= MAX(0, 0)) && (raw_data_2 <= MIN(UINT8_MAX, UINT8_MAX))), 2, "argument out of range");
+    const uint8_t data_2 = static_cast<uint8_t>(raw_data_2);
+    uint8_t data_5003 = {};
+
+    WITH_SEMAPHORE(ud->get_semaphore());
+    const bool data = ud->read_registers(
+            data_2,
+            &data_5003,
+            1);
+
+    if (data) {
+        lua_pushinteger(L, data_5003);
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+static int AP_HAL__I2CDevice_write_register(lua_State *L) {
+    binding_argcheck(L, 3);
+    AP_HAL::I2CDevice * ud = *check_AP_HAL__I2CDevice(L, 1);
+    if (ud == NULL) {
+        return luaL_error(L, "Internal error, null pointer");
+    }
+    const lua_Integer raw_data_2 = luaL_checkinteger(L, 2);
+    luaL_argcheck(L, ((raw_data_2 >= MAX(0, 0)) && (raw_data_2 <= MIN(UINT8_MAX, UINT8_MAX))), 2, "argument out of range");
+    const uint8_t data_2 = static_cast<uint8_t>(raw_data_2);
+    const lua_Integer raw_data_3 = luaL_checkinteger(L, 3);
+    luaL_argcheck(L, ((raw_data_3 >= MAX(0, 0)) && (raw_data_3 <= MIN(UINT8_MAX, UINT8_MAX))), 3, "argument out of range");
+    const uint8_t data_3 = static_cast<uint8_t>(raw_data_3);
+    WITH_SEMAPHORE(ud->get_semaphore());
+    const bool data = ud->write_register(
+            data_2,
+            data_3);
+
+    lua_pushboolean(L, data);
+    return 1;
+}
+
+static int AP_HAL__I2CDevice_set_retries(lua_State *L) {
+    binding_argcheck(L, 2);
+    AP_HAL::I2CDevice * ud = *check_AP_HAL__I2CDevice(L, 1);
+    if (ud == NULL) {
+        return luaL_error(L, "Internal error, null pointer");
+    }
+    const lua_Integer raw_data_2 = luaL_checkinteger(L, 2);
+    luaL_argcheck(L, ((raw_data_2 >= MAX(1, 0)) && (raw_data_2 <= MIN(20, UINT8_MAX))), 2, "argument out of range");
+    const uint8_t data_2 = static_cast<uint8_t>(raw_data_2);
+    WITH_SEMAPHORE(ud->get_semaphore());
+    ud->set_retries(
+            data_2);
+
+    return 0;
+}
+
+const luaL_Reg AP_HAL__I2CDevice_meta[] = {
+    {"set_address", AP_HAL__I2CDevice_set_address},
+    {"read_registers", AP_HAL__I2CDevice_read_registers},
+    {"write_register", AP_HAL__I2CDevice_write_register},
+    {"set_retries", AP_HAL__I2CDevice_set_retries},
+    {NULL, NULL}
+};
+
+
 void load_lua_bindings(lua_State *L) {
     lua_pushstring(L, "logger");
     luaL_newlib(L, AP_Logger_functions);
     lua_settable(L, -3);
+
+    lua_pushstring(L, "i2c");
+    luaL_newlib(L, i2c_mgr_meta);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "AP_HAL::I2CDevice");
+    lua_pushcfunction(L, new_AP_HAL__I2CDevice);
+    lua_settable(L, -3);
+
+    luaL_newmetatable(L, "AP_HAL::I2CDevice");
+    luaL_setfuncs(L, AP_HAL__I2CDevice_meta, 0);
+    lua_pushstring(L, "__index");
+    lua_pushvalue(L, -2);
+    lua_settable(L, -3);
+    lua_pop(L, 1);
 
     luaL_setfuncs(L, global_functions, 0);
 }
