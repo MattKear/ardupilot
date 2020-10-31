@@ -523,6 +523,24 @@ const AP_Param::GroupInfo QuadPlane::var_info2[] = {
     // @User: Standard
     AP_GROUPINFO("ASSIST_ANG_MX", 22, QuadPlane, _tilt_ang_assist, 4600),
 
+    // @Param: TT_PTCH_TARG
+    // @DisplayName: Pitch target during time based transition
+    // @Description: The pitch target in centidegrees for the aircraft to attempt to fly during transition to mode FBWA only.
+    // @Units: cdeg
+    // @Range: -2000 2000
+    // @Increment: 10
+    // @User: Standard
+    AP_GROUPINFO("TT_PTCH_TARG", 23, QuadPlane, _tt_pitch_targ_cd, 0),
+
+    // @Param: TILT_FIN_TIME
+    // @DisplayName: Final tilt time
+    // @Description: The transition rate in centidegrees per second for the final stage of the transition for tilt rotors.  TRAN_TYPE must be set to 1 to use this value to be used.
+    // @Units: ms
+    // @Range: 0 10000
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("TILT_FIN_TIME", 24, QuadPlane, _final_tilt_time_ms, 3000),
+
     AP_GROUPEND
 };
 
@@ -1535,6 +1553,7 @@ void QuadPlane::update_transition(void)
         transition_low_airspeed_ms = 0;
         transition_hold_ms = 0;
         transition_final_phase_ms = 0;
+        _in_final_wait = false;
         assisted_flight = false;
         return;
     }
@@ -1569,11 +1588,13 @@ void QuadPlane::update_transition(void)
         _tran_wait_angle.set(constrain_int16(_tran_wait_angle,100,9000));
         _initial_tilt_ang_rate.set(constrain_int16(_initial_tilt_ang_rate,100,9000)); //protect against divide by zero
         _final_tilt_ang_rate.set(constrain_int16(_final_tilt_ang_rate,100,9000)); //protect against divide by zero
+        _final_tilt_time_ms.set(constrain_int16(_final_tilt_time_ms,1000 * (9000 - _tran_wait_angle) / _final_tilt_ang_rate,INT16_MAX)); // convert remaining angle in final phase of transition to time required to complete in ms
 
         // reset all timers incase the previous transition was interupted
         transition_start_ms = 0;
         transition_hold_ms = 0;
         transition_final_phase_ms = 0;
+        _last_update_pitch_targ_cdeg = 0;
     }
 
     /*
@@ -1612,13 +1633,14 @@ void QuadPlane::update_transition(void)
     
     // if rotors are fully forward then we are not transitioning,
     // unless we are waiting for airspeed to increase (in which case
-    // the tilt will decrease rapidly)
-    if (tiltrotor_fully_fwd() && transition_state != TRANSITION_AIRSPEED_WAIT) {
+    // the tilt will decrease rapidly) or in the final stage of time-based transition
+    if (tiltrotor_fully_fwd() && transition_state != TRANSITION_AIRSPEED_WAIT && transition_state != TRANSITION_TILT_FINAL_RATE) {
         transition_state = TRANSITION_DONE;
         transition_start_ms = 0;
         transition_low_airspeed_ms = 0;
         transition_hold_ms = 0;
         transition_final_phase_ms = 0;
+        _in_final_wait = false;
     }
 
     if (transition_state < TRANSITION_TIMER || transition_state == TRANSITION_TILT_INITIAL_RATE || transition_state == TRANSITION_TILT_ANGLE_HOLD || transition_state == TRANSITION_TILT_FINAL_RATE) {
@@ -1785,14 +1807,20 @@ void QuadPlane::update_transition(void)
             transition_state = TRANSITION_TILT_ANGLE_HOLD;
         }
 
-        // do not allow a climb on the quad motors during transition
-        // a climb would add load to the airframe, and prolongs the
-        // transition
-        float climb_rate_cms = assist_climb_rate_cms();
-        if (options & OPTION_LEVEL_TRANSITION) {
-            climb_rate_cms = MIN(climb_rate_cms, 0.0f);
+        // check if we need to assist climbing
+        if (plane.control_mode != &plane.mode_fbwa) {
+            float climb_rate_cms = assist_climb_rate_cms();
+            // Constantly update the climb rate to current to allow the multirotor controller to assist climbing
+            if (options & OPTION_LEVEL_TRANSITION) {
+                climb_rate_cms = MIN(climb_rate_cms, 0.0f);
+            }
+            hold_hover(climb_rate_cms);
+
+        } else {
+            // in transition to FBWA, dont use a climbrate feedback incase we are climbing via pitch angle
+            float throttle_scaled = MAX(get_pilot_throttle(),motors->get_throttle_hover());
+            hold_stabilize(throttle_scaled);
         }
-        hold_hover(climb_rate_cms);
 
         // set desired yaw to current yaw in both desired angle and
         // rate request. This reduces wing twist in transition due to
@@ -1833,14 +1861,20 @@ void QuadPlane::update_transition(void)
             transition_state = TRANSITION_TILT_FINAL_RATE;
         }
 
-        // do not allow a climb on the quad motors during transition
-        // a climb would add load to the airframe, and prolongs the
-        // transition
-        float climb_rate_cms = assist_climb_rate_cms();
-        if (options & OPTION_LEVEL_TRANSITION) {
-            climb_rate_cms = MIN(climb_rate_cms, 0.0f);
+        // check if we need to assist climbing
+        if (plane.control_mode != &plane.mode_fbwa) {
+            float climb_rate_cms = assist_climb_rate_cms();
+            // Constantly update the climb rate to current to allow the multirotor controller to assist climbing
+            if (options & OPTION_LEVEL_TRANSITION) {
+                climb_rate_cms = MIN(climb_rate_cms, 0.0f);
+            }
+            hold_hover(climb_rate_cms);
+
+        } else {
+            // in transition to FBWA, dont use a climbrate feedback incase we are climbing via pitch angle
+            float throttle_scaled = MAX(get_pilot_throttle(),motors->get_throttle_hover());
+            hold_stabilize(throttle_scaled);
         }
-        hold_hover(climb_rate_cms);
 
         // set desired yaw to current yaw in both desired angle and
         // rate request. This reduces wing twist in transition due to
@@ -1850,14 +1884,11 @@ void QuadPlane::update_transition(void)
 
         last_throttle = motors->get_throttle();
 
-        // reset integrators while we are below target airspeed as we
-        // may build up too much while still primarily under
-        // multicopter control
-        plane.pitchController.reset_I();
-        plane.rollController.reset_I();
+        float time_remaining = wait_time - (now - transition_hold_ms);
+        float transition_scale = time_remaining/wait_time;
 
-        // give full authority to attitude control
-        attitude_control->set_throttle_mix_max(1.0f);
+        // Begin reduceing attitude control authority
+        attitude_control->set_throttle_mix_max(0.5f + 0.5*transition_scale);
 
         break;
     }
@@ -1868,43 +1899,54 @@ void QuadPlane::update_transition(void)
 
         set_tilt_rate(_final_tilt_ang_rate);
 
-        // calculate initial transition time in millisecond.
-        uint32_t final_transition_time = (9000.0f-(float)_tran_wait_angle)/(float)_final_tilt_ang_rate * 1000; //(ms)
-        final_transition_time = MAX(final_transition_time,(uint32_t)10); //protect against divide by zero
-
         if (transition_final_phase_ms == 0) {
             gcs().send_text(MAV_SEVERITY_INFO, "Final transision phase started");
-            gcs().send_text(MAV_SEVERITY_INFO, "%.2f s to transition complete",(float)final_transition_time/1000);
+            gcs().send_text(MAV_SEVERITY_INFO, "%.2f s to transition complete",(float)_final_tilt_time_ms.get()/1000.0f);
             transition_final_phase_ms = now;
         }
 
+        if (tiltrotor_fully_fwd() && !_in_final_wait) {
+            gcs().send_text(MAV_SEVERITY_INFO, "Rotors fully fwd");
+            _in_final_wait = true;
+        }
+
         // progress to next phase of transition
-        if ((now - transition_final_phase_ms) > final_transition_time) {
+        // _final_tilt_time_ms must be greater than rotor_full_fwd_time
+        if ((now - transition_final_phase_ms) > (uint32_t)_final_tilt_time_ms.get() && tiltrotor_fully_fwd()) {
             transition_state = TRANSITION_DONE;
             transition_start_ms = 0;
             transition_hold_ms = 0;
             transition_final_phase_ms = 0;
+            _in_final_wait = false;
+            set_tilt_rate(9000);
             gcs().send_text(MAV_SEVERITY_INFO, "Transition done");
         }
 
-        // after angle hold is complete we degrade throttle over the
-        // transition time, but continue to stabilize
-        float time_remaining = final_transition_time - (now - transition_final_phase_ms);
-        float transition_scale = time_remaining/final_transition_time;
-        float throttle_scaled = last_throttle * transition_scale;
+        // Degrade vtol throttle at a rate so that throttle assistance is zero by the time the tilt angle reaches _tilt_ang_assist
+        float zero_assist_time_ms = 1000 * (_tilt_ang_assist-_tran_wait_angle)/_final_tilt_ang_rate;
+        float transition_scale = constrain_float(1.0f - (now - transition_final_phase_ms)/zero_assist_time_ms, 0.0f, 1.0f);
 
-        // set zero throttle mix, to give full authority to
+        // decay to zero throttle mix, to give full authority to
         // throttle. This ensures that the fixed wing controllers get
         // a chance to learn the right integrators during the transition
+        // we decayed to 0.5 in the last phase now remove the rest
         attitude_control->set_throttle_mix_value(0.5*transition_scale);
 
-        if (throttle_scaled < 0.01) {
-            // ensure we don't drop all the way to zero or the motors
-            // will stop stabilizing
-            throttle_scaled = 0.01;
+        // check if we need to assist climbing
+        if (plane.control_mode != &plane.mode_fbwa) {
+            float climb_rate_cms = assist_climb_rate_cms();
+            // Constantly update the climb rate to current to allow the multirotor controller to assist climbing
+            if (options & OPTION_LEVEL_TRANSITION) {
+                climb_rate_cms = MIN(climb_rate_cms, 0.0f);
+            }
+            // Decay the input that vtol motors have on climb rate at this phase
+            hold_hover(climb_rate_cms*transition_scale);
+
+        } else {
+            // in transition to FBWA, dont use a climbrate feedback incase we are climbing via pitch angle
+            float throttle_scaled = MAX(get_pilot_throttle(),motors->get_throttle_hover());
+            hold_stabilize(throttle_scaled);
         }
-        assisted_flight = true;
-        hold_stabilize(throttle_scaled);
 
         // set desired yaw to current yaw in both desired angle and
         // rate request while waiting for transition to
@@ -1926,6 +1968,43 @@ void QuadPlane::update_transition(void)
     }
 
     motors_output();
+}
+
+// slew pitch target over 1 second, return true if adjustment is valid and applied
+int32_t QuadPlane::get_pitch_target_adjust()
+{
+    uint32_t now = millis();
+
+    // if this is the first call don't adjust pitch target until we can get a better dt estimate
+    if (_last_update_pitch_targ_ms <= 0) {
+        _last_update_pitch_targ_cdeg = 0;
+        _last_update_pitch_targ_ms = now;
+        return 0;
+    }
+
+    int32_t pitch_target_cdeg = (int32_t)_tt_pitch_targ_cd.get();
+
+    if (transition_state == TRANSITION_TILT_ANGLE_HOLD || transition_state == TRANSITION_TILT_FINAL_RATE) {
+        // maintain a the pitch target
+        _last_update_pitch_targ_cdeg = pitch_target_cdeg;
+        _last_update_pitch_targ_ms = now;
+
+    } else if (transition_state == TRANSITION_TILT_INITIAL_RATE) {
+        // slew the pitch target over the intial transition phase
+        float slew_cdeg_ms = pitch_target_cdeg / MAX(_tran_wait_angle/_initial_tilt_ang_rate,1) * 0.001f;
+        _last_update_pitch_targ_cdeg += (int32_t)MAX(slew_cdeg_ms * (now - _last_update_pitch_targ_ms),1.0f);
+        _last_update_pitch_targ_cdeg = constrain_int32(_last_update_pitch_targ_cdeg, -pitch_target_cdeg, pitch_target_cdeg);
+
+        _last_update_pitch_targ_ms = now;
+
+    } else {
+        // Not a valid time to apply an adjustment to pitch
+        _last_update_pitch_targ_ms = 0;
+        _last_update_pitch_targ_cdeg = 0;
+        return 0;
+    }
+
+    return _last_update_pitch_targ_cdeg;
 }
 
 /*

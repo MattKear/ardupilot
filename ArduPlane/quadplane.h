@@ -36,6 +36,7 @@ public:
     friend class ModeQStabilize;
     friend class ModeQAutotune;
     friend class ModeQAcro;
+    friend class ModeFBWA;
     
     QuadPlane(AP_AHRS_NavEKF &_ahrs);
 
@@ -135,7 +136,10 @@ public:
 
     // return true if the user has set ENABLE
     bool enabled(void) const { return enable != 0; }
-    
+
+    // slew pitch target over 1 second, return true if adjustment is valid and applied
+    int32_t get_pitch_target_adjust(void);
+
     struct PACKED log_QControl_Tuning {
         LOG_PACKET_HEADER;
         uint64_t time_us;
@@ -274,6 +278,19 @@ private:
 
     // the tilt angular rate used in the final phase of transitions
     AP_Int16 _final_tilt_ang_rate;
+
+    // the target pitch angle during time-based transition to fbwa
+    AP_Int16 _tt_pitch_targ_cd;
+
+    // the time spent in the final phase of the time-based transition.  Must be be greater than the time required to tilt rotors all the way forward
+    AP_Int16 _final_tilt_time_ms;
+
+    // Flag to lett transition_update know that the rotors are fully forward and just waiting until the end of the timer
+    bool _in_final_wait = false;
+
+    // last time the pitch target slew rate was adjusted
+    u_int32_t _last_update_pitch_targ_ms;
+    int32_t _last_update_pitch_targ_cdeg;
 
     // the angle in which the copter controller will no longer assist in the transition, for tilt rotors
     AP_Int16 _tilt_ang_assist;
