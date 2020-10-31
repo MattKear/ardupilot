@@ -183,6 +183,7 @@ public:
 
         // inputs eventually used to replace RCMAP
         MAINSAIL =           207, // mainsail input
+        TILT_ROT_TRIM =      240, // trim adjustment for tilt rotors in forward flight
     };
     typedef enum AUX_FUNC aux_func_t;
 
