@@ -43,7 +43,7 @@ float QuadPlane::tilt_max_change(bool up)
         if (plane.control_mode == &plane.mode_manual) {
             fast_tilt = true;
         }
-        if (hal.util->get_soft_armed() && !in_vtol_mode() && !assisted_flight) {
+        if (hal.util->get_soft_armed() && !in_vtol_mode() && !assisted_flight && _transition_type != 1) {
             fast_tilt = true;
         }
         if (fast_tilt) {
@@ -63,8 +63,19 @@ void QuadPlane::tiltrotor_slew(float newtilt)
     float max_change = tilt_max_change(newtilt<tilt.current_tilt);
     tilt.current_tilt = constrain_float(newtilt, tilt.current_tilt-max_change, tilt.current_tilt+max_change);
 
-    // translate to 0..1000 range and output
-    SRV_Channels::set_output_scaled(SRV_Channel::k_motor_tilt, 1000 * tilt.current_tilt);
+    // total angle the tilt can go through
+    float total_angle = 90 + constrain_int16(_tilt_trim_ang.get(),0,15);
+    // output value (0 to 1) to get motors pointed straight up
+    float mid_trim = constrain_int16(_tilt_trim_ang.get(),0,15) / total_angle;
+
+    // calculate the basic tilt amount from current_tilt
+    float base_output = tilt.current_tilt * (1 - mid_trim);
+
+    update_tilt_trim();
+
+    // translate to 0..1000 range and output, only apply trim when tilt is fully forward
+    SRV_Channels::set_output_scaled(SRV_Channel::k_motor_tilt,  1000 * (base_output + _tilt_current_trim*mid_trim));
+
 }
 
 /*
@@ -378,12 +389,13 @@ bool QuadPlane::tiltrotor_fully_fwd(void)
 void QuadPlane::tiltrotor_vectored_yaw(void)
 {
     // total angle the tilt can go through
-    float total_angle = 90 + tilt.tilt_yaw_angle;
+    float total_angle = 90 + tilt.tilt_yaw_angle + constrain_int16(_tilt_trim_ang.get(),0,15);
     // output value (0 to 1) to get motors pointed straight up
     float zero_out = tilt.tilt_yaw_angle / total_angle;
+    float mid_trim = constrain_int16(_tilt_trim_ang.get(),0,15) / total_angle;
 
     // calculate the basic tilt amount from current_tilt
-    float base_output = zero_out + (tilt.current_tilt * (1 - zero_out));
+    float base_output = zero_out + (tilt.current_tilt * (1 - zero_out - mid_trim));
 
     float tilt_threshold;
     if (_transition_type == 1) {
@@ -391,17 +403,20 @@ void QuadPlane::tiltrotor_vectored_yaw(void)
     } else {
         tilt_threshold = (tilt.max_angle_deg/90.0f);
     }
-    bool no_yaw = (tilt.current_tilt > tilt_threshold);
-    if (no_yaw) {
-        SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorLeft,  1000 * base_output);
-        SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRight, 1000 * base_output);
-    } else {
-        float yaw_out = motors->get_yaw();
-        float yaw_range = zero_out;
 
-        SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorLeft,  1000 * (base_output + yaw_out * yaw_range));
-        SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRight, 1000 * (base_output - yaw_out * yaw_range));
+    // get yaw contribution
+    float yaw_out = motors->get_yaw();
+    float yaw_range = zero_out;
+
+    // stop yaw corrections when past threshold
+    if (tilt.current_tilt > tilt_threshold) {
+        yaw_out = 0;
     }
+
+    update_tilt_trim();
+
+    SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorLeft,  1000 * (base_output + _tilt_current_trim*mid_trim + yaw_out*yaw_range));
+    SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRight, 1000 * (base_output + _tilt_current_trim*mid_trim - yaw_out*yaw_range));
 }
 
 /*
@@ -449,4 +464,48 @@ void QuadPlane::tiltrotor_bicopter(void)
 
     SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorLeft,  tilt_left);
     SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRight, tilt_right);
+}
+
+// initialise rc input (channel_tilttrim)
+void QuadPlane::init_tilttrim_rc()
+{
+    RC_Channel *rc_ptr = rc().find_channel_for_option(RC_Channel::AUX_FUNC::TILT_ROT_TRIM);
+    if (rc_ptr != nullptr) {
+        channel_tilttrim = rc_ptr;
+        channel_tilttrim->set_range(100);
+    }
+}
+
+// decode pilot tilt_rotor_trim input
+// _tilt_current_trim is in the range -1 to 1, defaults to 0 (no trim applied) if no input configured
+void QuadPlane::update_tilt_trim(void)
+{
+    // no RC input means mainsail is moved to trim
+    if (channel_tilttrim == nullptr) {
+        _tilt_current_trim = 0.0f;
+        return;
+    }
+
+    // Update trim contribution
+    float new_trim = 0;
+    if (transition_state == TRANSITION_TILT_FINAL_RATE || transition_state == TRANSITION_DONE) {
+        // start introducing the pilot desired trim for the final stage of transition to allow the trim to be slewed in gradually
+        // tilttrim will be from 0 to 100 from RC
+        new_trim = constrain_float((float)(channel_tilttrim->get_control_in() - 50)*0.02f, -1.0f, 1.0f);
+
+    } else if (in_vtol_mode() && (_transition_type == 1) && (tilt.current_tilt > (_tran_wait_angle.get()/9000))) {
+        // only attempt to slew the delta caused by the trim once the tilt angle has gone past the wait phase angle
+        // this prevents tilting back to mid_trim if negative trim is applied when transition to vtol is started
+        new_trim = _tilt_current_trim;
+    }
+
+    float max_change = 0.0f;
+    if (_tilt_trim_ang.get() > 0) {
+        // slew the trim at the slowest of the two rates. This prevents the rotor moving back after angle_wait phase because of
+        // a negative trim value that is being applied at a faster rate than the transition tilt angle
+        float remaining_ang = constrain_float(9000 - _tran_wait_angle - (MIN(15, _tilt_trim_ang.get()) * _tilt_current_trim),5.0f,45.0f);
+        max_change =  tilt.time_tilt_rate * plane.G_Dt / remaining_ang;
+    }
+
+    _tilt_current_trim = constrain_float(new_trim, _tilt_current_trim-max_change, _tilt_current_trim+max_change);
 }

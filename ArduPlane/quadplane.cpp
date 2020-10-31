@@ -481,7 +481,7 @@ const AP_Param::GroupInfo QuadPlane::var_info2[] = {
     // @Param: TILT_ANG_RAT1
     // @DisplayName: Initial angular transition rate
     // @Description: The transition rate in centidegrees per second for the first stage of the transition for tilt rotors.  TRAN_TYPE must be set to 1 to use this value to be used.
-    // @Units: cdeg/s  
+    // @Units: cdeg/s
     // @Range: 100 9000
     // @Increment: 1
     // @User: Standard
@@ -491,7 +491,7 @@ const AP_Param::GroupInfo QuadPlane::var_info2[] = {
     // @DisplayName: Transition wait angle
     // @Description: The angle, in centidegrees, at which the initial phase of transition completes.  This is the mean angle that the tilt rotors will hold for TILT_TRN_WAIT.
     // @Units: cdeg
-    // @Range: 100 9000
+    // @Range: 100 7000
     // @Increment: 1
     // @User: Standard
     AP_GROUPINFO("TILT_WAIT_ANG", 19, QuadPlane, _tran_wait_angle, 4500),
@@ -508,7 +508,7 @@ const AP_Param::GroupInfo QuadPlane::var_info2[] = {
     // @Param: TILT_ANG_RAT2
     // @DisplayName: Final tilt transition angular rate
     // @Description: The transition rate in centidegrees per second for the final stage of the transition for tilt rotors.  TRAN_TYPE must be set to 1 to use this value to be used.
-    // @Units: ms
+    // @Units: cdeg/s
     // @Range: 0 10000
     // @Increment: 1
     // @User: Standard
@@ -541,6 +541,15 @@ const AP_Param::GroupInfo QuadPlane::var_info2[] = {
     // @User: Standard
     AP_GROUPINFO("TILT_FIN_TIME", 24, QuadPlane, _final_tilt_time_ms, 3000),
 
+    // @Param: TILT_TRIM
+    // @DisplayName: Tilt rotor RC trim range
+    // @Description: The angle in degrees that defines the +/- angle range allowed for trim control in forward flight.  Trim is set using RC channel assignmed to RC<X>_OPTION = ...
+    // @Units: deg
+    // @Range: 0 15
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("TILT_TRIM", 25, QuadPlane, _tilt_trim_ang, 0),
+ 
     AP_GROUPEND
 };
 
@@ -803,6 +812,10 @@ bool QuadPlane::setup(void)
             // setup tilt servos for vectored yaw
             SRV_Channels::set_range(SRV_Channel::k_tiltMotorLeft,  1000);
             SRV_Channels::set_range(SRV_Channel::k_tiltMotorRight, 1000);
+        }
+        if ((tilt.tilt_type == TILT_TYPE_CONTINUOUS || tilt.tilt_type == TILT_TYPE_VECTORED_YAW) && (_tilt_trim_ang.get() > 0)) {
+            // init rc in to allow tilt rotor trim from rc
+            init_tilttrim_rc();
         }
     }
 
@@ -1585,7 +1598,7 @@ void QuadPlane::update_transition(void)
         transition_state = TRANSITION_TILT_INITIAL_RATE;
 
         // sanity check params
-        _tran_wait_angle.set(constrain_int16(_tran_wait_angle,100,9000));
+        _tran_wait_angle.set(constrain_int16(_tran_wait_angle,100,7000));
         _initial_tilt_ang_rate.set(constrain_int16(_initial_tilt_ang_rate,100,9000)); //protect against divide by zero
         _final_tilt_ang_rate.set(constrain_int16(_final_tilt_ang_rate,100,9000)); //protect against divide by zero
         _final_tilt_time_ms.set(constrain_int16(_final_tilt_time_ms,1000 * (9000 - _tran_wait_angle) / _final_tilt_ang_rate,INT16_MAX)); // convert remaining angle in final phase of transition to time required to complete in ms

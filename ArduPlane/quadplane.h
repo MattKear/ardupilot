@@ -134,6 +134,9 @@ public:
     // return true if the wp_nav controller is being updated
     bool using_wp_nav(void) const;
 
+    // init the tilt rotor trim rc channel
+    void init_tilttrim_rc();
+
     // return true if the user has set ENABLE
     bool enabled(void) const { return enable != 0; }
 
@@ -284,6 +287,15 @@ private:
 
     // the time spent in the final phase of the time-based transition.  Must be be greater than the time required to tilt rotors all the way forward
     AP_Int16 _final_tilt_time_ms;
+
+    // the +/- angle range available for RC trim of tilt_rotors
+    AP_Int16 _tilt_trim_ang;
+
+    // current trim value set by RC
+    float _tilt_current_trim;
+
+    // pointer to rc channel for tilt rotor trim
+    RC_Channel *channel_tilttrim;
 
     // Flag to lett transition_update know that the rotors are fully forward and just waiting until the end of the timer
     bool _in_final_wait = false;
@@ -545,6 +557,9 @@ private:
 
     // set tilt rate for use in time based transitions
     void set_tilt_rate(int16_t rate);
+
+    // get the rc input and calculate the trim contribution to the tilt
+    void update_tilt_trim(void);
 
     // return true when tiltrotor fame is configured
     bool is_tiltrotor(void) const;
