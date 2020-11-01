@@ -301,7 +301,7 @@ private:
     bool _in_final_wait = false;
 
     // last time the pitch target slew rate was adjusted
-    u_int32_t _last_update_pitch_targ_ms;
+    uint32_t _last_update_pitch_targ_ms;
     int32_t _last_update_pitch_targ_cdeg;
 
     // the angle in which the copter controller will no longer assist in the transition, for tilt rotors
