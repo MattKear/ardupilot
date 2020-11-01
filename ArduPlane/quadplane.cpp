@@ -534,7 +534,7 @@ const AP_Param::GroupInfo QuadPlane::var_info2[] = {
 
     // @Param: TILT_FIN_TIME
     // @DisplayName: Final tilt time
-    // @Description: The transition rate in centidegrees per second for the final stage of the transition for tilt rotors.  TRAN_TYPE must be set to 1 to use this value to be used.
+    // @Description: The time required to complete the final phase of the time based transition.  This time must be larger than time required to for the rotor to tilt from the wait angle to fully forward.  TRAN_TYPE must be set to 1 to use this value to be used.
     // @Units: ms
     // @Range: 0 10000
     // @Increment: 1
@@ -1680,7 +1680,7 @@ void QuadPlane::update_transition(void)
 
         // do not allow assist to be switched off before the wait angle as angles 
         // before this are going to be used at low airspeed
-        _tilt_ang_assist.set_and_save_ifchanged(constrain_int16(_tilt_ang_assist.get(),_tran_wait_angle,9000));
+        _tilt_ang_assist.set_and_save_ifchanged(constrain_int16(_tilt_ang_assist.get(),_tran_wait_angle,7400));
 
         if (transition_state != TRANSITION_DONE) {
             bool tilt_assist_switch = (float)_tilt_ang_assist > (tilt.current_tilt * 9000.0f);
