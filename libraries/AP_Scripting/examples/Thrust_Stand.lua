@@ -733,6 +733,7 @@ function zero_throttle()
     -- Reset throttle step
     _next_thr_step = _max_throttle/_n_throttle_steps
     _flag_hold_throttle = false
+    _last_thr_update = 0
     SRV_Channels:set_output_pwm(SERVO_FUNCTION, calc_pwm(_current_thr))
 end
 ------------------------------------------------------------------------
