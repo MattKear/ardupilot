@@ -37,7 +37,7 @@ local DEAD_MAN = 3      -- button number for dead mans switch
 
 -- Save to file details
 local file_name = "thrust_test.csv"
-local format_string = "%s, %.4f, %04i, %.5f\n" -- Time (ms), Throttle (), RC Out (us), Thrust (g)
+local format_string = "%s, %.4f, %04i, %.0f, %.5f\n" -- Time (ms), Throttle (), RC Out (us), Motor Commutations (1/min), Thrust (g)
 
 -- Update throttle
 local _flag_hold_throttle = false
@@ -509,7 +509,7 @@ function init()
 
             -- Setup file to record data to
             local file = assert(io.open(file_name, "w"),"Could not make file: " .. file_name)
-            local header = 'Time (ms), Throttle (), RC Out (us), Thrust (g)\n'
+            local header = 'Time (ms), Throttle (), RC Out (us), Motor Commutations (1/min), Thrust (g)\n'
             file:write(header)
             file:close()
 
@@ -599,9 +599,15 @@ function update()
 
         local thrust = get_inst_thrust()
 
+        -- Update rpm
+        local rpm = RPM:get_rpm(0)
+        if (rpm == nil) then
+            rpm = -1
+        end
+
         -- Log values
         file = io.open(file_name, "a")
-        file:write(string.format(format_string, tostring(now), _current_thr, calc_pwm(_current_thr), thrust))
+        file:write(string.format(format_string, tostring(now), _current_thr, calc_pwm(_current_thr), rpm, thrust))
         file:close()
 
     else
