@@ -712,14 +712,12 @@ function update_throttle(time)
         -- Calculate throttle if it is to be increased
         _current_thr = constrain((_current_thr + _ramp_rate * (time - _last_thr_update) * 0.001),0,1)
         _last_thr_update = time
-        gcs:send_text(4,"Thottle = " .. tostring(_current_thr))
         SRV_Channels:set_output_pwm(SERVO_FUNCTION, calc_pwm(_current_thr))
 
         -- See if we are at a throttle hold point
         if _current_thr >= _next_thr_step then
             _hold_thr_last_time = time
             _flag_hold_throttle = true
-            gcs:send_text(4,"thr step = " .. tostring(_next_thr_step))
 
             -- calculate new throttle step
             set_next_thr_step()
