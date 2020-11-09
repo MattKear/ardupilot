@@ -767,7 +767,7 @@ function set_next_thr_step()
 
     -- Update next throttle step
     _next_thr_step = _next_thr_step + (_max_throttle)/_n_throttle_steps
-    _next_thr_step = constrain(_next_thr_step,0,1)
+    _next_thr_step = constrain(_next_thr_step,0,_max_throttle)
 end
 ------------------------------------------------------------------------
 
