@@ -568,7 +568,10 @@ function update()
     end
 
     if arm_button_state and _sys_state == DISARMED then
-        _sys_state = ARMED
+        -- Arm copter so that we can use the batt failsafes
+        if arming:arm() then
+            _sys_state = ARMED
+        end
     end
 
     if not arm_button_state and (_sys_state ~= REQ_CAL_ZERO_OFFSET) and (_sys_state ~= REQ_CAL_FACTOR) then
@@ -577,13 +580,12 @@ function update()
 
 
 
-
-
-
-
-
-
-
+    if _sys_state ~= ARMED and _last_sys_state == ARMED then
+        local has_disarmed = false
+        while (has_disarmed == false) do
+            has_disarmed = arming:disarm()
+        end
+    end
 
     if _sys_state == REQ_CAL_ZERO_OFFSET and cal_button_state then
         return calculate_zero_offset, 500
