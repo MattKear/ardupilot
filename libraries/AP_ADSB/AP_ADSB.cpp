@@ -28,7 +28,6 @@
 #include <GCS_MAVLink/GCS.h>
 #include <AP_Logger/AP_Logger.h>
 
-
 #define VEHICLE_TIMEOUT_MS              5000   // if no updates in this time, drop it from the list
 #define ADSB_SQUAWK_OCTAL_DEFAULT       1200
 
@@ -643,7 +642,7 @@ void AP_ADSB::set_callsign(const char* str, const bool append_icao)
     } // for i
 
     if (append_icao) {
-        snprintf(&out_state.cfg.callsign[4], 5, "%04X", unsigned(out_state.cfg.ICAO_id % 0x10000));
+        hal.util->snprintf(&out_state.cfg.callsign[4], 5, "%04X", unsigned(out_state.cfg.ICAO_id % 0x10000));
     }
 }
 
