@@ -548,7 +548,7 @@ function update()
 
     -- Get state of inputs
     local cal_button_state = button:get_button_state(CAL_BUTTON)
-    local arm_button_state = button:get_button_state(ARMING_BUTTON) == false -- reverse logic on this switch
+    local arm_button_state = button:get_button_state(ARMING_BUTTON)
     local run_button_state = button:get_button_state(DEAD_MAN)
 
     --- --- --- state machine --- --- ---
