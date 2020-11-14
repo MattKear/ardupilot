@@ -43,12 +43,12 @@ local format_string = "%s, %.4f, %04i, %.0f, %.4f, %.4f, %.5f\n" -- Time (ms), T
 local _flag_hold_throttle = false
 local _ramp_rate = 0.03 -- (%/s) How quickly throttle is advanced
 local _hold_time = 3 --(s) how long the thottle is held at each discreate step
-local _n_throttle_steps = 10 -- Number of discrete steps that the throttle is held at
+local _n_throttle_steps = 4 -- Number of discrete steps that the throttle is held at
 local _last_thr_update = 0 -- (ms) The last time the throttle was updated
 local _current_thr = 0 --(%)
 local _hold_thr_last_time = 0
 local _next_thr_step = 0 --(%)
-local _max_throttle = 1 --(%)
+local _max_throttle = 0.65 --(%)
 
 -- Sys state - The current state of the system
 local REQ_CAL_ZERO_OFFSET = 1    -- Requires calibration, needs zero offset
@@ -60,6 +60,22 @@ local ERROR = 10                 -- Error State
 local _sys_state = REQ_CAL_ZERO_OFFSET
 local _last_sys_state = REQ_CAL_ZERO_OFFSET
 
+
+-- LEDs
+local _num_leds = 10
+local _led_chan = 0
+local _last_max_throttle = 0
+local colour = {}
+colour['act'] = {0,0.3,0} -- colour assigned to throttle actual value
+colour['max'] = {0,0,0.3} -- colour assigned to throttle range
+
+-- array to keep track of state of each led
+local led_state = {}
+for i = 1, _num_leds do
+  led_state[i] = {} --create a new row
+  led_state[i]['act'] = 0
+  led_state[i]['max'] = 0
+end
 
 -- Lua param allocation
 local ZERO_OFFSET_PARAM = "SCR_USER1"
@@ -518,6 +534,16 @@ function init()
 
             load_calibration()
 
+            -- Init neopixles
+            _led_chan = SRV_Channels:find_channel(95)
+            if not _led_chan then
+              gcs:send_text(6, "LEDs: channel not set")
+              return
+            end
+            -- find_channel returns 0 to 15, convert to 1 to 16
+            _led_chan = _led_chan + 1
+            serialLED:set_num_neopixel(_led_chan,  _num_leds)
+
             -- Now regular update can be started
             return update, 500
         end
@@ -545,6 +571,8 @@ function update()
     local now = tonumber(tostring(millis()))
 
     update_state_msg()
+
+    update_lights()
 
     -- Get state of inputs
     local cal_button_state = button:get_button_state(CAL_BUTTON)
@@ -706,7 +734,6 @@ function update_throttle(time)
     -- Check whether to switch throttle hold off
     if (time - _hold_thr_last_time) > (_hold_time * 1000) and (_flag_hold_throttle == true) then
         _flag_hold_throttle = false
-        gcs:send_text(4,"thr hold off = " .. tostring(_next_thr_step))
     end
 
     -- Dont advance throttle if _last_update < 0
@@ -772,8 +799,84 @@ end
 ------------------------------------------------------------------------
 
 
+------------------------------------------------------------------------
+function update_lights()
+
+  -- calculate the throttle percentage that each led is worth
+  if _num_leds <= 0 then
+    return
+  end
+  local throttle_to_led_pct = 1/_num_leds
+
+  local r, g, b = 0, 0, 0
+  local remain = 0
 
 
+  -- update state array for full throttle range
+  remain = _max_throttle
+  for i = 1, _num_leds do
+    remain = remain - throttle_to_led_pct
+
+    if (remain <= 0) and (remain >= -throttle_to_led_pct) then
+      -- we have found the led that needs to be partially on
+      led_state[i]['max'] = (throttle_to_led_pct+remain)/throttle_to_led_pct
+
+    elseif (remain > 0) then
+      -- this led is fully on
+      led_state[i]['max'] = 1
+
+    else
+      -- set led to off
+      led_state[i]['max'] = 0
+    end
+  end
+
+
+  -- update state array for full throttle range
+  remain = _current_thr
+  for i = 1, _num_leds do
+    remain = remain - throttle_to_led_pct
+
+    if (remain <= 0) and (remain >= -throttle_to_led_pct) then
+      -- we have found the led that needs to be partially on
+      led_state[i]['act'] = (throttle_to_led_pct+remain)/throttle_to_led_pct
+
+    elseif (remain > 0) then
+      -- this led is fully on
+      led_state[i]['act'] = 1
+
+    else
+      -- set led to off
+      led_state[i]['act'] = 0
+    end
+  end
+
+
+  -- update led setting
+  remain = _current_thr
+  for i = 1, _num_leds do
+    r = colour['max'][1]*(led_state[i]['max']-led_state[i]['act']) + colour['act'][1]*led_state[i]['act']
+    g = colour['max'][2]*(led_state[i]['max']-led_state[i]['act']) + colour['act'][2]*led_state[i]['act']
+    b = colour['max'][3]*(led_state[i]['max']-led_state[i]['act']) + colour['act'][3]*led_state[i]['act']
+    set_LED_colour(i, r, g, b)
+  end
+
+  serialLED:send(_led_chan)
+
+end
+------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------
+-- Set the led colour brightness using percentages
+function set_LED_colour(led, r, g, b)
+      -- set leds colours
+      local r_byte = math.floor(constrain(r*255,0,255))
+      local g_byte = math.floor(constrain(g*255,0,255))
+      local b_byte = math.floor(constrain(b*255,0,255))
+      serialLED:set_RGB(_led_chan, led, r_byte, g_byte, b_byte)
+end
+------------------------------------------------------------------------
 
 
 -- Wait a while before starting so we have a better chance of seeing any error messages
