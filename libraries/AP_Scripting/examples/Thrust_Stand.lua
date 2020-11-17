@@ -43,12 +43,12 @@ local format_string = "%s, %.4f, %04i, %.0f, %.4f, %.4f, %.5f\n" -- Time (ms), T
 local _flag_hold_throttle = false
 local _ramp_rate = 0.03 -- (%/s) How quickly throttle is advanced
 local _hold_time = 3 --(s) how long the thottle is held at each discreate step
-local _n_throttle_steps = 4 -- Number of discrete steps that the throttle is held at
+local _n_throttle_steps = 10 -- Number of discrete steps that the throttle is held at
 local _last_thr_update = 0 -- (ms) The last time the throttle was updated
 local _current_thr = 0 --(%)
 local _hold_thr_last_time = 0
 local _next_thr_step = 0 --(%)
-local _max_throttle = 0.65 --(%)
+local _max_throttle = 1 --(%)
 
 -- Sys state - The current state of the system
 local REQ_CAL_ZERO_OFFSET = 1    -- Requires calibration, needs zero offset
@@ -64,7 +64,6 @@ local _last_sys_state = REQ_CAL_ZERO_OFFSET
 -- LEDs
 local _num_leds = 10
 local _led_chan = 0
-local _last_max_throttle = 0
 local colour = {}
 colour['act'] = {0,0.3,0} -- colour assigned to throttle actual value
 colour['max'] = {0,0,0.3} -- colour assigned to throttle range
@@ -77,10 +76,11 @@ for i = 1, _num_leds do
   led_state[i]['max'] = 0
 end
 
+
 -- Lua param allocation
 local ZERO_OFFSET_PARAM = "SCR_USER1"
 local CAL_FACT_PARAM = "SCR_USER2"
-
+local MAX_THR_PARAM = "SCR_USER3"
 
 ------------------------------------------------------------------------
 -- Mask & set a given bit within a register
@@ -570,6 +570,9 @@ function update()
     -- Bodgy conversion from userdata to number
     local now = tonumber(tostring(millis()))
 
+    -- must be called before update_lights()
+    update_throttle_max()
+
     update_state_msg()
 
     update_lights()
@@ -739,7 +742,7 @@ function update_throttle(time)
     -- Dont advance throttle if _last_update < 0
     if not(_flag_hold_throttle) and (_last_thr_update > 0) then
         -- Calculate throttle if it is to be increased
-        _current_thr = constrain((_current_thr + _ramp_rate * (time - _last_thr_update) * 0.001),0,1)
+        _current_thr = constrain((_current_thr + _ramp_rate * (time - _last_thr_update) * 0.001),0,_max_throttle)
         _last_thr_update = time
         SRV_Channels:set_output_pwm(SERVO_FUNCTION, calc_pwm(_current_thr))
 
@@ -771,6 +774,19 @@ function zero_throttle()
     _flag_hold_throttle = false
     _last_thr_update = 0
     SRV_Channels:set_output_pwm(SERVO_FUNCTION, calc_pwm(_current_thr))
+end
+------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------
+function update_throttle_max()
+    if _sys_state == ARMED then
+      -- Do not allow max throttle to be changed when armed
+      return
+    end
+
+    _max_throttle = constrain(param:get(MAX_THR_PARAM),0,1)
+
 end
 ------------------------------------------------------------------------
 
