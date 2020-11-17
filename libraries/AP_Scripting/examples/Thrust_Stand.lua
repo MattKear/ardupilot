@@ -881,6 +881,17 @@ function update_lights()
 
   serialLED:send(_led_chan)
 
+
+
+
+  relay:on(0)
+
+
+
+
+
+
+
 end
 ------------------------------------------------------------------------
 
