@@ -60,6 +60,8 @@ local ERROR = 10                 -- Error State
 local _sys_state = REQ_CAL_ZERO_OFFSET
 local _last_sys_state = REQ_CAL_ZERO_OFFSET
 
+-- RPM
+-- RPM is on PWM 7
 
 -- LEDs
 local _num_leds = 10
