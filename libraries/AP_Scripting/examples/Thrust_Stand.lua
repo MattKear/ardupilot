@@ -17,7 +17,7 @@ local _nau7802_initalised = false
 -- Script vars used in calibration
 local _calibration_factor = 1
 local _zero_offset = 0
-local _calibration_mass = 100 -- The known mass value that the sensor will be calibrated with
+local _calibration_mass = 285 -- The known mass value that the sensor will be calibrated with
 
 -- Script vars used in average calculation
 local _ave_total = 0 -- Average value obtained
@@ -440,6 +440,7 @@ local function get_inst_thrust()
     -- This happens when the scale is zero'd, unloaded, and the load cell reports a value slightly less than zero value
     -- causing the weight to be negative or jump to millions of grams
     if on_scale < _zero_offset then
+        gcs:send_text(0,"WARN: thrust read < 0")
         on_scale = _zero_offset -- Force reading to zero
     end
 
@@ -634,6 +635,8 @@ function update()
         update_throttle(now)
 
         local thrust = get_inst_thrust()
+
+        gcs:send_text(4,"Thrust = " .. tostring(thrust))
 
         -- Update rpm
         local rpm = RPM:get_rpm(0)
