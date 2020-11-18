@@ -49,6 +49,7 @@ local _current_thr = 0 --(%)
 local _hold_thr_last_time = 0
 local _next_thr_step = 0 --(%)
 local _max_throttle = 1 --(%)
+local _thr_inc_dec = 1 --(-) Used to switch the motor from increment to decrement
 
 -- Sys state - The current state of the system
 local REQ_CAL_ZERO_OFFSET = 1    -- Requires calibration, needs zero offset
@@ -744,12 +745,12 @@ function update_throttle(time)
     -- Dont advance throttle if _last_update < 0
     if not(_flag_hold_throttle) and (_last_thr_update > 0) then
         -- Calculate throttle if it is to be increased
-        _current_thr = constrain((_current_thr + _ramp_rate * (time - _last_thr_update) * 0.001),0,_max_throttle)
+        _current_thr = constrain((_current_thr + _ramp_rate * (time - _last_thr_update) * 0.001 * _thr_inc_dec),0,_max_throttle)
         _last_thr_update = time
         SRV_Channels:set_output_pwm(SERVO_FUNCTION, calc_pwm(_current_thr))
 
         -- See if we are at a throttle hold point
-        if _current_thr >= _next_thr_step then
+        if ((_current_thr >= _next_thr_step) and (_thr_inc_dec == 1)) or ((_current_thr <= _next_thr_step) and (_thr_inc_dec == -1)) then
             _hold_thr_last_time = time
             _flag_hold_throttle = true
 
@@ -775,6 +776,7 @@ function zero_throttle()
     _next_thr_step = _max_throttle/_n_throttle_steps
     _flag_hold_throttle = false
     _last_thr_update = 0
+    _thr_inc_dec = 1
     SRV_Channels:set_output_pwm(SERVO_FUNCTION, calc_pwm(_current_thr))
 end
 ------------------------------------------------------------------------
@@ -810,8 +812,13 @@ function set_next_thr_step()
         _n_throttle_steps = 2
     end
 
+    -- check if we need to start stepping down through the throttle
+    if _current_thr >= _max_throttle then
+      _thr_inc_dec = -1
+    end
+
     -- Update next throttle step
-    _next_thr_step = _next_thr_step + (_max_throttle)/_n_throttle_steps
+    _next_thr_step = _next_thr_step + (_max_throttle*_thr_inc_dec)/_n_throttle_steps
     _next_thr_step = constrain(_next_thr_step,0,_max_throttle)
 end
 ------------------------------------------------------------------------
