@@ -31,6 +31,9 @@ public:
     // give RGB value for single led
     virtual void rgb_set_id(uint8_t r, uint8_t g, uint8_t b, uint8_t id) {}
 
+    // Allows scripting to override the display message
+    virtual void scr_disp_overide(uint8_t r, const char *str) {}
+
     // this pointer is used to read the parameters relative to devices
     const AP_Notify *pNotify;
 };
