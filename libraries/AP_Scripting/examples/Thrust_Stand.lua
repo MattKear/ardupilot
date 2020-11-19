@@ -581,6 +581,9 @@ function update()
 
     update_lights()
 
+    notify:handle_scr_disp(0,"Matts Test")
+
+
     -- Get state of inputs
     local cal_button_state = button:get_button_state(CAL_BUTTON)
     local arm_button_state = button:get_button_state(ARMING_BUTTON)
