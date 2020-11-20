@@ -68,6 +68,7 @@ local ERROR = 10                        -- Error State
 
 local _sys_state = REQ_CAL_THRUST_ZERO_OFFSET
 local _last_sys_state = -1
+local _state_str = "Calibration"
 
 -- RPM
 -- RPM is on PWM 7
@@ -639,9 +640,6 @@ function update()
 
     update_lights()
 
-    notify:handle_scr_disp(0,"Matts Test")
-
-
     -- Get state of inputs
     local cal_button_state = button:get_button_state(CAL_BUTTON)
     local arm_button_state = button:get_button_state(ARMING_BUTTON)
@@ -709,12 +707,15 @@ function update()
         return calculate_calibration_factor, 200
     end
 
+    local thrust = 0
+    local torque = 0
+
     if _sys_state == ARMED and run_button_state then
         -- update the output throttle
         update_throttle(now)
 
-        local thrust = get_load(i2c_thrust, THRUST)
-        local torque = get_load(i2c_torque, TORQUE)
+        thrust = get_load(i2c_thrust, THRUST)
+        torque = get_load(i2c_torque, TORQUE)
 
         gcs:send_text(4,"Thrust: " .. tostring(thrust) .. ", Torque: " .. tostring(torque))
 
@@ -745,11 +746,18 @@ function update()
 
     --gcs:send_text(4,"Sys State = " .. tostring(_sys_state))
 
+    -- Update display
+    notify:handle_scr_disp(0,"--ArduThrustStand--")
+    notify:handle_scr_disp(1,"State: " .. _state_str)
+    notify:handle_scr_disp(2, string.format("Throttle: %.2f %", _current_thr*100))
+    notify:handle_scr_disp(3, string.format("  Thrust: %.2f g", thrust))
+    notify:handle_scr_disp(4, string.format("  Torque: %.2f gcm", torque))
+    notify:handle_scr_disp(4, string.format(" Current: %.2f A", current))
+
     return update, _samp_dt_ms
 
 end
 ------------------------------------------------------------------------
-
 
 
 ------------------------------------------------------------------------
@@ -762,35 +770,42 @@ function update_state_msg()
     if _sys_state == REQ_CAL_THRUST_ZERO_OFFSET then
         gcs:send_text(4,"In calibration")
         gcs:send_text(4,"Unload thrust load cell and press cal button")
+        _state_str = "Calibration"
     end
 
     if _sys_state == REQ_CAL_THRUST_FACTOR then
       gcs:send_text(4,"In calibration")
       gcs:send_text(4,"Apply calibration mass to thrust load")
       gcs:send_text(4,"cell and press calibration button")
+      _state_str = "Calibration"
     end
 
     if _sys_state == REQ_CAL_TORQUE_ZERO_OFFSET then
       gcs:send_text(4,"In calibration")
       gcs:send_text(4,"Unload torque load cell and press cal button")
+      _state_str = "Calibration"
     end
 
     if _sys_state == REQ_CAL_TORQUE_FACTOR then
       gcs:send_text(4,"In calibration")
       gcs:send_text(4,"Apply calibration mass to torque load")
       gcs:send_text(4,"cell and press calibration button")
+      _state_str = "Calibration"
     end
 
     if _sys_state == DISARMED then
       gcs:send_text(4,"Disarmed: Ready for test")
+      _state_str = "Disarmed"
     end
 
     if _sys_state == ARMED then
       gcs:send_text(4,"Armed")
+      _state_str = "Armed"
     end
 
     if _sys_state == ERROR then
       gcs:send_text(4,"Error")
+      _state_str = "Error"
     end
 
     _last_sys_state = _sys_state
