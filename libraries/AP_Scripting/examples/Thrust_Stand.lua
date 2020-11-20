@@ -980,15 +980,12 @@ function update_lights()
   serialLED:send(_led_chan)
 
 
-
-
-  relay:on(0)
-
-
-
-
-
-
+  -- Calibration button should be on if in calibration
+  if _sys_state < DISARMED then
+    relay:on(0)
+  else
+    relay:off(0)
+  end
 
 end
 ------------------------------------------------------------------------
