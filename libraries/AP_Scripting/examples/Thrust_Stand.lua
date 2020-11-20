@@ -707,8 +707,10 @@ function update()
         return calculate_calibration_factor, 200
     end
 
-    local thrust = 0
-    local torque = 0
+    local thrust = 0.0
+    local torque = 0.0
+    local voltage = 0.0
+    local current = 0.0
 
     if _sys_state == ARMED and run_button_state then
         -- update the output throttle
@@ -726,9 +728,6 @@ function update()
         end
 
         -- Update voltage and current
-        -- Init to error state
-        local voltage = -1
-        local current = -1
         if battery:healthy(0) then
             voltage = battery:voltage(0)
             current = battery:current_amps(0)
@@ -749,10 +748,10 @@ function update()
     -- Update display
     notify:handle_scr_disp(0,"--ArduThrustStand--")
     notify:handle_scr_disp(1,"State: " .. _state_str)
-    notify:handle_scr_disp(2, string.format("Throttle: %.2f %", _current_thr*100))
+    notify:handle_scr_disp(2, string.format("Throttle: %.2f %%", _current_thr*100.0))
     notify:handle_scr_disp(3, string.format("  Thrust: %.2f g", thrust))
     notify:handle_scr_disp(4, string.format("  Torque: %.2f gcm", torque))
-    notify:handle_scr_disp(4, string.format(" Current: %.2f A", current))
+    notify:handle_scr_disp(5, string.format(" Current: %.2f A", current))
 
     return update, _samp_dt_ms
 
