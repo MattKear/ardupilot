@@ -74,11 +74,12 @@ local _state_str = "Calibration"
 -- RPM is on PWM 7
 
 -- LEDs
-local _num_leds = 10
+local _num_leds = 11
 local _led_chan = 0
 local colour = {}
 colour['act'] = {0,0.3,0} -- colour assigned to throttle actual value
 colour['max'] = {0,0,0.3} -- colour assigned to throttle range
+colour['disarm'] = {0.2,0.2,0} -- colour assigned to throttle range when disarmed
 
 -- array to keep track of state of each led
 local led_state = {}
@@ -936,7 +937,8 @@ function update_lights()
   if _num_leds <= 0 then
     return
   end
-  local throttle_to_led_pct = 1/_num_leds
+  -- Remove 1 LED for the logic level shifter
+  local throttle_to_led_pct = 1/(_num_leds-1)
 
   local r, g, b = 0, 0, 0
   local remain = 0
@@ -981,16 +983,24 @@ function update_lights()
     end
   end
 
+  if _sys_state <= DISARMED then
+      -- update led setting
+      for i = 1, _num_leds do
+        r = colour['disarm'][1]*(led_state[i]['max'])
+        g = colour['disarm'][2]*(led_state[i]['max'])
+        b = colour['disarm'][3]*(led_state[i]['max'])
+        set_LED_colour(i, r, g, b)
+      end
 
-  -- update led setting
-  remain = _current_thr
-  for i = 1, _num_leds do
-    r = colour['max'][1]*(led_state[i]['max']-led_state[i]['act']) + colour['act'][1]*led_state[i]['act']
-    g = colour['max'][2]*(led_state[i]['max']-led_state[i]['act']) + colour['act'][2]*led_state[i]['act']
-    b = colour['max'][3]*(led_state[i]['max']-led_state[i]['act']) + colour['act'][3]*led_state[i]['act']
-    set_LED_colour(i, r, g, b)
+  else
+      -- update led setting
+      for i = 1, _num_leds do
+        r = colour['max'][1]*(led_state[i]['max']-led_state[i]['act']) + colour['act'][1]*led_state[i]['act']
+        g = colour['max'][2]*(led_state[i]['max']-led_state[i]['act']) + colour['act'][2]*led_state[i]['act']
+        b = colour['max'][3]*(led_state[i]['max']-led_state[i]['act']) + colour['act'][3]*led_state[i]['act']
+        set_LED_colour(i, r, g, b)
+      end
   end
-
   serialLED:send(_led_chan)
 
 
