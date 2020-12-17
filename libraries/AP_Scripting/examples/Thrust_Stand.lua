@@ -420,19 +420,18 @@ calculate_calibration_factor = function()
         _calibration_factor[_nau7802_index] = (_ave_total - _zero_offset[_nau7802_index]) / _calibration_ref[_nau7802_index]
         gcs:send_text(4, _dev_name[_nau7802_index] .. " calibration factor: " .. tostring(_calibration_factor[_nau7802_index]))
 
-        if _calibration_factor[_nau7802_index] <= 0 then
-            -- Set error value
-            _calibration_factor[_nau7802_index] = -1
-            gcs:send_text(0, _dev_name[_nau7802_index] .. " calibration error")
-
-            -- return to update without advancing system state
-            return update, _samp_dt_ms
-
-        else
-            -- valid calibration factor so save offset to EEPROM with param
-            if not(param:set_and_save(CAL_FACT_PARAM[_nau7802_index], _calibration_factor[_nau7802_index])) then
-              gcs:send_text(1, _dev_name[_nau7802_index] .. " cal factor param set fail")
+        -- Protect against divide by zero
+        if _calibration_factor[_nau7802_index] <= 0.000001 and _calibration_factor[_nau7802_index] > -0.000001 then
+            if _calibration_factor[_nau7802_index] < 0 then
+               _calibration_factor[_nau7802_index] = -0.000001
+            else
+              _calibration_factor[_nau7802_index] = 0.000001
             end
+        end
+
+        -- Save calibration factor to EEPROM with param
+        if not(param:set_and_save(CAL_FACT_PARAM[_nau7802_index], _calibration_factor[_nau7802_index])) then
+          gcs:send_text(1, _dev_name[_nau7802_index] .. " cal factor param set fail")
         end
 
         -- Advance system state and exit calibration
@@ -463,10 +462,10 @@ local function get_load(i2c_dev, index)
     -- Prevent the current reading from being less than zero offset
     -- This happens when the scale is zero'd, unloaded, and the load cell reports a value slightly less than zero value
     -- causing the weight to be negative or jump to millions of grams
-    if on_scale < _zero_offset[index] then
-        gcs:send_text(0,"WARN: " .. _dev_name[index] .. " read < 0")
-        on_scale = _zero_offset[index] -- Force reading to zero
-    end
+    -- if on_scale < _zero_offset[index] then
+    --     gcs:send_text(0,"WARN: " .. _dev_name[index] .. " read < 0")
+    --     on_scale = _zero_offset[index] -- Force reading to zero
+    -- end
 
     -- Calc and return load
     return (on_scale - _zero_offset[index]) / _calibration_factor[index]
