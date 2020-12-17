@@ -558,7 +558,7 @@ init_nau7802 = function()
         if cal_status == 1 then
             -- Cal in progress, wait
             gcs:send_text(4, "DB: cal in progress")
-            return init_nau7802, 500
+            return init_nau7802, 100
         end
 
         -- If we got this far then calibration failed
@@ -567,7 +567,7 @@ init_nau7802 = function()
         return
     end
 
-    return init_nau7802, 500
+    return init_nau7802, 100
 end
 ------------------------------------------------------------------------
 
@@ -617,7 +617,7 @@ function init()
     serialLED:set_num_neopixel(_led_chan,  _num_leds)
 
     -- Now main loop can be started
-    return update, 500
+    return update, 100
 
 end
 ------------------------------------------------------------------------
