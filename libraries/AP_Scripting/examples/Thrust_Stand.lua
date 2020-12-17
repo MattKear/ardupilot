@@ -304,13 +304,11 @@ local function getReading(i2c_dev)
   if MSB and MID and LSB then
 
     local value = (MSB << 16) | (MID << 8) | LSB
-  -- Quite likely to be a signed vs unsigned error here !! need to check
-  
-  --  local sign = (value & (1 << 23)) > 0
-  --  if sign then
-  --    value = 16777215 ~ value -- 23 bit not
-  --   end
-  -- gcs:send_text(0,string.format("%u, %u, %u, %u",MSB,MID,LSB,value))
+    local sign = (value & (1 << 23)) > 0
+    if sign then
+        value = 16777215 ~ value -- 23 bit not
+    end
+    -- gcs:send_text(0,string.format("%u, %u, %u, %u",MSB,MID,LSB,value))
 
     return value
   else
