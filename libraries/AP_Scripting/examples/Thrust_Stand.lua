@@ -361,14 +361,14 @@ function calc_average(i2c_dev)
             _ave_total = -1
         end
 
-        -- reset average script variables ready for next inital call to get_average
+        -- Reset average script variables ready for next inital call to get_average
         reset_ave_var()
 
-        -- calculation complete
+        -- Calculation complete
         return true
     end
 
-    -- if we have got this far we haven't finished computing the average
+    -- If we have got this far we haven't finished computing the average
     return false
 
 end
@@ -598,7 +598,7 @@ function init()
     set_next_thr_step()
 
     if load_calibration(THRUST) then
-        gcs:send_text(4,"Thrusy calibration values loaded ")
+        gcs:send_text(4,"Thrust calibration values loaded ")
         _sys_state = REQ_CAL_TORQUE_ZERO_OFFSET
     end
     if load_calibration(TORQUE) then
@@ -612,7 +612,7 @@ function init()
       gcs:send_text(6, "LEDs: channel not set")
       return
     end
-    -- find_channel returns 0 to 15, convert to 1 to 16
+    -- Find_channel returns 0 to 15, convert to 1 to 16
     _led_chan = _led_chan + 1
     serialLED:set_num_neopixel(_led_chan,  _num_leds)
 
@@ -717,7 +717,7 @@ function update()
         thrust = get_load(i2c_thrust, THRUST)
         torque = get_load(i2c_torque, TORQUE)
 
-        gcs:send_text(4,"Thrust: " .. tostring(thrust) .. ", Torque: " .. tostring(torque))
+        -- gcs:send_text(4,"Thrust: " .. tostring(thrust) .. ", Torque: " .. tostring(torque))
 
         -- Update rpm
         local rpm = RPM:get_rpm(0)
