@@ -452,21 +452,11 @@ end
 -- Returns the instentanious load on a given load cell
 local function get_load(i2c_dev, index)
 
-    -- Prevent divide by zero, issue persistant warning
-    if _calibration_factor[index] <= 0 then
-        gcs:send_text(0,"WARN: " .. _dev_name[index] .. " cal fact <= 0")
-        return -1
+    if not available(i2c_dev) then
+        return 0
     end
 
     local on_scale = getReading(i2c_dev)
-
-    -- Prevent the current reading from being less than zero offset
-    -- This happens when the scale is zero'd, unloaded, and the load cell reports a value slightly less than zero value
-    -- causing the weight to be negative or jump to millions of grams
-    -- if on_scale < _zero_offset[index] then
-    --     gcs:send_text(0,"WARN: " .. _dev_name[index] .. " read < 0")
-    --     on_scale = _zero_offset[index] -- Force reading to zero
-    -- end
 
     -- Calc and return load
     return (on_scale - _zero_offset[index]) / _calibration_factor[index]
