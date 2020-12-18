@@ -594,12 +594,17 @@ function init()
     -- Set first throttle step
     set_next_thr_step()
 
-    if load_calibration(THRUST) then
+    _calibration_loaded_flag = load_calibration(THRUST)
+    if _calibration_loaded_flag then
         gcs:send_text(4,"Thrust calibration values loaded ")
+        -- Advance system state, thrust calibration not needed
         _sys_state = REQ_CAL_TORQUE_ZERO_OFFSET
     end
-    if load_calibration(TORQUE) then
+
+    _calibration_loaded_flag = _calibration_loaded_flag and load_calibration(TORQUE)
+    if _calibration_loaded_flag then
         gcs:send_text(4,"Torque calibration values loaded ")
+        -- Advance system state, no calibration needed
         _sys_state = DISARMED
     end
 
@@ -810,9 +815,9 @@ end
 ------------------------------------------------------------------------
 function load_calibration(index)
 
-    -- Load thrust sensor calibration values
+    -- Load sensor calibration values
     local temp = param:get(ZERO_OFFSET_PARAM[index])
-    if (temp <= 0) then
+    if (temp == 0) then
         -- Don't have valid calibration stored
         return false
     end
@@ -820,7 +825,7 @@ function load_calibration(index)
     _zero_offset[index] = temp
 
     temp = param:get(CAL_FACT_PARAM[index])
-    if (temp <= 0) then
+    if (temp == 0) then
         -- Don't have valid calibration stored
         return false
     end
