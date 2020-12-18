@@ -587,7 +587,7 @@ function init()
 
     -- Setup file to record data to
     local file = assert(io.open(file_name, "w"),"Could not make file: " .. file_name)
-    local header = 'Time (ms), Throttle (), RC Out (us), Motor Commutations (1/min), Voltage(V), Current (A), Thrust (g), Torque (g.cm)\n'
+    local header = 'Time (ms), Throttle (), RC Out (us), Motor Commutations (1/min), Voltage(V), Current (A), Thrust (g), Torque (kg.cm)\n'
     file:write(header)
     file:close()
 
