@@ -517,15 +517,11 @@ end
 -- Thrust test stand code --------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------
--- constrain a value between limits
+-- Constrain a value between limits
 function constrain(v, vmin, vmax)
-  if v < vmin then
-     v = vmin
-  end
-  if v > vmax then
-     v = vmax
-  end
-  return v
+    v = math.max(v,vmin)
+    v = math.min(v,vmax)
+    return v
 end
 ------------------------------------------------------------------------
 
