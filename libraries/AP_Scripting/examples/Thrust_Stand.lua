@@ -486,15 +486,15 @@ local function begin(i2c_dev)
 
   local result = true
 
-  result = result and reset(i2c_dev) -- Reset all registers
-  result = result and powerUp(i2c_dev) -- Power on analog and digital sections of the scale
-  result = result and setLDO(i2c_dev, 4) -- Set LDO to 3.3V
-  result = result and setGain(i2c_dev, 7) -- Set gain to 128
-  result = result and setSampleRate(i2c_dev, 0) -- Set samples per second to 10.  Sample rate must be the same for both devices
-  result = result and i2c_dev:write_register(21, 48) -- Turn off CLK_CHP. From 9.1 power on sequencing.
-  result = result and setBit(i2c_dev, 7, 28) -- Enable 330pF decoupling cap on chan 2. From 9.14 application circuit note.
-  result = result and setBit(i2c_dev, 2, 2) -- Begin asynchronous calibration of the analog front end.
-                                   -- Poll for completion with calAFEStatus() or wait with waitForCalibrateAFE()
+  result = result and reset(i2c_dev)                  -- Reset all registers
+  result = result and powerUp(i2c_dev)                -- Power on analog and digital sections of the scale
+  result = result and setLDO(i2c_dev, 4)              -- Set LDO to 3.3V
+  result = result and setGain(i2c_dev, 7)             -- Set gain to 128
+  result = result and setSampleRate(i2c_dev, 2)       -- Set samples per second to 40.  Sample rate must be the same for both devices
+  result = result and i2c_dev:write_register(21, 48)  -- Turn off CLK_CHP. From 9.1 power on sequencing.
+  result = result and setBit(i2c_dev, 7, 28)          -- Enable 330pF decoupling cap on chan 2. From 9.14 application circuit note.
+  result = result and setBit(i2c_dev, 2, 2)           -- Begin asynchronous calibration of the analog front end.
+                                                      -- Poll for completion with calAFEStatus() or wait with waitForCalibrateAFE()
   return result
 
 end
