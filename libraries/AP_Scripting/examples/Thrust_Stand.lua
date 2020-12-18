@@ -297,24 +297,25 @@ end
 -- Assumes CR Cycle Ready bit (ADC conversion complete) has been checked to be 1
 local function getReading(i2c_dev)
 
-  local MSB = i2c_dev:read_registers(18)
-  local MID = i2c_dev:read_registers(19)
-  local LSB = i2c_dev:read_registers(20)
+  local MSB = i2c_dev:read_registers(18) --ADC_OUT[23:16]
+  local MID = i2c_dev:read_registers(19) --ADC_OUT[15:8]
+  local LSB = i2c_dev:read_registers(20) --ADC_OUT[7:0]
 
   if MSB and MID and LSB then
 
     local value = (MSB << 16) | (MID << 8) | LSB
     local sign = (value & (1 << 23)) > 0
+
     if sign then
-        value = 16777215 ~ value -- 23 bit not
+        value = 16777215 ~ value -- 24 bit XOR to flip the bits for two's compliment
+        value = (value * -1) - 1
     end
-    -- gcs:send_text(0,string.format("%u, %u, %u, %u",MSB,MID,LSB,value))
 
     return value
   else
     return false
   end
-  
+
 end
 ------------------------------------------------------------------------
 
