@@ -574,7 +574,7 @@ function init()
 
     -- Setup file to record data to
     local file = assert(io.open(file_name, "w"),"Could not make file: " .. file_name)
-    local header = 'Time (ms), Throttle (), RC Out (us), Motor Commutations (1/min), Voltage(V), Current (A), Thrust (g), Torque (kg.cm)\n'
+    local header = 'Time (ms), Throttle (), RC Out (us), Motor Commutations (1/min), Voltage(V), Current (A), Thrust (g), Torque (kg.cm), ESC Volt (V), ESC Current (A), ESC RPM (rpm), ESC Temperature (deg C)\n'
     file:write(header)
     file:close()
 
@@ -718,6 +718,7 @@ function update()
         file = io.open(file_name, "a")
         file:write(string.format(format_string, tostring(now), _current_thr, calc_pwm(_current_thr), rpm, _voltage, _current, _thrust, _torque))
         file:close()
+        -- ESC Volt (V), ESC Current (A), ESC RPM (rpm), ESC Temperature (deg C)
 
     else
         -- Do not run motor without valid calibration or when disarmed
