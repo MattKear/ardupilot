@@ -23,7 +23,7 @@ local _dev_initialised = {false, false}
 local _dev_name = {"Thrust", "Torque"}
 local _calibration_factor = {1,1}
 local _zero_offset = {0,0}
-local _calibration_ref = {285,1} -- The known mass/torque value that the sensor will be calibrated with
+local _calibration_ref = {2074,5.47} -- (grams, kg.cm) The known mass/torque value that the sensor will be calibrated with
 
 -- Script vars used in average calculation
 local _ave_total = 0 -- Average value obtained
@@ -37,9 +37,11 @@ local _ave_thrust = 0
 local _flag_have_thrust = false
 
 -- Buttons
-local CAL_BUTTON = 2    -- button number for initiating calibration
-local ARMING_BUTTON = 1 -- button number to start arm and sweep motor
-local DEAD_MAN = 3      -- button number for dead mans switch
+local ARMING_BUTTON = 1 -- Button number to start arm and sweep motor
+local CAL_BUTTON = 2    -- Button number for initiating calibration
+local DEAD_MAN = 3      -- Button number for dead mans switch
+-- AUX1 = 4             -- Button number for Aux 1
+-- AUX2 = 5             -- Button number for Aux 2, Additional btn instance needs adding to AP before this can be used
 
 -- Save to file details
 local file_name = "thrust_test.csv"
@@ -70,29 +72,26 @@ local _sys_state = REQ_CAL_THRUST_ZERO_OFFSET
 local _last_sys_state = -1
 local _state_str = "Calibration"
 
+-- used to clear the screen when the system state changes
+_last_state_display = -1
+
 -- RPM
 -- RPM is on PWM 7
 
 -- LEDs
-local _num_leds = 11
+local _num_leds = 10
 local _led_chan = 0
-local colour = {}
-colour['act'] = {0,0.3,0} -- colour assigned to throttle actual value
-colour['max'] = {0,0,0.3} -- colour assigned to throttle range
-colour['disarm'] = {0.2,0.2,0} -- colour assigned to throttle range when disarmed
-
--- array to keep track of state of each led
-local led_state = {}
-for i = 1, _num_leds do
-  led_state[i] = {} --create a new row
-  led_state[i]['act'] = 0
-  led_state[i]['max'] = 0
-end
-
+local _last_led_update = 0
 
 -- Lua param allocation
 local ZERO_OFFSET_PARAM = {"SCR_USER1","SCR_USER3"}
 local CAL_FACT_PARAM = {"SCR_USER2", "SCR_USER4"}
+
+-- Measurements
+local _thrust = 0.0
+local _torque = 0.0
+local _voltage = 0.0
+local _current = 0.0
 
 -- Forward declare functions
 local calculate_zero_offset
@@ -562,8 +561,6 @@ end
 ------------------------------------------------------------------------
 function init()
 
-  -- NOTE TO SELF: Lets do an init device so that we can init each of the load cells one at a time and reduce duplicate variables and impliment callbacks over the whole initialisation
-
     -- Init load cells
     if not(_dev_initialised[THRUST]) then
         set_device(i2c_thrust, THRUST)
@@ -599,22 +596,21 @@ function init()
     end
 
     -- Init neopixles
-    _led_chan = SRV_Channels:find_channel(95)
+    _led_chan = SRV_Channels:find_channel(98)
     if not _led_chan then
       gcs:send_text(6, "LEDs: channel not set")
       return
     end
     -- Find_channel returns 0 to 15, convert to 1 to 16
     _led_chan = _led_chan + 1
-    serialLED:set_num_neopixel(_led_chan,  _num_leds)
+    -- Added an extra LED to account for logic level shifter
+    serialLED:set_num_neopixel(_led_chan,  _num_leds+1)
 
     -- Now main loop can be started
     return update, 100
 
 end
 ------------------------------------------------------------------------
-
-
 
 
 ------------------------------------------------------------------------
@@ -628,7 +624,9 @@ function update()
 
     update_state_msg()
 
-    update_lights()
+    update_lights(now)
+
+    update_display()
 
     -- Get state of inputs
     local cal_button_state = button:get_button_state(CAL_BUTTON)
@@ -654,21 +652,20 @@ function update()
             gcs:send_text(4,"Torque cal factor param set fail")
         end
 
-        return update, _samp_dt_ms
+        return update, 500
     end
 
     if arm_button_state and _sys_state == DISARMED then
-        -- Arm copter so that we can use the batt failsafes
+        -- Arm only from the disarmed sate
         if arming:arm() then
             _sys_state = ARMED
         end
     end
 
     if not arm_button_state and not(_sys_state < DISARMED) then
+        -- Arm button has been switched off and we are not in a calibration state
         _sys_state = DISARMED
     end
-
-
 
     if _sys_state ~= ARMED and _last_sys_state == ARMED then
         local has_disarmed = false
@@ -679,37 +676,37 @@ function update()
 
     if _sys_state == REQ_CAL_THRUST_ZERO_OFFSET and cal_button_state then
         set_device(i2c_thrust, THRUST)
-        return calculate_zero_offset, 200
+        return calculate_zero_offset, 500
     end
 
     if _sys_state == REQ_CAL_THRUST_FACTOR and cal_button_state then
         set_device(i2c_thrust, THRUST)
-        return calculate_calibration_factor, 200
+        return calculate_calibration_factor, 500
     end
 
     if _sys_state == REQ_CAL_TORQUE_ZERO_OFFSET and cal_button_state then
         set_device(i2c_torque, TORQUE)
-        return calculate_zero_offset, 200
+        return calculate_zero_offset, 500
     end
 
     if _sys_state == REQ_CAL_TORQUE_FACTOR and cal_button_state then
       set_device(i2c_torque, TORQUE)
-        return calculate_calibration_factor, 200
+        return calculate_calibration_factor, 500
     end
 
-    local thrust = 0.0
-    local torque = 0.0
-    local voltage = 0.0
-    local current = 0.0
+    -- Take measurements
+    if battery:healthy(0) then
+      _voltage = battery:voltage(0)
+      _current = battery:current_amps(0)
+    end
 
+    _thrust = get_load(i2c_thrust, THRUST)
+    _torque = get_load(i2c_torque, TORQUE)
+
+    -- If system is armed update the throttle and throttle dependent measurements
     if _sys_state == ARMED and run_button_state then
         -- update the output throttle
         update_throttle(now)
-
-        thrust = get_load(i2c_thrust, THRUST)
-        torque = get_load(i2c_torque, TORQUE)
-
-        -- gcs:send_text(4,"Thrust: " .. tostring(thrust) .. ", Torque: " .. tostring(torque))
 
         -- Update rpm
         local rpm = RPM:get_rpm(0)
@@ -717,31 +714,15 @@ function update()
             rpm = -1
         end
 
-        -- Update voltage and current
-        if battery:healthy(0) then
-            voltage = battery:voltage(0)
-            current = battery:current_amps(0)
-        end
-
         -- Log values
         file = io.open(file_name, "a")
-        file:write(string.format(format_string, tostring(now), _current_thr, calc_pwm(_current_thr), rpm, voltage, current, thrust, torque))
+        file:write(string.format(format_string, tostring(now), _current_thr, calc_pwm(_current_thr), rpm, _voltage, _current, _thrust, _torque))
         file:close()
 
     else
         -- Do not run motor without valid calibration or when disarmed
         zero_throttle()
     end
-
-    --gcs:send_text(4,"Sys State = " .. tostring(_sys_state))
-
-    -- Update display
-    notify:handle_scr_disp(0,"--ArduThrustStand--")
-    notify:handle_scr_disp(1,"State: " .. _state_str)
-    notify:handle_scr_disp(2, string.format("Throttle: %.2f %%", _current_thr*100.0))
-    notify:handle_scr_disp(3, string.format("  Thrust: %.2f g", thrust))
-    notify:handle_scr_disp(4, string.format("  Torque: %.2f gcm", torque))
-    notify:handle_scr_disp(5, string.format(" Current: %.2f A", current))
 
     return update, _samp_dt_ms
 
@@ -899,7 +880,6 @@ end
 ------------------------------------------------------------------------
 
 
-
 ------------------------------------------------------------------------
 function set_next_thr_step()
     -- Ensure minimum of 2 throttle steps
@@ -920,20 +900,38 @@ end
 
 
 ------------------------------------------------------------------------
-function update_lights()
+function update_lights(now_ms)
 
-  -- calculate the throttle percentage that each led is worth
+  if (now_ms - _last_led_update <= 250) then
+    -- limit the led update rate
+    return
+  end
+
+  -- Define colours for addressable led display
+  local colour = {}
+  colour['act'] = {0,0.3,0} -- colour assigned to throttle actual value
+  colour['max'] = {0,0,0.3} -- colour assigned to throttle range
+  colour['disarm'] = {0.2,0.2,0} -- colour assigned to throttle range when disarmed
+
+  -- array to keep track of state of each led
+  local led_state = {}
+  for i = 1, _num_leds do
+    led_state[i] = {} --create a new row
+    led_state[i]['act'] = 0
+    led_state[i]['max'] = 0
+  end
+
+  -- Calculate the throttle percentage that each led is worth
   if _num_leds <= 0 then
     return
   end
   -- Remove 1 LED for the logic level shifter
-  local throttle_to_led_pct = 1/(_num_leds-1)
+  local throttle_to_led_pct = 1/_num_leds
 
   local r, g, b = 0, 0, 0
   local remain = 0
 
-
-  -- update state array for full throttle range
+  -- Update state array for full throttle range
   remain = _max_throttle
   for i = 1, _num_leds do
     remain = remain - throttle_to_led_pct
@@ -990,15 +988,49 @@ function update_lights()
         set_LED_colour(i, r, g, b)
       end
   end
+
   serialLED:send(_led_chan)
 
+  -- Update the calibration button led
+  local CAL_LED_RED = 95     -- Servo function assigned to red led on calibration ring led
+  local CAL_LED_GREEN = 96   -- Servo function assigned to green led on calibration ring led
+  local CAL_LED_BLUE = 97    -- Servo function assigned to blue led on calibration ring led
 
-  -- Calibration button should be on if in calibration
-  if _sys_state < DISARMED then
-    relay:on(0)
-  else
-    relay:off(0)
+  local OFF_PWM = 0
+  local HALF_ON_PWM = 6500
+  local ON_PWM = 20000
+
+  if _sys_state == REQ_CAL_THRUST_ZERO_OFFSET then
+    SRV_Channels:set_output_pwm(CAL_LED_RED, OFF_PWM)
+    SRV_Channels:set_output_pwm(CAL_LED_GREEN, ON_PWM)
+    SRV_Channels:set_output_pwm(CAL_LED_BLUE, ON_PWM)
   end
+
+  if _sys_state == REQ_CAL_THRUST_FACTOR then
+    SRV_Channels:set_output_pwm(CAL_LED_RED, OFF_PWM)
+    SRV_Channels:set_output_pwm(CAL_LED_GREEN, OFF_PWM)
+    SRV_Channels:set_output_pwm(CAL_LED_BLUE, ON_PWM)
+  end
+
+  if _sys_state == REQ_CAL_TORQUE_ZERO_OFFSET then
+    SRV_Channels:set_output_pwm(CAL_LED_RED, ON_PWM)
+    SRV_Channels:set_output_pwm(CAL_LED_GREEN, ON_PWM)
+    SRV_Channels:set_output_pwm(CAL_LED_BLUE, OFF_PWM)
+  end
+
+  if _sys_state == REQ_CAL_TORQUE_FACTOR then
+    SRV_Channels:set_output_pwm(CAL_LED_RED, ON_PWM)
+    SRV_Channels:set_output_pwm(CAL_LED_GREEN, HALF_ON_PWM)
+    SRV_Channels:set_output_pwm(CAL_LED_BLUE, OFF_PWM)
+  end
+
+  if _sys_state >= DISARMED then
+    SRV_Channels:set_output_pwm(CAL_LED_RED, ON_PWM)
+    SRV_Channels:set_output_pwm(CAL_LED_GREEN, OFF_PWM)
+    SRV_Channels:set_output_pwm(CAL_LED_BLUE, ON_PWM)
+  end
+
+  _last_led_update = now_ms
 
 end
 ------------------------------------------------------------------------
@@ -1016,5 +1048,64 @@ end
 ------------------------------------------------------------------------
 
 
+------------------------------------------------------------------------
+-- Output message screens based on current system state
+function update_display()
+
+  if _sys_state ~= _last_state_display then
+    notify:clear_display_text()
+  end
+
+  if _sys_state == REQ_CAL_THRUST_ZERO_OFFSET then
+    -- Tell user to unload thrust sensor for calibration before pressing the button
+    notify:set_display_text(2, "   Unload thrust   ")
+    notify:set_display_text(3, " sensor and press  ")
+    notify:set_display_text(4, "calibration button.")
+  end
+
+  if _sys_state == REQ_CAL_THRUST_FACTOR then
+    -- Tell user to apply calibration load
+    notify:set_display_text(0, " Apply calibration ")
+    notify:set_display_text(1, string.format("  load of %.2f g", _calibration_ref[THRUST]))
+    notify:set_display_text(2, " to thrust sensor  ")
+    notify:set_display_text(3, "     and press    ")
+    notify:set_display_text(4, "calibration button.")
+
+  end
+
+  if _sys_state == REQ_CAL_TORQUE_ZERO_OFFSET then
+    -- Tell user to unload torque sensor for calibration before pressing the button
+    notify:set_display_text(2, "   Unload torque   ")
+    notify:set_display_text(3, " sensor and press  ")
+    notify:set_display_text(4, "calibration button.")
+  end
+
+  if _sys_state == REQ_CAL_TORQUE_FACTOR then
+    -- Tell user to apply calibration load
+    notify:set_display_text(0, " Apply calibration ")
+    notify:set_display_text(1, string.format(" load of %.2f gcm", _calibration_ref[TORQUE]))
+    notify:set_display_text(2, " to torque sensor  ")
+    notify:set_display_text(3, "     and press     ")
+    notify:set_display_text(4, "calibration button.")
+  end
+
+  if _sys_state >= DISARMED then
+    -- Display measurements
+    notify:set_display_text(0,"State: " .. _state_str)
+    notify:set_display_text(1, string.format("Throttle: %.2f %%", _current_thr*100.0))
+    notify:set_display_text(2, string.format("  Thrust: %.0f g", _thrust))
+    notify:set_display_text(3, string.format("  Torque: %.2f gcm", _torque))
+    notify:set_display_text(4, string.format(" Current: %.2f A", _current))
+    notify:set_display_text(5, string.format(" Voltage: %.2f V", _voltage))
+  end
+
+  _last_state_display = _sys_state
+
+end
+------------------------------------------------------------------------
+
+
+
+
 -- Wait a while before starting so we have a better chance of seeing any error messages
-return init, 5000
+return init, 2000
