@@ -377,8 +377,9 @@ void Display::update()
     }
     timer = 0;
 
-    // If we have recieved an override from scripting recently allow update
-    if (AP_HAL::millis() - _last_scr_override <= _script_timeout_ms) {
+    // Stop scripting override if we have recieved anything for 5 sec
+    static const uint16_t _script_timeout_ms = 5000;
+    if (AP_HAL::millis() - _last_scr_override <= _script_timeout_ms || _scr_msg_queued) {
         if (_screenpage != 3) {
             _driver->clear_screen();
             _screenpage = 3;
@@ -596,15 +597,39 @@ void Display::update_text(uint8_t r)
 
 // Allow scripting to override text lines on the display
 void Display::scr_disp_overide(uint8_t r, const char *str) {
-    // Prevent chars being left from previous message by clearing with spaces first
-    memset(_scr_msg[r], ' ', DISPLAY_MESSAGE_SIZE-1); // leave null termination
-    strncpy(_scr_msg[r], str, strlen(str));
+    // // Prevent chars being left from previous message by clearing with spaces first
+    //memset(_scr_msg[r], ' ', DISPLAY_MESSAGE_SIZE-1); // leave null termination
+    //strncpy(_scr_msg[r], str, strlen(str));
+    strncpy(_scr_msg[r], str, sizeof(_scr_msg[r]) - 1);
 
     _last_scr_override = AP_HAL::millis();
+    _scr_msg_queued = true;
 }
 
+// Allow scripting to clear screen
+void Display::scr_clear_screen(void) {
+
+    // Clear line strings
+    for (uint8_t i = 0; i < 6; i++) {
+        memset(_scr_msg[i], ' ', DISPLAY_MESSAGE_SIZE-1);
+    }
+
+    // Clear screen buffer
+    _driver->clear_screen();
+
+    _last_scr_override = AP_HAL::millis();
+    _scr_msg_queued = false;
+}
+
+// Update the screen with the lines set by scripting
 void Display::update_scr_screen() {
+    // Ensure nothing from previous screen is left
+    _driver->clear_screen();
+
     for (uint8_t i = 0; i < 6; i++) {
         draw_text(COLUMN(0), ROW(i), _scr_msg[i]);
     }
+
+    // Latest message set by scripting is now displayed.
+    _scr_msg_queued = false;
 }
