@@ -399,11 +399,21 @@ void AP_Notify::handle_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t rate_hz)
 }
 
 // handle display override from scripting
-void AP_Notify::handle_scr_disp(uint8_t r, const char *str)
+void AP_Notify::set_display_text(uint8_t r, const char *str)
 {
     for (uint8_t i = 0; i < _num_devices; i++) {
         if (_devices[i] != nullptr) {
             _devices[i]->scr_disp_overide(r, str);
+        }
+    }
+}
+
+// handle clearing of display from scripting
+void AP_Notify::clear_display_text(void)
+{
+    for (uint8_t i = 0; i < _num_devices; i++) {
+        if (_devices[i] != nullptr) {
+            _devices[i]->scr_clear_screen();
         }
     }
 }
