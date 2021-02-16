@@ -47,7 +47,7 @@ local DEAD_MAN = 3      -- Button number for dead mans switch
 
 -- Save to file details
 local file_name = "thrust_test.csv"
-local format_string = "%s, %.4f, %04i, %.0f, %.4f, %.4f, %.5f, %.5f\n" -- Time (ms), Throttle (), RC Out (us), Motor Commutations (1/min), Voltage (V), Current (A), Thrust (g), Torque (g.cm)
+local format_string = "%s, %.4f, %04i, %.0f, %.4f, %.4f, %.5f, %.5f, %.2f, %.2f, %05i, %03i\n" -- Time (ms), Throttle (), RC Out (us), Motor Commutations (1/min), Voltage (V), Current (A), Thrust (g), Torque (g.cm), ESC Volt (V), ESC Current (A), ESC RPM (rpm), ESC Temperature (deg C)
 
 -- Update throttle
 local _flag_hold_throttle = false
@@ -718,11 +718,16 @@ function update()
             rpm = -1
         end
 
+        -- Update ESC telemetry
+        local esc_voltage = blheli:get_voltage(0)
+        local esc_current = blheli:get_current(0)
+        local esc_rpm = blheli:get_rpm(0)
+        local esc_temp = blheli:get_temp(0)
+
         -- Log values
         file = io.open(file_name, "a")
-        file:write(string.format(format_string, tostring(now), _current_thr, calc_pwm(_current_thr), rpm, _voltage, _current, _thrust, _torque))
+        file:write(string.format(format_string, tostring(now), _current_thr, calc_pwm(_current_thr), rpm, _voltage, _current, _thrust, _torque, esc_voltage, esc_current, esc_rpm, esc_temp))
         file:close()
-        -- ESC Volt (V), ESC Current (A), ESC RPM (rpm), ESC Temperature (deg C)
 
     else
         -- Do not run motor without valid calibration or when disarmed
