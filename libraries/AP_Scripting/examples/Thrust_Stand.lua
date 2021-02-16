@@ -68,7 +68,7 @@ local REQ_CAL_TORQUE_ZERO_OFFSET = 3    -- Requires calibration, needs zero offs
 local REQ_CAL_TORQUE_FACTOR = 4         -- In calibration, needs calibration factor
 local DISARMED = 5                      -- Ready to go, not running
 local ARMED = 6                         -- Armed and motor running
-local ERROR = 10                        -- Error State
+local CURRENT_PROTECTION = 10           -- Error State
 
 local _sys_state = REQ_CAL_THRUST_ZERO_OFFSET
 local _last_sys_state = -1
@@ -88,6 +88,7 @@ local _last_led_update = 0
 -- Lua param allocation
 local ZERO_OFFSET_PARAM = {"SCR_USER1","SCR_USER3"}
 local CAL_FACT_PARAM = {"SCR_USER2", "SCR_USER4"}
+local CURRENT_LIMIT = "SCR_USER5"
 
 -- Measurements
 local _thrust = 0.0
@@ -698,6 +699,11 @@ function update()
         return calculate_calibration_factor, 500
     end
 
+    -- Check if we need to reset over current protection
+    if _sys_state == CURRENT_PROTECTION and not arm_button_state then
+      _sys_state = DISARMED
+    end
+
     -- Take measurements
     if battery:healthy(0) then
       _voltage = battery:voltage(0)
@@ -709,8 +715,18 @@ function update()
 
     -- If system is armed update the throttle and throttle dependent measurements
     if _sys_state == ARMED and run_button_state then
-        -- update the output throttle
-        update_throttle(now)
+
+        -- Current protection
+        local current_limit_amps = param:get(CURRENT_LIMIT)
+        if (current_limit_amps <= 0) or (_current < current_limit_amps) then
+            -- update the output throttle
+            update_throttle(now)
+        else
+            -- activate current protection
+            zero_throttle()
+            _sys_state = CURRENT_PROTECTION
+        end
+
 
         -- Update rpm
         local rpm = RPM:get_rpm(0)
@@ -783,9 +799,9 @@ function update_state_msg()
       _state_str = "Armed"
     end
 
-    if _sys_state == ERROR then
-      gcs:send_text(4,"Error")
-      _state_str = "Error"
+    if _sys_state == CURRENT_PROTECTION then
+      gcs:send_text(4,"Over current protection activated ")
+      _state_str = "Curr Protect"
     end
 
     _last_sys_state = _sys_state
@@ -922,6 +938,7 @@ function update_lights(now_ms)
   colour['act'] = {0,0.3,0} -- colour assigned to throttle actual value
   colour['max'] = {0,0,0.3} -- colour assigned to throttle range
   colour['disarm'] = {0.2,0.2,0} -- colour assigned to throttle range when disarmed
+  colour['error'] = {1,0,0} -- Colour assignment when in over current protection
 
   -- array to keep track of state of each led
   local led_state = {}
@@ -992,12 +1009,20 @@ function update_lights(now_ms)
         set_LED_colour(i, r, g, b)
       end
 
-  else
+  elseif _sys_state == ARMED then
       -- update led setting
       for i = 1, _num_leds do
         r = colour['max'][1]*(led_state[i]['max']-led_state[i]['act']) + colour['act'][1]*led_state[i]['act']
         g = colour['max'][2]*(led_state[i]['max']-led_state[i]['act']) + colour['act'][2]*led_state[i]['act']
         b = colour['max'][3]*(led_state[i]['max']-led_state[i]['act']) + colour['act'][3]*led_state[i]['act']
+        set_LED_colour(i, r, g, b)
+      end
+
+  else --CURRENT_PROTECTION
+      for i = 1, _num_leds do
+        r = colour['error'][1]
+        g = colour['error'][2]
+        b = colour['error'][3]
         set_LED_colour(i, r, g, b)
       end
   end
@@ -1083,7 +1108,6 @@ function update_display()
     notify:set_display_text(2, " to thrust sensor  ")
     notify:set_display_text(3, "     and press    ")
     notify:set_display_text(4, "calibration button.")
-
   end
 
   if _sys_state == REQ_CAL_TORQUE_ZERO_OFFSET then
@@ -1102,7 +1126,7 @@ function update_display()
     notify:set_display_text(4, "calibration button.")
   end
 
-  if _sys_state >= DISARMED then
+  if _sys_state == DISARMED or _sys_state == ARMED then
     -- Display measurements
     notify:set_display_text(0,"State: " .. _state_str)
     notify:set_display_text(1, string.format("Throttle: %.2f %%", _current_thr*100.0))
@@ -1110,6 +1134,12 @@ function update_display()
     notify:set_display_text(3, string.format("  Torque: %.2f gcm", _torque))
     notify:set_display_text(4, string.format(" Current: %.2f A", _current))
     notify:set_display_text(5, string.format(" Voltage: %.2f V", _voltage))
+  end
+
+  if _sys_state == CURRENT_PROTECTION then
+    notify:set_display_text(2, "   Over current    ")
+    notify:set_display_text(3, " protection active ")
+    notify:set_display_text(5, "  Disarm to reset  ")
   end
 
   _last_state_display = _sys_state
