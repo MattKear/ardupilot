@@ -606,7 +606,9 @@ function init()
     -- Find_channel returns 0 to 15, convert to 1 to 16
     _led_chan = _led_chan + 1
     -- Added an extra LED to account for logic level shifter
-    serialLED:set_num_neopixel(_led_chan,  _num_leds+1)
+    if not serialLED:set_num_neopixel(_led_chan,  _num_leds+1) then
+      gcs:send_text(6, "LEDs: neopixle not set")
+    end
 
     -- Now main loop can be started
     return update, 100
@@ -972,6 +974,9 @@ function update_lights(now_ms)
       led_state[i]['act'] = 0
     end
   end
+
+  -- reset the neopixles everytime - this is due to a bug in current master
+  serialLED:set_RGB(_led_chan, -1, 0, 0, 0)
 
   if _sys_state <= DISARMED then
       -- update led setting
