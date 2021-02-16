@@ -39,10 +39,10 @@ local _ave_thrust = 0
 local _flag_have_thrust = false
 
 -- Buttons
-local ARMING_BUTTON = 1 -- Button number to start arm and sweep motor
-local CAL_BUTTON = 2    -- Button number for initiating calibration
-local DEAD_MAN = 3      -- Button number for dead mans switch
--- AUX1 = 4             -- Button number for Aux 1
+local ARMING_BUTTON = 1      -- Button number to start arm and sweep motor
+local CAL_BUTTON = 2         -- Button number for initiating calibration
+local DEAD_MAN = 3           -- Button number for dead mans switch
+local AUX1_THROTTLE_MODE = 4 -- Button number for Aux 1
 -- AUX2 = 5             -- Button number for Aux 2, Additional btn instance needs adding to AP before this can be used
 
 -- Save to file details
@@ -60,6 +60,9 @@ local _hold_thr_last_time = 0
 local _next_thr_step = 0 --(%)
 local _max_throttle = 1 --(%)
 local _thr_inc_dec = 1 --(-) Used to switch the motor from increment to decrement
+-- Transient step response modes
+local _hover_point_achieved = false -- Has the controller achieved the hover throttle
+local _throttle_step_index = 1 -- Index in the table of throttle steps to work through
 
 -- Sys state - The current state of the system
 local REQ_CAL_THRUST_ZERO_OFFSET = 1    -- Requires calibration, needs zero offset
@@ -79,6 +82,11 @@ _last_state_display = -1
 
 -- RPM
 -- RPM is on PWM 7
+
+-- Throttle mode
+THROTTLE_MODE_RAMP = 0 -- Throttle gradual ramp up and down
+THROTTLE_MODE_STEP = 1 -- Step inputs around hover throttle
+_throttle_mode = THROTTLE_MODE_RAMP
 
 -- LEDs
 local _num_leds = 10
@@ -638,6 +646,7 @@ function update()
     local cal_button_state = button:get_button_state(CAL_BUTTON)
     local arm_button_state = button:get_button_state(ARMING_BUTTON)
     local run_button_state = button:get_button_state(DEAD_MAN)
+    local aux1_state = button:get_button_state(AUX1_THROTTLE_MODE)
 
     --- --- --- state machine --- --- ---
     -- Reset calibration 
@@ -673,7 +682,7 @@ function update()
         _sys_state = DISARMED
     end
 
-    if _sys_state ~= ARMED and _last_sys_state == ARMED then
+    if _sys_state ~= ARMED and _last_sys_state >= ARMED then
         local has_disarmed = false
         while (has_disarmed == false) do
             has_disarmed = arming:disarm()
@@ -705,6 +714,16 @@ function update()
       _sys_state = DISARMED
     end
 
+    -- Update throttle mode.
+    -- Only allow throttle mode to be changed in Disarmed State
+    if _sys_state == DISARMED then
+        if aux1_state then
+            _throttle_mode = THROTTLE_MODE_STEP
+        else
+            _throttle_mode = THROTTLE_MODE_RAMP
+        end
+    end
+
     -- Take measurements
     if battery:healthy(0) then
       _voltage = battery:voltage(0)
@@ -721,7 +740,11 @@ function update()
         local current_limit_amps = param:get(CURRENT_LIMIT)
         if (current_limit_amps <= 0) or (_current < current_limit_amps) then
             -- update the output throttle
-            update_throttle(now)
+            if _throttle_mode == THROTTLE_MODE_STEP then
+                update_throttle_transient(now)
+            else
+                update_throttle_ramp(now)
+            end
         else
             -- activate current protection
             zero_throttle()
@@ -838,7 +861,7 @@ end
 
 
 ------------------------------------------------------------------------
-function update_throttle(time)
+function update_throttle_ramp(time)
 
     -- Check whether to switch throttle hold off
     if (time - _hold_thr_last_time) > (_hold_time * 1000) and (_flag_hold_throttle == true) then
@@ -869,6 +892,72 @@ end
 
 
 ------------------------------------------------------------------------
+function update_throttle_transient(time)
+  local throttle_steps = {-0.05, 0, 0.05, -0.05, 0, 0.05, 0, -0.1, 0, 0.1}
+
+  local hover_throttle = param:get('MOT_THST_HOVER')
+  local step_hold_time = 1 -- (s)
+
+  -- -- Check throttle range is within max throttle set
+  -- local max_throttle = math.max(unpack(throttle_steps)) + hover_throttle
+
+  -- if max_throttle > _max_throttle then
+  --   _sys_state == 
+
+    -- Check whether to switch throttle hold off
+    if (time - _hold_thr_last_time) > (step_hold_time * 1000) and (_flag_hold_throttle == true) then
+        _flag_hold_throttle = false
+    end
+
+    if not(_flag_hold_throttle) and (_last_thr_update > 0) then
+
+        -- Gradually ramp throttle to hover throttle
+        if not _hover_point_achieved then
+            _current_thr = constrain((_current_thr + _ramp_rate * (time - _last_thr_update) * 0.001 * _thr_inc_dec),0,_max_throttle)
+            _last_thr_update = time
+            SRV_Channels:set_output_pwm(SERVO_FUNCTION, calc_pwm(_current_thr))
+        else
+            -- Step change throttle
+            _current_thr = constrain((hover_throttle + throttle_steps[_throttle_step_index]),0,_max_throttle)
+
+            -- Set throttle hold
+            _hold_thr_last_time = time
+            _flag_hold_throttle = true
+
+            -- Output to motor
+            SRV_Channels:set_output_pwm(SERVO_FUNCTION, calc_pwm(_current_thr))
+
+            -- Increment index for next throttle step
+            _throttle_step_index = _throttle_step_index + 1
+
+            -- Check if we have reached the end of our planned steps
+            if _throttle_step_index > #throttle_steps then
+                -- Ramp the throttle back down
+                _throttle_step_index = 1
+                _thr_inc_dec = -1
+                _hover_point_achieved = false
+                -- Ensure current throttle is below hover throttle to ensure throttle rampsback down
+                _current_thr = hover_throttle*0.95
+            end
+        end
+
+        -- Check if initial ramp is complete
+        if _current_thr >= hover_throttle then
+            _hover_point_achieved = true
+            _hold_thr_last_time = time
+            _flag_hold_throttle = true
+        end
+
+    else
+      _last_thr_update = time
+    end
+
+
+end
+------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------
 function zero_throttle()
     _current_thr = 0
     -- Ensure minimum of 2 throttle steps
@@ -880,6 +969,8 @@ function zero_throttle()
     _flag_hold_throttle = false
     _last_thr_update = 0
     _thr_inc_dec = 1
+    _hover_point_achieved = false
+    _throttle_step_index = 1
     SRV_Channels:set_output_pwm(SERVO_FUNCTION, calc_pwm(_current_thr))
 end
 ------------------------------------------------------------------------
@@ -937,9 +1028,15 @@ function update_lights(now_ms)
   -- Define colours for addressable led display
   local colour = {}
   colour['act'] = {0,0.3,0} -- colour assigned to throttle actual value
-  colour['max'] = {0,0,0.3} -- colour assigned to throttle range
-  colour['disarm'] = {0.2,0.2,0} -- colour assigned to throttle range when disarmed
   colour['error'] = {1,0,0} -- Colour assignment when in over current protection
+  
+  if _throttle_mode == THROTTLE_MODE_STEP then
+      colour['max'] = {0.15,0,0.2} -- colour assigned to throttle range
+      colour['disarm'] = {0.2,0.4,0.1} -- colour assigned to throttle range when disarmed
+  else
+      colour['max'] = {0,0,0.3} -- colour assigned to throttle range
+      colour['disarm'] = {0.2,0.2,0} -- colour assigned to throttle range when disarmed
+  end
 
   -- array to keep track of state of each led
   local led_state = {}
@@ -1128,8 +1225,13 @@ function update_display()
   end
 
   if _sys_state == DISARMED or _sys_state == ARMED then
+    -- Display throttle mode
+    if _throttle_mode == THROTTLE_MODE_STEP then
+        notify:set_display_text(0,"Thr Mode: Step")
+    else
+        notify:set_display_text(0,"Thr Mode: Ramp")
+    end
     -- Display measurements
-    notify:set_display_text(0,"State: " .. _state_str)
     notify:set_display_text(1, string.format("Throttle: %.2f %%", _current_thr*100.0))
     notify:set_display_text(2, string.format("  Thrust: %.0f g", _thrust))
     notify:set_display_text(3, string.format("  Torque: %.2f gcm", _torque))
