@@ -342,3 +342,10 @@ singleton hal.i2c_mgr alias i2c
 singleton hal.i2c_mgr literal
 singleton hal.i2c_mgr method get_device_direct AP_HAL::I2CDevice uint8_t 0 4 uint8_t 0 UINT8_MAX
 singleton hal.i2c_mgr method get_device_direct alias get_device
+
+include AP_BLHeli/AP_BLHeli.h
+singleton AP_BLHeli alias blheli
+singleton AP_BLHeli method get_temp int8_t uint8_t 0 7
+singleton AP_BLHeli method get_voltage float uint8_t 0 7
+singleton AP_BLHeli method get_current float uint8_t 0 7
+singleton AP_BLHeli method get_rpm uint16_t uint8_t 0 7
