@@ -89,6 +89,7 @@ local _last_led_update = 0
 local ZERO_OFFSET_PARAM = {"SCR_USER1","SCR_USER3"}
 local CAL_FACT_PARAM = {"SCR_USER2", "SCR_USER4"}
 local CURRENT_LIMIT = "SCR_USER5"
+local MAX_THR_PARAM = "SCR_USER6"
 
 -- Measurements
 local _thrust = 0.0
@@ -891,7 +892,7 @@ function update_throttle_max()
       return
     end
 
-    _max_throttle = 1--constrain(param:get(MAX_THR_PARAM),0,1)
+    _max_throttle = constrain(param:get(MAX_THR_PARAM)*0.01,0,1)
 
 end
 ------------------------------------------------------------------------
