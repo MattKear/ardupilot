@@ -17,6 +17,8 @@ local SERVO_FUNCTION = 94
 local _nau7802_setup_started = false
 local _nau7802_i2c_dev
 local _nau7802_sensor_index
+local FAST_SAMPLE = 3
+local SLOW_SAMPLE = 2
 
 -- Script vars used in calibration
 local THRUST = 1 -- Index for calibration values relating to thrust sensor
@@ -43,7 +45,7 @@ local ARMING_BUTTON = 1      -- Button number to start arm and sweep motor
 local CAL_BUTTON = 2         -- Button number for initiating calibration
 local DEAD_MAN = 3           -- Button number for dead mans switch
 local AUX1_THROTTLE_MODE = 4 -- Button number for Aux 1
--- AUX2 = 5             -- Button number for Aux 2, Additional btn instance needs adding to AP before this can be used
+-- AUX2 = 5                  -- Button number for Aux 2, Additional btn instance needs adding to AP before this can be used
 
 -- Save to file details
 local file_name = "thrust_test.csv"
@@ -77,16 +79,19 @@ local _sys_state = REQ_CAL_THRUST_ZERO_OFFSET
 local _last_sys_state = -1
 local _state_str = "Calibration"
 
--- used to clear the screen when the system state changes
-_last_state_display = -1
+-- Used to clear the screen when the system state changes
+local _last_state_display = -1
+local _last_display_update_ms = 0
+local _display_refresh_ms = 500
 
 -- RPM
 -- RPM is on PWM 7
 
 -- Throttle mode
-THROTTLE_MODE_RAMP = 0 -- Throttle gradual ramp up and down
-THROTTLE_MODE_STEP = 1 -- Step inputs around hover throttle
-_throttle_mode = THROTTLE_MODE_RAMP
+local THROTTLE_MODE_RAMP = 0 -- Throttle gradual ramp up and down
+local THROTTLE_MODE_STEP = 1 -- Step inputs around hover throttle
+local _throttle_mode = THROTTLE_MODE_RAMP
+local _last_aux1_state
 
 -- LEDs
 local _num_leds = 10
@@ -188,7 +193,7 @@ end
 
 ------------------------------------------------------------------------
 -- Set the readings per second
--- 10, 20, 40, 80, and 320 samples per second is available
+-- 10, 20, 40, and 80 samples per second is available
 local function setSampleRate(i2c_dev, rate)
   if rate > 7 then
     rate = 7
@@ -199,7 +204,7 @@ local function setSampleRate(i2c_dev, rate)
   value = value | (rate << 4)  -- Mask in new CRS bits
 
   -- set sample delta time in lua
-  _samp_dt_ms = 1000/get_sps(rate)
+  _samp_dt_ms = math.ceil(1000/get_sps(rate))
 
   return i2c_dev:write_register(2, value)
 end
@@ -397,7 +402,7 @@ end
 
 
 ------------------------------------------------------------------------
--- Call when scale is setup, level, at running temperature, with nothing on it
+-- Call when load cell is setup, at running temperature, with no load applied
 -- set_device(i2c_dev, index) must be called before this function
 calculate_zero_offset = function()
 
@@ -497,15 +502,15 @@ local function begin(i2c_dev)
 
   local result = true
 
-  result = result and reset(i2c_dev)                  -- Reset all registers
-  result = result and powerUp(i2c_dev)                -- Power on analog and digital sections of the scale
-  result = result and setLDO(i2c_dev, 4)              -- Set LDO to 3.3V
-  result = result and setGain(i2c_dev, 7)             -- Set gain to 128
-  result = result and setSampleRate(i2c_dev, 2)       -- Set samples per second to 40.  Sample rate must be the same for both devices
-  result = result and i2c_dev:write_register(21, 48)  -- Turn off CLK_CHP. From 9.1 power on sequencing.
-  result = result and setBit(i2c_dev, 7, 28)          -- Enable 330pF decoupling cap on chan 2. From 9.14 application circuit note.
-  result = result and setBit(i2c_dev, 2, 2)           -- Begin asynchronous calibration of the analog front end.
-                                                      -- Poll for completion with calAFEStatus() or wait with waitForCalibrateAFE()
+  result = result and reset(i2c_dev)                      -- Reset all registers
+  result = result and powerUp(i2c_dev)                    -- Power on analog and digital sections of the scale
+  result = result and setLDO(i2c_dev, 4)                  -- Set LDO to 3.3V
+  result = result and setGain(i2c_dev, 7)                 -- Set gain to 128
+  result = result and setSampleRate(i2c_dev, SLOW_SAMPLE) -- Set samples per second to 40.  Sample rate must be the same for both devices
+  result = result and i2c_dev:write_register(21, 48)      -- Turn off CLK_CHP. From 9.1 power on sequencing.
+  result = result and setBit(i2c_dev, 7, 28)              -- Enable 330pF decoupling cap on chan 2. From 9.14 application circuit note.
+  result = result and setBit(i2c_dev, 2, 2)               -- Begin asynchronous calibration of the analog front end.
+                                                          -- Poll for completion with calAFEStatus() or wait with waitForCalibrateAFE()
   return result
 
 end
@@ -633,23 +638,27 @@ function update()
     -- Bodgy conversion from userdata to number
     local now = tonumber(tostring(millis()))
 
-    -- must be called before update_lights()
-    update_throttle_max()
-
-    update_state_msg()
-
-    update_lights(now)
-
-    update_display()
-
     -- Get state of inputs
     local cal_button_state = button:get_button_state(CAL_BUTTON)
     local arm_button_state = button:get_button_state(ARMING_BUTTON)
     local run_button_state = button:get_button_state(DEAD_MAN)
     local aux1_state = button:get_button_state(AUX1_THROTTLE_MODE)
 
+
+    -- must be called before update_lights()
+    update_throttle_max()
+    update_state_msg()
+    update_lights(now)
+
+    -- Update display cannot be called when fast sampling is being used
+    -- for logging transient throttle behaviour. It slows the script run time too much
+    if not (_sys_state == ARMED and _throttle_mode == THROTTLE_MODE_STEP) then
+        update_display(now)
+    end
+
+
     --- --- --- state machine --- --- ---
-    -- Reset calibration 
+    -- Check if we should reset calibration
     if _sys_state == DISARMED and cal_button_state then
         _sys_state = REQ_CAL_THRUST_ZERO_OFFSET
 
@@ -670,18 +679,22 @@ function update()
         return update, 500
     end
 
+    -- Check if we should arm the system
     if arm_button_state and _sys_state == DISARMED then
-        -- Arm only from the disarmed sate
+        -- Arm Copter as well.
         if arming:arm() then
             _sys_state = ARMED
         end
     end
 
+    -- Change to local lua diarm state
     if not arm_button_state and not(_sys_state < DISARMED) then
         -- Arm button has been switched off and we are not in a calibration state
         _sys_state = DISARMED
     end
 
+    -- Disarm copter if we are not in 'armed' in lua.
+    -- This code block handles the copter disarm when we enter an error state e.g. over current protection
     if _sys_state ~= ARMED and _last_sys_state >= ARMED then
         local has_disarmed = false
         while (has_disarmed == false) do
@@ -689,6 +702,9 @@ function update()
         end
     end
 
+    -------------------------------------------
+    --- --- --- Calibration routine --- --- ---
+    -------------------------------------------
     if _sys_state == REQ_CAL_THRUST_ZERO_OFFSET and cal_button_state then
         set_device(i2c_thrust, THRUST)
         return calculate_zero_offset, 500
@@ -709,6 +725,7 @@ function update()
         return calculate_calibration_factor, 500
     end
 
+
     -- Check if we need to reset over current protection
     if _sys_state == CURRENT_PROTECTION and not arm_button_state then
       _sys_state = DISARMED
@@ -716,15 +733,42 @@ function update()
 
     -- Update throttle mode.
     -- Only allow throttle mode to be changed in Disarmed State
-    if _sys_state == DISARMED then
+    if _sys_state == DISARMED and _last_aux1_state ~= aux1_state then
         if aux1_state then
             _throttle_mode = THROTTLE_MODE_STEP
+            update_sample_rate(FAST_SAMPLE)
         else
             _throttle_mode = THROTTLE_MODE_RAMP
+            update_sample_rate(SLOW_SAMPLE)
         end
     end
 
-    -- Take measurements
+
+    -- If system is armed update the throttle and throttle dependent measurements
+    if _sys_state == ARMED and run_button_state then
+        -- Current protection
+        local current_limit_amps = param:get(CURRENT_LIMIT)
+        if (current_limit_amps <= 0) or (_current < current_limit_amps) then
+            -- Update the output throttle
+            if _throttle_mode == THROTTLE_MODE_STEP then
+                update_throttle_transient(now)
+            else
+                update_throttle_ramp(now)
+            end
+        else
+            -- Activate current protection
+            zero_throttle()
+            _sys_state = CURRENT_PROTECTION
+        end
+
+    else
+        -- Do not run motor without valid calibration, when disarmed, or when in an error state
+        zero_throttle()
+    end
+
+    -----------------------------------------
+    --- --- --- Take measurements --- --- ---
+    -----------------------------------------
     if battery:healthy(0) then
       _voltage = battery:voltage(0)
       _current = battery:current_amps(0)
@@ -733,45 +777,24 @@ function update()
     _thrust = get_load(i2c_thrust, THRUST)
     _torque = get_load(i2c_torque, TORQUE)
 
-    -- If system is armed update the throttle and throttle dependent measurements
+    -- Update rpm
+    local rpm = RPM:get_rpm(0)
+    if (rpm == nil) then
+        rpm = -1
+    end
+
+    -- Update ESC telemetry
+    local esc_voltage = blheli:get_voltage(0)
+    local esc_current = blheli:get_current(0)
+    local esc_rpm = blheli:get_rpm(0)
+    local esc_temp = blheli:get_temp(0)
+
+    -- Log values
     if _sys_state == ARMED and run_button_state then
-
-        -- Current protection
-        local current_limit_amps = param:get(CURRENT_LIMIT)
-        if (current_limit_amps <= 0) or (_current < current_limit_amps) then
-            -- update the output throttle
-            if _throttle_mode == THROTTLE_MODE_STEP then
-                update_throttle_transient(now)
-            else
-                update_throttle_ramp(now)
-            end
-        else
-            -- activate current protection
-            zero_throttle()
-            _sys_state = CURRENT_PROTECTION
-        end
-
-
-        -- Update rpm
-        local rpm = RPM:get_rpm(0)
-        if (rpm == nil) then
-            rpm = -1
-        end
-
-        -- Update ESC telemetry
-        local esc_voltage = blheli:get_voltage(0)
-        local esc_current = blheli:get_current(0)
-        local esc_rpm = blheli:get_rpm(0)
-        local esc_temp = blheli:get_temp(0)
-
-        -- Log values
+        -- Only log whilst armed and running
         file = io.open(file_name, "a")
         file:write(string.format(format_string, tostring(now), _current_thr, calc_pwm(_current_thr), rpm, _voltage, _current, _thrust, _torque, esc_voltage, esc_current, esc_rpm, esc_temp))
         file:close()
-
-    else
-        -- Do not run motor without valid calibration or when disarmed
-        zero_throttle()
     end
 
     return update, _samp_dt_ms
@@ -880,7 +903,7 @@ function update_throttle_ramp(time)
             _hold_thr_last_time = time
             _flag_hold_throttle = true
 
-            -- calculate new throttle step
+            -- Calculate new throttle step
             set_next_thr_step()
         end
     else
@@ -897,12 +920,6 @@ function update_throttle_transient(time)
 
   local hover_throttle = param:get('MOT_THST_HOVER')
   local step_hold_time = 1 -- (s)
-
-  -- -- Check throttle range is within max throttle set
-  -- local max_throttle = math.max(unpack(throttle_steps)) + hover_throttle
-
-  -- if max_throttle > _max_throttle then
-  --   _sys_state == 
 
     -- Check whether to switch throttle hold off
     if (time - _hold_thr_last_time) > (step_hold_time * 1000) and (_flag_hold_throttle == true) then
@@ -1013,6 +1030,16 @@ function set_next_thr_step()
     -- Update next throttle step
     _next_thr_step = _next_thr_step + (_max_throttle*_thr_inc_dec)/_n_throttle_steps
     _next_thr_step = constrain(_next_thr_step,0,_max_throttle)
+end
+------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------
+function update_sample_rate(rate)
+    -- Set sample rate appropriate to mode
+    if not setSampleRate(i2c_thrust, rate) or not setSampleRate(i2c_torque, rate) then
+        gcs:send_text(4,"Amp rate set fail")
+    end
 end
 ------------------------------------------------------------------------
 
@@ -1186,11 +1213,30 @@ end
 
 ------------------------------------------------------------------------
 -- Output message screens based on current system state
-function update_display()
+function update_display(now_ms)
+
+  -- Update the display at 2 Hz only.  Notify display is updated at max 2 Hz
+  if (now_ms - _last_display_update_ms < _display_refresh_ms) then
+    return
+  end
+
+  -- Always reset the refresh rate back to the fastest needed rate of 2 Hz.
+  -- If transients are being recorded and throttle mode is set to step mode
+  -- the refresh will be set back to slower rate.
+  _display_refresh_ms = 500
 
   if _sys_state ~= _last_state_display then
     notify:clear_display_text()
   end
+
+  -- if _sys_state == ARMED and _throttle_mode == THROTTLE_MODE_STEP then
+  --   -- Display cut down throttle mode screen and return early
+  --   notify:set_display_text(0,"Thr Mode: Step")
+  --   _display_refresh_ms = 3000
+  --   _last_state_display = _sys_state
+  --   _last_display_update_ms = now_ms
+  --   return
+  -- end
 
   if _sys_state == REQ_CAL_THRUST_ZERO_OFFSET then
     -- Tell user to unload thrust sensor for calibration before pressing the button
@@ -1227,16 +1273,22 @@ function update_display()
   if _sys_state == DISARMED or _sys_state == ARMED then
     -- Display throttle mode
     if _throttle_mode == THROTTLE_MODE_STEP then
-        notify:set_display_text(0,"Thr Mode: Step")
+        notify:set_display_text(0, "Step Throttle Mode")
+        notify:set_display_text(1, "                   ")
+        notify:set_display_text(2, "  Screen will not  ")
+        notify:set_display_text(3, "  work when armed  ")
+        notify:set_display_text(4, "    due to high    ")
+        notify:set_display_text(5, "   logging rate.   ")
+
     else
         notify:set_display_text(0,"Thr Mode: Ramp")
+        -- Display measurements
+        notify:set_display_text(1, string.format("Throttle: %.2f %%", _current_thr*100.0))
+        notify:set_display_text(2, string.format("  Thrust: %.0f g", _thrust))
+        notify:set_display_text(3, string.format("  Torque: %.2f gcm", _torque))
+        notify:set_display_text(4, string.format(" Current: %.2f A", _current))
+        notify:set_display_text(5, string.format(" Voltage: %.2f V", _voltage))
     end
-    -- Display measurements
-    notify:set_display_text(1, string.format("Throttle: %.2f %%", _current_thr*100.0))
-    notify:set_display_text(2, string.format("  Thrust: %.0f g", _thrust))
-    notify:set_display_text(3, string.format("  Torque: %.2f gcm", _torque))
-    notify:set_display_text(4, string.format(" Current: %.2f A", _current))
-    notify:set_display_text(5, string.format(" Voltage: %.2f V", _voltage))
   end
 
   if _sys_state == CURRENT_PROTECTION then
@@ -1246,12 +1298,10 @@ function update_display()
   end
 
   _last_state_display = _sys_state
+  _last_display_update_ms = now_ms
 
 end
 ------------------------------------------------------------------------
-
-
-
 
 -- Wait a while before starting so we have a better chance of seeing any error messages
 return init, 2000
