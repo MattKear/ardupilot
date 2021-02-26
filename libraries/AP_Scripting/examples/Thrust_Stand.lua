@@ -11,7 +11,8 @@ i2c_torque:set_retries(10)
 local _samp_dt_ms = 0
 
 -- Motor function to override
-local SERVO_FUNCTION = 94
+_motor_channel = SRV_Channels:find_channel(33)
+local MOTOR_TIMEOUT = 3000 --(s)
 
 -- Variables needed for setup and init of NAU7802
 local _nau7802_setup_started = false
@@ -625,8 +626,24 @@ function init()
       gcs:send_text(6, "LEDs: neopixle not set")
     end
 
-    -- Now main loop can be started
-    return update, 100
+    --- --- --- Set prerequisite parameters --- --- ---
+    -- Setup motor 1 so that we can apply servo overrides.  That way, if the lua script dies the 
+    -- override will time out and the motor will be stopped
+    local all_set = param:set_and_save('SERVO1_FUNCTION', 33)
+    all_set = all_set and param:set_and_save('MOT_SPIN_MIN', 0)
+    all_set = all_set and param:set_and_save('MOT_PWM_MIN', 1000)
+
+    -- Setup arming button function to arm and disarm copter aswell. This makes use of logging 
+    -- and standard motor protections whilst armed.
+    all_set = all_set and param:set_and_save('BTN_FUNC1', 41)
+
+    if all_set then
+        -- Now main loop can be started
+        return update, 100
+    else
+        gcs:send_text(6, "Param set fail in init")
+        return
+    end
 
 end
 ------------------------------------------------------------------------
@@ -680,11 +697,8 @@ function update()
     end
 
     -- Check if we should arm the system
-    if arm_button_state and _sys_state == DISARMED then
-        -- Arm Copter as well.
-        if arming:arm() then
+    if arm_button_state and _sys_state == DISARMED and arming:is_armed() then
             _sys_state = ARMED
-        end
     end
 
     -- Change to local lua diarm state
@@ -694,7 +708,7 @@ function update()
     end
 
     -- Disarm copter if we are not in 'armed' in lua.
-    -- This code block handles the copter disarm when we enter an error state e.g. over current protection
+    -- This handles the copter disarm when we enter an error state e.g. over current protection
     if _sys_state ~= ARMED and _last_sys_state >= ARMED then
         local has_disarmed = false
         while (has_disarmed == false) do
@@ -896,10 +910,9 @@ function update_throttle_ramp(time)
         -- Calculate throttle if it is to be increased
         _current_thr = constrain((_current_thr + _ramp_rate * (time - _last_thr_update) * 0.001 * _thr_inc_dec),0,_max_throttle)
         _last_thr_update = time
-        SRV_Channels:set_output_pwm(SERVO_FUNCTION, calc_pwm(_current_thr))
 
         -- See if we are at a throttle hold point
-        if ((_current_thr >= _next_thr_step) and (_thr_inc_dec == 1)) or ((_current_thr <= _next_thr_step) and (_thr_inc_dec == -1)) then
+        if ((_current_thr >= _next_thr_step) and (_thr_inc_dec > 0)) or ((_current_thr <= _next_thr_step) and (_thr_inc_dec < 0)) then
             _hold_thr_last_time = time
             _flag_hold_throttle = true
 
@@ -909,6 +922,8 @@ function update_throttle_ramp(time)
     else
       _last_thr_update = time
     end
+
+    SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_pwm(_current_thr), MOTOR_TIMEOUT)
 
 end
 ------------------------------------------------------------------------
@@ -932,7 +947,7 @@ function update_throttle_transient(time)
         if not _hover_point_achieved then
             _current_thr = constrain((_current_thr + _ramp_rate * (time - _last_thr_update) * 0.001 * _thr_inc_dec),0,_max_throttle)
             _last_thr_update = time
-            SRV_Channels:set_output_pwm(SERVO_FUNCTION, calc_pwm(_current_thr))
+            SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_pwm(_current_thr), MOTOR_TIMEOUT)
         else
             -- Step change throttle
             _current_thr = constrain((hover_throttle + throttle_steps[_throttle_step_index]),0,_max_throttle)
@@ -942,7 +957,7 @@ function update_throttle_transient(time)
             _flag_hold_throttle = true
 
             -- Output to motor
-            SRV_Channels:set_output_pwm(SERVO_FUNCTION, calc_pwm(_current_thr))
+            SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_pwm(_current_thr), MOTOR_TIMEOUT)
 
             -- Increment index for next throttle step
             _throttle_step_index = _throttle_step_index + 1
@@ -988,7 +1003,7 @@ function zero_throttle()
     _thr_inc_dec = 1
     _hover_point_achieved = false
     _throttle_step_index = 1
-    SRV_Channels:set_output_pwm(SERVO_FUNCTION, calc_pwm(_current_thr))
+    SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_pwm(_current_thr), MOTOR_TIMEOUT)
 end
 ------------------------------------------------------------------------
 
