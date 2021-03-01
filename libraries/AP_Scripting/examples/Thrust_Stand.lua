@@ -418,7 +418,7 @@ calculate_zero_offset = function()
 
         -- Advance state to next step in calibration process
         _sys_state = _sys_state + 1
-        return update, _samp_dt_ms
+        return protected_update, _samp_dt_ms
     end
 
     -- carry on doing average calculation
@@ -454,7 +454,7 @@ calculate_calibration_factor = function()
 
         -- Advance system state and exit calibration
         _sys_state = _sys_state + 1
-        return update, _samp_dt_ms
+        return protected_update, _samp_dt_ms
 
     end
 
@@ -639,7 +639,7 @@ function init()
 
     if all_set then
         -- Now main loop can be started
-        return update, 100
+        return protected_update, 100
     else
         gcs:send_text(6, "Param set fail in init")
         return
@@ -693,7 +693,7 @@ function update()
             gcs:send_text(4,"Torque cal factor param set fail")
         end
 
-        return update, 500
+        return protected_update, 500
     end
 
     -- Check if we should arm the system
@@ -811,7 +811,7 @@ function update()
         file:close()
     end
 
-    return update, _samp_dt_ms
+    -- Normal re-schedules of update are handled in protected_update()
 
 end
 ------------------------------------------------------------------------
@@ -1315,6 +1315,19 @@ function update_display(now_ms)
   _last_state_display = _sys_state
   _last_display_update_ms = now_ms
 
+end
+------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------
+function protected_update()
+    local success, err = pcall(update)
+    if not success then
+      gcs:send_text(0, "Internal Error: " .. err)
+      return protected_update, 1000
+    end
+
+    return protected_update, _samp_dt_ms
 end
 ------------------------------------------------------------------------
 
