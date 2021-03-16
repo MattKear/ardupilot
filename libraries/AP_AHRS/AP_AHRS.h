@@ -587,6 +587,8 @@ public:
         return _rsem;
     }
 
+    virtual uint8_t get_alt_source(void) const { return false; }
+
 protected:
     void update_nmea_out();
 

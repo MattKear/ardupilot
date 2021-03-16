@@ -1040,6 +1040,31 @@ private:
     bool avoid_adsb_init(bool ignore_checks);
     void avoid_adsb_run();
 
+    // Apply altitude offset to target based on QNH reference pressure
+    class QNH_Ref
+    {
+    public:
+        void update_qnh_reference_state(void);
+
+        // Get the qnh offset and any alt source delta, then flag as we are now flying on
+        // the qnh reference
+        float get_offset(void);
+
+        // Get the alt source delta
+        float get_alt_source_delta(void);
+
+        // Reset the qnh reference system
+        void reset(bool param_reset = false);
+
+        void update_qnh_offset(void);
+
+    private:
+        bool use_qnh_ref;         // Flag, true when vehicle is in a position that it should be using QNH ref altitude
+        float qnh_offset_m;       // Offset in m to be applied to target altitude
+        float alt_source_delta_m; // The delta between the barometer altitude and any alternative alt source choosen by EK_ALT_SOURCE
+        float last_offset_m;
+    } qnh_ref;
+
     enum Failsafe_Action {
         Failsafe_Action_None      = 0,
         Failsafe_Action_RTL       = 1,

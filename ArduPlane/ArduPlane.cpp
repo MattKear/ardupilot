@@ -581,6 +581,8 @@ void Plane::update_alt()
 
     update_flight_stage();
 
+    qnh_ref.update_qnh_reference_state();
+
     if (auto_throttle_mode && !throttle_suppressed) {        
 
         float distance_beyond_land_wp = 0;
@@ -594,7 +596,7 @@ void Plane::update_alt()
             soaring_active = true;
         }
 #endif
-        
+
         float target_alt = relative_target_altitude_cm();
 
         if (control_mode == &mode_rtl && !rtl.done_climb && g2.rtl_climb_min > 0) {

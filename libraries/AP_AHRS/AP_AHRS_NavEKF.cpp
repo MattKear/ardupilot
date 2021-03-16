@@ -1873,5 +1873,20 @@ bool AP_AHRS_NavEKF::is_ext_nav_used_for_yaw(void) const
     }
 }
 
+
+uint8_t AP_AHRS_NavEKF::get_alt_source(void) const
+{
+    switch (active_EKF_type()) {
+    case EKF_TYPE2:
+        return EKF2.get_alt_source();
+
+    case EKF_TYPE3:
+        return EKF3.get_alt_source();
+
+    default:
+        return false;
+    }
+}
+
 #endif // AP_AHRS_NAVEKF_AVAILABLE
 

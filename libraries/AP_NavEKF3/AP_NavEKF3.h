@@ -385,6 +385,9 @@ public:
     // write EKF information to on-board logs
     void Log_Write();
 
+    // return the altitude source being used
+    uint8_t get_alt_source(void) const { return _altSource; }
+
 private:
     uint8_t num_cores; // number of allocated cores
     uint8_t primary;   // current primary core

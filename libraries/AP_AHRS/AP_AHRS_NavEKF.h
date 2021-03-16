@@ -271,6 +271,8 @@ public:
     // check whether compass can be bypassed for arming check in case when external navigation data is available 
     bool is_ext_nav_used_for_yaw(void) const;
 
+    uint8_t get_alt_source(void) const override;
+
 private:
     enum EKF_TYPE {EKF_TYPE_NONE=0,
                    EKF_TYPE3=3,

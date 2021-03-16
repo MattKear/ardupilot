@@ -14,6 +14,7 @@
  */
 
 #include "Plane.h"
+#include <AP_Baro/AP_Baro.h>
 
 /*
   altitude handling routines. These cope with both barometric control
@@ -250,6 +251,7 @@ int32_t Plane::relative_target_altitude_cm(void)
 #endif
     int32_t relative_alt = target_altitude.amsl_cm - home.alt;
     relative_alt += mission_alt_offset()*100;
+    //relative_alt += qnh_ref.get_offset()*100;
     relative_alt += rangefinder_correction() * 100;
     return relative_alt;
 }
@@ -449,7 +451,7 @@ void Plane::setup_terrain_target_alt(Location &loc)
  */
 int32_t Plane::adjusted_altitude_cm(void)
 {
-    return current_loc.alt - (mission_alt_offset()*100);
+    return current_loc.alt - (mission_alt_offset()*100);// - qnh_ref.get_offset()*100;
 }
 
 /*
@@ -459,7 +461,7 @@ int32_t Plane::adjusted_altitude_cm(void)
  */
 int32_t Plane::adjusted_relative_altitude_cm(void)
 {
-    return (relative_altitude - mission_alt_offset())*100;
+    return (relative_altitude - mission_alt_offset())*100;// - qnh_ref.get_offset()*100;
 }
 
 
@@ -694,3 +696,117 @@ void Plane::rangefinder_height_update(void)
         
     }
 }
+
+
+void Plane::QNH_Ref::update_qnh_reference_state(void)
+{
+    // Do not apply any altitude offset if QNH is not set
+    if (plane.g2.qnh_ref.get() == 0U) {
+        reset();
+        return;
+    }
+
+    const AP_Baro *baro = AP_Baro::get_singleton();
+
+    // Check we have a primary baro and that it is healthy
+    if (baro == nullptr && !baro->healthy()) {
+        return;
+    }
+
+    // If we aren't using the barometer as an alt source apply the difference between the barometer and
+    // the choosen source to effectively fly on barometer without upsetting the EKF by changing alt source.
+    if (plane.ahrs.get_alt_source() != 0) {
+        // TODO: change the alt source to be the alt source currently in use by the EKF not the parameter value
+        float ahrs_alt;
+        if (plane.ahrs.get_relative_position_D_origin(ahrs_alt)) {
+            alt_source_delta_m = baro->get_altitude() + ahrs_alt;
+        }
+    }
+
+    // See how far from home we are
+    Vector2f home_dist_ne;
+    if (!plane.ahrs.get_relative_position_NE_home(home_dist_ne)) {
+        // Don't have a healthy position from home.  Don't risk flying into the ground,
+        // so revert back to no offset.
+        reset();
+        update_qnh_offset();
+        return;
+    }
+
+    // Only apply the offset when outside of the field operating area
+    if (plane.g2.qfe_region_dist.get() < home_dist_ne.length()) {
+        // Calculate the altitude offset based on home pressure stored when armed
+        // and the provided QNH pressure.  Pressures in Pa.
+        qnh_offset_m = baro->get_altitude_difference(baro->get_ground_pressure(), plane.g2.qnh_ref.get()*100.0f);;
+
+        if (!use_qnh_ref) {
+            plane.gcs().send_text(MAV_SEVERITY_INFO, "QNH alt offset: %.2f m", qnh_offset_m);
+            use_qnh_ref = true;
+        }
+
+    } else {
+        reset();
+    }
+
+    update_qnh_offset();
+
+    //Write to data flash log
+    AP::logger().Write("QNH",
+                       "TimeUS,qnho,drif,tot,delt,last",
+                         "Qfffff",
+                        AP_HAL::micros64(),
+                        (double)qnh_offset_m,
+                        (double)alt_source_delta_m,
+                        (double)qnh_offset_m + alt_source_delta_m,
+                        (double)qnh_offset_m + alt_source_delta_m - last_offset_m,
+                        (double)last_offset_m);
+}
+
+void Plane::QNH_Ref::reset(bool param_rest)
+{
+    if (param_rest) {
+        plane.g2.qnh_ref.set_and_save(0);
+    }
+    qnh_offset_m = 0.0f;
+    alt_source_delta_m = 0.0f;
+    if (use_qnh_ref) {
+        plane.gcs().send_text(MAV_SEVERITY_INFO, "QNH alt offset removed");
+    }
+    use_qnh_ref = false;
+
+}
+
+// Return the offset QNH offset altitude and any alt source delta provided
+// the vehicle is in a position/condition in which we should be using the QNH reference
+float Plane::QNH_Ref::get_offset(void)
+{
+    if (use_qnh_ref) {
+        // Offset has been retrieved so we will now be flying using the QNH ref
+        return qnh_offset_m + alt_source_delta_m;
+    }
+    return 0.0f;
+}
+
+// Return the alt source delta only when the vehicle is in a position/condition
+// in which we should be using the QNH reference.  This is used by the copter
+// position controller, after the offset has been applied to the target altitude. 
+float Plane::QNH_Ref::get_alt_source_delta(void)
+{
+    if (use_qnh_ref) {
+        return alt_source_delta_m;
+    }
+
+    // If we got this far then we shouldn't be flying on baro or the QNH reference, reset flag
+    return 0.0f;
+}
+
+void Plane::QNH_Ref::update_qnh_offset(void)
+{
+    // only apply the delta between subsequent calls 
+    float offset = qnh_offset_m + alt_source_delta_m;
+    //float delta_offset = offset - last_offset_m;
+    plane.change_target_altitude(offset*100);
+    last_offset_m = offset;
+}
+
+

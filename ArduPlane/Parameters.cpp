@@ -1277,6 +1277,24 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("RTL_CLIMB_MIN", 27, ParametersG2, rtl_climb_min, 0),
 
+    // @Param: QNH_REF
+    // @DisplayName: Reference pressure at sea level
+    // @Description: When set, an altitude offset will be applied so that aircraft flys relative to the same pressure reference as manned aircraft.  Set to 0 for disabled.
+    // @Units: pa
+    // @Range: 930 1070
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("QNH_REF", 28, ParametersG2, qnh_ref, 0),
+
+    // @Param: QNH_RESET_RAD
+    // @DisplayName: Radius from home QNH altitude offsets will be ignored
+    // @Description: When QNH_REF is set, if the vehicle is within QNH_RESET_RAD from home, any offsets applied by the QNH reference will be ignored.  This prevents the vehicle landing at home with the wrong altitude offset applied.
+    // @Units: m
+    // @Range: 300 5000
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("QNH_RESET_RAD", 29, ParametersG2, qfe_region_dist, 500),
+
     AP_GROUPEND
 };
 

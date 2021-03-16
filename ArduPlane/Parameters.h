@@ -577,6 +577,10 @@ public:
 
     // min initial climb in RTL
     AP_Int16        rtl_climb_min;
+
+    // Parameters for flying relative to QNH reference pressure
+    AP_Int16 qnh_ref;
+    AP_Float qfe_region_dist; // Distance from home that the vehicle will revert to flying on qfe
 };
 
 extern const AP_Param::Info var_info[];

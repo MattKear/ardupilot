@@ -987,6 +987,7 @@ void QuadPlane::hold_hover(float target_climb_rate)
 
     // call position controller
     pos_control->set_alt_target_from_climb_rate_ff(target_climb_rate, plane.G_Dt, false);
+    pos_control->shift_alt_target(plane.qnh_ref.get_offset()*100);
     run_z_controller();
 }
 
@@ -1266,6 +1267,7 @@ void QuadPlane::control_loiter()
     } else {
         // update altitude target and call position controller
         pos_control->set_alt_target_from_climb_rate_ff(get_pilot_desired_climb_rate_cms(), plane.G_Dt, false);
+        pos_control->shift_alt_target(plane.qnh_ref.get_offset()*100);
     }
     run_z_controller();
 }
@@ -2461,6 +2463,7 @@ void QuadPlane::waypoint_controller(void)
     
     // climb based on altitude error
     pos_control->set_alt_target_from_climb_rate_ff(assist_climb_rate_cms(), plane.G_Dt, false);
+    pos_control->shift_alt_target(plane.qnh_ref.get_offset()*100);
     run_z_controller();
 }
 
