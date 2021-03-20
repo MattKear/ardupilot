@@ -513,6 +513,7 @@ bool AP_Baro::_add_backend(AP_Baro_Backend *backend)
  */
 void AP_Baro::init(void)
 {
+    _alt_offset.set(0.0f);
     init_done = true;
 
     // ensure that there isn't a previous ground temperature saved
@@ -827,14 +828,6 @@ void AP_Baro::update(void)
 {
     WITH_SEMAPHORE(_rsem);
 
-    if (fabsf(_alt_offset - _alt_offset_active) > 0.01f) {
-        // If there's more than 1cm difference then slowly slew to it via LPF.
-        // The EKF does not like step inputs so this keeps it happy.
-        _alt_offset_active = (0.95f*_alt_offset_active) + (0.05f*_alt_offset);
-    } else {
-        _alt_offset_active = _alt_offset;
-    }
-
     if (!_hil_mode) {
         for (uint8_t i=0; i<_num_drivers; i++) {
             drivers[i]->backend_update(i);
@@ -863,7 +856,7 @@ void AP_Baro::update(void)
             // sanity check altitude
             sensors[i].alt_ok = !(isnan(altitude) || isinf(altitude));
             if (sensors[i].alt_ok) {
-                sensors[i].altitude = altitude + _alt_offset_active;
+                sensors[i].altitude = altitude + get_baro_drift_offset();
             }
         }
         if (_hil.have_alt) {
@@ -942,6 +935,15 @@ void AP_Baro::set_pressure_correction(uint8_t instance, float p_correction)
     if (instance < _num_sensors) {
         sensors[instance].p_correction = p_correction;
     }
+}
+
+// get baro drift amount
+float AP_Baro::get_baro_drift_offset(void) const {
+    Vector2f home_dist;
+    if (!AP::ahrs().get_relative_position_NE_home(home_dist) || (home_dist.length() < 500)) {
+        return 0.0f;
+    }
+    return _alt_offset.get();
 }
 
 #if HAL_MSP_BARO_ENABLED

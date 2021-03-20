@@ -735,6 +735,10 @@ void NavEKF3_core::readBaroData()
 
         baroDataNew.hgt = baro.get_altitude(selected_baro);
 
+        // record current offset and sensor index to cope with any change
+        baroDataNew.offset = baro.get_baro_drift_offset();
+        baroDataNew.sensor_idx = selected_baro;
+
         // If we are in takeoff mode, the height measurement is limited to be no less than the measurement at start of takeoff
         // This prevents negative baro disturbances due to rotor wash ground interaction corrupting the EKF altitude during initial ascent
         if (expectGndEffectTakeoff) {
@@ -764,7 +768,7 @@ void NavEKF3_core::readBaroData()
 void NavEKF3_core::calcFiltBaroOffset()
 {
     // Apply a first order LPF with spike protection
-    baroHgtOffset += 0.1f * constrain_float(baroDataDelayed.hgt + stateStruct.position.z - baroHgtOffset, -5.0f, 5.0f);
+    baroHgtOffset = 0.0f; //+= 0.1f * constrain_float(baroDataDelayed.hgt + stateStruct.position.z - baroHgtOffset, -5.0f, 5.0f);
 }
 
 // correct the height of the EKF origin to be consistent with GPS Data using a Bayes filter.
