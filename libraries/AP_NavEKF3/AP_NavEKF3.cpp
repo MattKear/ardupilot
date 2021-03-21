@@ -2031,3 +2031,11 @@ bool NavEKF3::yawAlignmentComplete(void) const
     }
     return core[primary].have_aligned_yaw();
 }
+
+// set flag to use baro as active height source
+void NavEKF3::setUsingQnhFlag(bool use_qnh) const
+{
+    if (core) {
+        return core[primary].setUsingQnhFlag(use_qnh);
+    }
+}

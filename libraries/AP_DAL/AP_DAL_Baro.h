@@ -30,7 +30,7 @@ public:
     float get_altitude() const {
         return get_altitude(get_primary());
     }
-    float get_baro_drift_offset() const {
+    float get_qnh_alt_offset() const {
         return _RBRH.offset;
     }
 

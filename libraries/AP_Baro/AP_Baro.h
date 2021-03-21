@@ -180,7 +180,7 @@ public:
     void set_baro_drift_altitude(float alt) { _alt_offset = alt; }
 
     // get baro drift amount
-    float get_baro_drift_offset(void) const;
+    float get_qnh_alt_offset(void) const;
 
     // simple atmospheric model
     static void SimpleAtmosphere(const float alt, float &sigma, float &delta, float &theta);
@@ -292,6 +292,8 @@ private:
     AP_Float                            _user_ground_temperature; // user override of the ground temperature used for EAS2TAS
     bool                                _hil_mode:1;
     float                               _guessed_ground_temperature; // currently ground temperature estimate using our best abailable source
+    AP_Int16                            _qnh_ref; // air pressure at sea level in hPa
+    AP_Int16                            _qfe_rad; // if the qnh is set and vehicle goes beyond this distance from home then an altitude offset will be applied to the barometer to fly on QNH reference pressure
 
     // when did we last notify the GCS of new pressure reference?
     uint32_t                            _last_notify_ms;

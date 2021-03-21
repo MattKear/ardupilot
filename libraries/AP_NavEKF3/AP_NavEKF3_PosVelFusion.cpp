@@ -1088,7 +1088,8 @@ void NavEKF3_core::selectHeightForFusion()
     bool lostExtNavHgt = ((activeHgtSource == AP_NavEKF_Source::SourceZ::EXTNAV) && !extNavDataIsFresh);
     fallback_to_baro |= lostExtNavHgt;
 #endif
-    if (fallback_to_baro) {
+    // Use baro if we need to fall back to it or if we are using a pressure reference for sea level
+    if (fallback_to_baro || usingQNH) {
         activeHgtSource = AP_NavEKF_Source::SourceZ::BARO;
     }
 

@@ -291,6 +291,9 @@ public:
     */
     void writeExtNavVelData(const Vector3f &vel, float err, uint32_t timeStamp_ms, uint16_t delay_ms);
 
+    // set flag to force alt source to baro if we are using qnh pressure reference
+    void setUsingQnhFlag (bool on_qnh);
+
     // called by vehicle code to specify that a takeoff is happening
     // causes the EKF to compensate for expected barometer errors due to rotor wash ground interaction
     // causes the EKF to start the EKF-GSF yaw estimator
@@ -1294,6 +1297,7 @@ private:
     // height source selection logic
     AP_NavEKF_Source::SourceZ activeHgtSource;  // active height source
     AP_NavEKF_Source::SourceZ prevHgtSource;    // previous height source used to detect changes in source
+    bool usingQNH;                              // flag that forces activeHgtSource to baro when using pressure as sea level reference
 
     // Movement detector
     bool takeOffDetected;           // true when takeoff for optical flow navigation has been detected
