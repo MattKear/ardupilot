@@ -180,6 +180,8 @@ void NavEKF3_core::ResetPositionNE(float posN, float posE)
 //    lastPosResetD_ms is updated with the time of the reset
 void NavEKF3_core::ResetPositionD(float posD)
 {
+    gcs().send_text(MAV_SEVERITY_INFO, "Reset Pos D");
+    
     // Store the position before the reset so that we can record the reset delta
     const float posDOrig = stateStruct.position.z;
 
@@ -199,6 +201,9 @@ void NavEKF3_core::ResetPositionD(float posD)
 
     // store the time of the reset
     lastPosResetD_ms = imuSampleTime_ms;
+
+
+
 }
 
 // reset the vertical position state using the last height measurement
@@ -537,9 +542,9 @@ void NavEKF3_core::SelectVelPosFusion()
     if ((lastBaroSelected != baroDataDelayed.sensor_idx) || !is_equal(baroDataDelayed.offset,lastBaroOffset)) {
         lastBaroSelected =  baroDataDelayed.sensor_idx;
         lastBaroOffset = baroDataDelayed.offset;
-        if (activeHgtSource == AP_NavEKF_Source::SourceZ::BARO) {
+        //if (activeHgtSource == AP_NavEKF_Source::SourceZ::BARO) {
             ResetPositionD(-hgtMea);
-        }
+        //}
     }
 
 #if EK3_FEATURE_EXTERNAL_NAV
@@ -1025,6 +1030,7 @@ void NavEKF3_core::selectHeightForFusion()
 #if EK3_FEATURE_EXTERNAL_NAV
     const bool extNavDataIsFresh = (imuSampleTime_ms - extNavMeasTime_ms < 500);
 #endif
+    bool baroDataIsFresh = (imuSampleTime_ms - lastBaroReceived_ms < 500);
     // select height source
     if ((frontend->sources.getPosZSource() == AP_NavEKF_Source::SourceZ::RANGEFINDER) && _rng && rangeFinderDataIsFresh) {
         // user has specified the range finder as a primary height source
@@ -1089,7 +1095,7 @@ void NavEKF3_core::selectHeightForFusion()
     fallback_to_baro |= lostExtNavHgt;
 #endif
     // Use baro if we need to fall back to it or if we are using a pressure reference for sea level
-    if (fallback_to_baro || usingQNH) {
+    if (fallback_to_baro || (usingQNH && baroDataIsFresh)) {
         activeHgtSource = AP_NavEKF_Source::SourceZ::BARO;
     }
 
@@ -1161,7 +1167,7 @@ void NavEKF3_core::selectHeightForFusion()
         }
     } else if (baroDataToFuse && (activeHgtSource == AP_NavEKF_Source::SourceZ::BARO)) {
         // using Baro data
-        hgtMea = baroDataDelayed.hgt - baroHgtOffset;
+        hgtMea = baroDataDelayed.hgt;// - baroHgtOffset;
         // enable fusion
         fuseHgtData = true;
         // set the observation noise

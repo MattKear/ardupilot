@@ -1637,6 +1637,8 @@ void NavEKF2::writeExtNavVelData(const Vector3f &vel, float err, uint32_t timeSt
 void NavEKF2::setUsingQnhFlag(bool use_qnh) const
 {
     if (core) {
-        return core[primary].setUsingQnhFlag(use_qnh);
+        for (uint8_t i=0; i<num_cores; i++) {
+            core[i].setUsingQnhFlag(use_qnh);
+        }
     }
 }

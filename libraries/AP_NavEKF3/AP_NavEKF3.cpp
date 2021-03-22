@@ -2036,6 +2036,8 @@ bool NavEKF3::yawAlignmentComplete(void) const
 void NavEKF3::setUsingQnhFlag(bool use_qnh) const
 {
     if (core) {
-        return core[primary].setUsingQnhFlag(use_qnh);
+        for (uint8_t i=0; i<num_cores; i++) {
+            core[i].setUsingQnhFlag(use_qnh);
+        }
     }
 }

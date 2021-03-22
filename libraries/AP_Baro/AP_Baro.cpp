@@ -957,7 +957,7 @@ void AP_Baro::set_pressure_correction(uint8_t instance, float p_correction)
 float AP_Baro::get_qnh_alt_offset(void) const {
 
     // Return early if set to non-active
-    if (_qnh_ref.get() < 1) {
+    if (_qnh_ref.get() < 1  || _remove_qnh_offset) {
         AP::ahrs().set_using_qnh_flag(false);
         return 0.0f;
     }
@@ -978,6 +978,15 @@ float AP_Baro::get_qnh_alt_offset(void) const {
     // Home altitude which is set by GPS and home is where the ground pressure is set for the baro.
     // Return delta in meters.  Home is in cm.  get_alt_difference is in m
     return AP::ahrs().get_home().alt*0.01f - get_altitude_difference(_qnh_ref.get()*100.0f, get_ground_pressure());
+}
+
+void AP_Baro::remove_qnh_offset(bool flag)
+{
+    // if (flag) {
+    //     gcs().send_text(MAV_SEVERITY_INFO, "qnh force removed");
+    // }
+
+    _remove_qnh_offset = flag;
 }
 
 #if HAL_MSP_BARO_ENABLED
