@@ -957,7 +957,7 @@ void AP_Baro::set_pressure_correction(uint8_t instance, float p_correction)
 float AP_Baro::get_qnh_alt_offset(void) const {
 
     // Return early if set to non-active
-    if (_qnh_ref.get() < 1  || _remove_qnh_offset) {
+    if (_qnh_ref.get() < 1 || _remove_qnh_offset) {
         AP::ahrs().set_using_qnh_flag(false);
         return 0.0f;
     }
