@@ -526,6 +526,7 @@ void Plane::update_alt()
                                 control_mode == &mode_qland || 
                                 landing.is_on_approach() || 
                                 landing.is_flaring() ||
+                                mission.get_in_landing_sequence_flag() ||
                                 quadplane.in_vtol_land_sequence());
 }
 

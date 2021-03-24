@@ -180,8 +180,6 @@ void NavEKF3_core::ResetPositionNE(float posN, float posE)
 //    lastPosResetD_ms is updated with the time of the reset
 void NavEKF3_core::ResetPositionD(float posD)
 {
-    gcs().send_text(MAV_SEVERITY_INFO, "Reset Pos D");
-    
     // Store the position before the reset so that we can record the reset delta
     const float posDOrig = stateStruct.position.z;
 

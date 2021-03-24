@@ -850,6 +850,8 @@ void AP_Baro::update(void)
         }
     }
 
+    update_qnh_alt_offset();
+
     for (uint8_t i=0; i<_num_sensors; i++) {
         if (sensors[i].healthy) {
             // update altitude calculation
@@ -954,12 +956,13 @@ void AP_Baro::set_pressure_correction(uint8_t instance, float p_correction)
 }
 
 // get baro drift amount
-float AP_Baro::get_qnh_alt_offset(void) const {
+void AP_Baro::update_qnh_alt_offset(void) {
 
     // Return early if set to non-active
     if (_qnh_ref.get() < 1 || _remove_qnh_offset) {
         AP::ahrs().set_using_qnh_flag(false);
-        return 0.0f;
+        _qnh_alt_offset = 0.0f;
+        return;
     }
 
     float min_dist_home = MAX(_qfe_rad.get(),100.0f);
@@ -967,7 +970,8 @@ float AP_Baro::get_qnh_alt_offset(void) const {
     if (!AP::ahrs().get_relative_position_NE_home(home_dist) || (home_dist.length() < min_dist_home)) {
         // Either we do not have a good position estimate or we should be using qfe
         AP::ahrs().set_using_qnh_flag(false);
-        return 0.0f;
+        _qnh_alt_offset = 0.0f;
+        return;
     }
 
     // Ensure alt source is set to barometer if we are going to fly relative to a pressure reference.
@@ -977,7 +981,7 @@ float AP_Baro::get_qnh_alt_offset(void) const {
     // we think sea level is based on our ground pressure and the provided sea level pressure (QNH).
     // Home altitude which is set by GPS and home is where the ground pressure is set for the baro.
     // Return delta in meters.  Home is in cm.  get_alt_difference is in m
-    return AP::ahrs().get_home().alt*0.01f - get_altitude_difference(_qnh_ref.get()*100.0f, get_ground_pressure());
+    _qnh_alt_offset =  AP::ahrs().get_home().alt*0.01f - get_altitude_difference(_qnh_ref.get()*100.0f, get_ground_pressure());
 }
 
 void AP_Baro::remove_qnh_offset(bool flag)

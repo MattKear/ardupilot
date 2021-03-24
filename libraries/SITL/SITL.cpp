@@ -479,6 +479,8 @@ void SITL::Log_Write_SIMSTATE()
         q4      : state.quaternion.q4,
     };
     AP::logger().WriteBlock(&pkt, sizeof(pkt));
+
+    gcs().send_named_float("ALT", (float)state.altitude);
 }
 
 /*
