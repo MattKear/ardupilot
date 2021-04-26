@@ -294,6 +294,9 @@ public:
     virtual void get_osd_roll_pitch_rad(float &roll, float &pitch) const;
 #endif
 
+    // get standby status
+    virtual bool get_standby() const { return false; }
+
 protected:
 
     virtual void init_ardupilot() = 0;
