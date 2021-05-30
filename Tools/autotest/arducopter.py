@@ -3245,6 +3245,24 @@ class AutoTestCopter(AutoTest):
         self.disarm_vehicle(force=True)
         self.reboot_sitl()
 
+        # Test trigger from 3-position switch on RC transmitter
+        # Chute should not if in report only mode
+        self.progress("Test report only option")
+        self.set_parameter("CHUTE_OPTIONS", 8)
+        self.takeoff(20)
+        self.set_rc(9, 2000)
+        tstart = self.get_sim_time()
+        while self.get_sim_time_cached() < tstart + 5:
+            m = self.mav.recv_match(type='STATUSTEXT', blocking=True, timeout=1)
+            if m is None:
+                continue
+            if "BANG" in m.text:
+                self.set_rc(9, 1000)
+                self.reboot_sitl()
+                raise NotAchievedException("Parachute deployed when in notify only mode")
+        self.set_rc(9, 1000)
+        self.set_parameter("CHUTE_OPTIONS", 0)
+
         self.progress("Test mavlink triggering")
         self.takeoff(20)
         self.run_cmd(mavutil.mavlink.MAV_CMD_DO_PARACHUTE,
