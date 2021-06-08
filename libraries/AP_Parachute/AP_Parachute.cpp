@@ -214,13 +214,14 @@ void AP_Parachute::update()
         send_msg();
     }
 
-    // exit immediately if not enabled or parachute not to be released
-    if (_enabled <= 0 || _cancel_timeout_ms == 0) {
+    // exit immediately if not enabled 
+    if (_enabled <= 0) {
         return;
     }
 
-    // wait for a possible cancel
-    if (now < _cancel_timeout_ms) {
+    // parachute not to be released or waiting for a possible cancel
+    if ( (_cancel_timeout_ms == 0) || (now < _cancel_timeout_ms)) {
+        release_off();
         return;
     }
 
@@ -233,13 +234,13 @@ void AP_Parachute::update()
         // just send text and write to log, do not actually do anything
         // usefull for testing thresholds are not exceeded in normal flight
         _cancel_timeout_ms = 0;
+        release_off();
         return;
     }
 
     // set release time to current system time
     if (_release_time == 0) {
         _release_time = now;
-        _release_setup = false;
     }
 
     _release_initiated = true;
@@ -254,7 +255,7 @@ void AP_Parachute::update()
     bool hold_forever = (_options.get() & uint32_t(OPTIONS::HOLD_OPEN)) != 0;
 
     // check if we should release parachute
-    if ((_release_time != 0) && !_release_in_progress) {
+    if (!_release_setup || !_release_in_progress) {
         if (!_release_setup) {
             if ((_options.get() & uint32_t(OPTIONS::DONT_DEPLOY_LANDING_GEAR)) == 0) {
                 // deploy landing gear
@@ -278,22 +279,29 @@ void AP_Parachute::update()
                 _relay.on(_release_type);
             }
             _release_in_progress = true;
-            _released = true;
         }
-    } else if ((_release_time == 0) ||
-               (!hold_forever && time_diff >= delay_ms + AP_PARACHUTE_RELEASE_DURATION_MS)) {
-        if (_release_type == AP_PARACHUTE_TRIGGER_TYPE_SERVO) {
-            // move servo back to off position
-            SRV_Channels::set_output_pwm(SRV_Channel::k_parachute_release, _servo_off_pwm);
-        } else if (_release_type <= AP_PARACHUTE_TRIGGER_TYPE_RELAY_3) {
-            // set relay back to zero volts
-            _relay.off(_release_type);
-        }
+    } else if (!hold_forever && time_diff >= delay_ms + AP_PARACHUTE_RELEASE_DURATION_MS) {
+        release_off();
+
         // reset released flag and release_time
         _release_in_progress = false;
+        _release_setup = false;
         _release_time = 0;
+        _cancel_timeout_ms = 0;
+
         // update AP_Notify
         AP_Notify::flags.parachute_release = 0;
+    }
+}
+
+void AP_Parachute::release_off()
+{
+    if (_release_type == AP_PARACHUTE_TRIGGER_TYPE_SERVO) {
+        // move servo back to off position
+        SRV_Channels::set_output_pwm(SRV_Channel::k_parachute_release, _servo_off_pwm);
+    } else if (_release_type <= AP_PARACHUTE_TRIGGER_TYPE_RELAY_3) {
+        // set relay back to zero volts
+        _relay.off(_release_type);
     }
 }
 
