@@ -104,6 +104,9 @@ public:
     // check settings are valid
     bool arming_checks(size_t buflen, char *buffer) const;
     
+    // log tresholds
+    void write_log(uint16_t control_loss_count, float angle_error);
+
     static const struct AP_Param::GroupInfo        var_info[];
 
     // get singleton instance
@@ -166,6 +169,7 @@ private:
     uint32_t    _cancel_timeout_ms;
     uint32_t    _last_msg_send_ms;
     uint32_t    _abs_sink_time_ms;       // system time that the vehicle exceeded critical sink rate
+    uint32_t    _last_log_ms;
 
 };
 
