@@ -20,7 +20,8 @@ struct PACKED log_Control_Tuning {
     float    terr_alt;
     int16_t  target_climb_rate;
     int16_t  climb_rate;
-};
+    uint8_t  standby;
+}
 
 // Write a control tuning packet
 void Copter::Log_Write_Control_Tuning()
@@ -59,9 +60,9 @@ void Copter::Log_Write_Control_Tuning()
         rangefinder_alt     : surface_tracking.get_dist_for_logging(),
         terr_alt            : terr_alt,
         target_climb_rate   : target_climb_rate_cms,
-        climb_rate          : int16_t(inertial_nav.get_velocity_z_up_cms()) // float -> int16_t
+        climb_rate          : int16_t(inertial_nav.get_velocity_z_up_cms()), // float -> int16_t
+        standby             : standby_active
     };
-    logger.WriteBlock(&pkt, sizeof(pkt));
 }
 
 // Write an attitude packet
@@ -442,6 +443,7 @@ const struct LogStructure Copter::log_structure[] = {
 // @Field: TAlt: terrain altitude
 // @Field: DCRt: desired climb rate
 // @Field: CRt: climb rate
+// @Field: S: standby status
 
 // @LoggerMessage: D16
 // @Description: Generic 16-bit-signed-integer storage
@@ -474,7 +476,7 @@ const struct LogStructure Copter::log_structure[] = {
 // @Field: Value: Value
 
     { LOG_CONTROL_TUNING_MSG, sizeof(log_Control_Tuning),
-      "CTUN", "Qffffffefffhh", "TimeUS,ThI,ABst,ThO,ThH,DAlt,Alt,BAlt,DSAlt,SAlt,TAlt,DCRt,CRt", "s----mmmmmmnn", "F----00B000BB" , true },
+      "CTUN", "Qffffffefffhhb", "TimeUS,ThI,ABst,ThO,ThH,DAlt,Alt,BAlt,DSAlt,SAlt,TAlt,DCRt,CRt,S", "s----mmmmmmnn-", "F----00B000BB-", true },
     { LOG_DATA_INT16_MSG, sizeof(log_Data_Int16t),         
       "D16",   "QBh",         "TimeUS,Id,Value", "s--", "F--" },
     { LOG_DATA_UINT16_MSG, sizeof(log_Data_UInt16t),         
