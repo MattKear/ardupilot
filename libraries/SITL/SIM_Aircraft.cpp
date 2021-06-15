@@ -898,6 +898,11 @@ void Aircraft::update_external_payload(const struct sitl_input &input)
     if (ie24) {
         ie24->update(input);
     }
+
+    // update IntelligentEnergy 2.4kW generator
+    if (ie650_800) {
+        ie650_800->update(input);
+    }
 }
 
 void Aircraft::add_shove_forces(Vector3f &rot_accel, Vector3f &body_accel)

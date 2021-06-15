@@ -21,6 +21,7 @@
 #include "SIM_EFI_MegaSquirt.h"
 #include "SIM_RichenPower.h"
 #include "SIM_IntelligentEnergy24.h"
+#include "SIM_IntelligentEnergy650_800.h"
 #include "SIM_Ship.h"
 #include <AP_RangeFinder/AP_RangeFinder.h>
 
@@ -416,6 +417,7 @@ public:
     SIM_Precland precland_sim;
     RichenPower richenpower_sim;
     IntelligentEnergy24 ie24_sim;
+    IntelligentEnergy650_800 ie650_800_sim;
 
     // ESC telemetry
     AP_Int8 esc_telem;

@@ -226,7 +226,7 @@ const AP_Param::GroupInfo SITL::var_info3[] = {
     AP_SUBGROUPINFO(baro[1], "BAR2_", 35, SITL, SITL::BaroParm),
     AP_SUBGROUPINFO(baro[2], "BAR3_", 36, SITL, SITL::BaroParm),
 
-    // user settable parameters for the 1st barometer
+        // user settable parameters for the 1st barometer
     // @Param: BARO_RND
     // @DisplayName: Baro Noise
     // @Description: Amount of (evenly-distributed) noise injected into the 1st baro
@@ -264,6 +264,9 @@ const AP_Param::GroupInfo SITL::var_info3[] = {
     // @Description: Glitch for 2nd baro
     // @Units: m
     // @User: Advanced
+
+    // @Path: ./SIM_IntelligentEnergy650_800.cpp
+    AP_SUBGROUPINFO(ie650_800_sim, "IE65_", 37, SITL, IntelligentEnergy650_800),
 
     AP_GROUPINFO("ESC_TELEM", 40, SITL, esc_telem, 1),
 

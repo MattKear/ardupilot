@@ -29,6 +29,8 @@
 #include "SIM_Parachute.h"
 #include "SIM_Precland.h"
 #include "SIM_RichenPower.h"
+#include "SIM_IntelligentEnergy24.h"
+#include "SIM_IntelligentEnergy650_800.h"
 #include "SIM_I2C.h"
 #include "SIM_Buzzer.h"
 #include "SIM_Battery.h"
@@ -144,6 +146,7 @@ public:
     void set_parachute(Parachute *_parachute) { parachute = _parachute; }
     void set_richenpower(RichenPower *_richenpower) { richenpower = _richenpower; }
     void set_ie24(IntelligentEnergy24 *_ie24) { ie24 = _ie24; }
+    void set_ie650_800(IntelligentEnergy650_800 *_ie650_800) { ie650_800 = _ie650_800; }
     void set_gripper_servo(Gripper_Servo *_gripper) { gripper = _gripper; }
     void set_gripper_epm(Gripper_EPM *_gripper_epm) { gripper_epm = _gripper_epm; }
     void set_precland(SIM_Precland *_precland);
@@ -326,6 +329,7 @@ private:
     Parachute *parachute;
     RichenPower *richenpower;
     IntelligentEnergy24 *ie24;
+    IntelligentEnergy650_800 *ie650_800;
     SIM_Precland *precland;
     class I2C *i2c;
 };
