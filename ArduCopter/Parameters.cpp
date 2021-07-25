@@ -1099,6 +1099,15 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("SURFTRAK_MODE", 51, ParametersG2, surftrak_mode, (uint8_t)Copter::SurfaceTracking::Surface::GROUND),
 
+#if MODE_AUTO_ENABLED == ENABLED
+    // @Param: AUTO_RTL_TYPE
+    // @DisplayName: Auto RTL Behavour
+    // @Description: Auto RTL mode Automatically begin landing sequenc. This requires the addition of DO_LAND_START mission item or DO_LAND_REJOIN items, which acts as a marker for the start of a landing sequence.
+    // @Values: 2:Enabled - go directly to closest landing sequence start, 3:Enabled - go directly to shortest landing sequence if no landing is found defualt to closest landing start, 4:Enabled - jump to closest mission leg after a DO_LAND_REJOIN waypoint, 5:Enabled - jump to mission after a DO_LAND_REJOIN resulting in the shortest distance to landing
+    // @User: Advanced
+    AP_GROUPINFO("AUTO_RTL_TYPE", 52, ParametersG2, auto_rtl_type, 2),
+#endif
+
 #if WEATHERVANE_ENABLED == ENABLED
     // @Group: WVANE_
     // @Path: ../libraries/AC_AttitudeControl/AC_WeatherVane.cpp
