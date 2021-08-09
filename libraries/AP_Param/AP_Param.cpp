@@ -1830,6 +1830,7 @@ void AP_Param::convert_old_parameter(const struct ConversionInfo *info, float sc
     AP_Param *ap = (AP_Param *)&old_value[0];
 
     if (!find_old_parameter(info, ap)) {
+        gcs().send_text(MAV_SEVERITY_NOTICE, "DB4: Didnt find param");
         // the old parameter isn't saved in the EEPROM. It was
         // probably still set to the default value, which isn't stored
         // no need to convert
