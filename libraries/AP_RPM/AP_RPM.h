@@ -92,6 +92,8 @@ public:
     static AP_RPM *get_singleton() { return _singleton; }
 
 private:
+    void convert_params(void)
+
     static AP_RPM *_singleton;
 
     RPM_State state[RPM_MAX_INSTANCES];

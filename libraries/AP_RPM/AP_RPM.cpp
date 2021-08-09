@@ -59,6 +59,10 @@ void AP_RPM::init(void)
         // init called a 2nd time?
         return;
     }
+
+    // param conversion
+    convert_params();
+
     for (uint8_t i=0; i<RPM_MAX_INSTANCES; i++) {
         switch (_params[i]._type) {
 #if CONFIG_HAL_BOARD != HAL_BOARD_SITL
@@ -93,6 +97,72 @@ void AP_RPM::init(void)
             num_instances = i+1; // num_instances is a high-water-mark
         }
     }
+}
+
+
+void AP_RPM::convert_params(void) {
+
+    if (_params[0]._type.configured_in_storage()) {
+        // _params[0]._type will always be configured in storage after conversion is done the first time
+        return;
+    }
+
+    struct ConversionTable {
+        uint8_t old_element;
+        uint8_t new_index;
+        uint8_t instance;
+    };
+
+    const struct ConversionTable conversionTable[] = {
+            // RPM 1
+            {0, 1, 0}, // TYPE
+            {1, 2, 0}, // SCALING
+            {2, 3, 0}, // MAX
+            {3, 4, 0}, // MIN
+            {4, 5, 0}, // MIN_QUAL
+            {5, 6, 0}, // PIN
+            {6, 7, 0}, // ESC_MASK
+
+            // RPM 2
+            {10, 1, 1}, // TYPE
+            {11, 2, 1}, // SCALING
+            // MAX (Previous bug meant RPM2_MAX param was never accesible to users. No conversion required.)
+            // MIN (Previous bug meant RPM2_MIN param was never accesible to users. No conversion required.)
+            {4, 5, 1}, // MIN_QUAL (Previously the min quality of the 1st RPM instance was used for all RPM instances.)
+            {12, 6, 1}, // PIN
+            {13, 7, 1}, // ESC_MASK
+    };
+
+    char param_name[17] = {0};
+    AP_Param::ConversionInfo info;
+    info.new_name = param_name;
+
+#if APM_BUILD_TYPE(APM_BUILD_ArduPlane)
+    info.old_key = 140;
+#elif APM_BUILD_TYPE(APM_BUILD_ArduCopter)
+    info.old_key = 100;
+#elif APM_BUILD_TYPE(APM_BUILD_Rover)
+    info.old_key = 57;
+#else
+    _params[0]._type.save(true);
+    return; // no conversion is supported on this platform
+#endif
+
+    for (uint8_t i = 0; i < ARRAY_SIZE(conversionTable); i++) {
+        uint8_t param_instance = conversionTable[i].instance + 1;
+        uint8_t destination_index = conversionTable[i].new_index;
+
+        info.old_group_element = conversionTable[i].old_element;
+        info.type = (ap_var_type)AP_RPM_Params::var_info[destination_index].type;
+
+        hal.util->snprintf(param_name, sizeof(param_name), "RPM%X_%s", param_instance, AP_RPM_Params::var_info[destination_index].name);
+        param_name[sizeof(param_name)-1] = '\0';
+
+        AP_Param::convert_old_parameter(&info, 1.0f, 0);
+    }
+
+    // force _params[0]._type into storage to flag that conversion has been done
+    _params[0]._type.save(true);
 }
 
 /*
