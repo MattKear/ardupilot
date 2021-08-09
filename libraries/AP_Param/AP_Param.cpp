@@ -718,12 +718,24 @@ bool AP_Param::is_sentinal(const Param_header &phdr)
 // the variable is stored
 // if not found return the offset of the sentinal
 // if the sentinal isn't found either, the offset is set to 0xFFFF
-bool AP_Param::scan(const AP_Param::Param_header *target, uint16_t *pofs)
+bool AP_Param::scan(const AP_Param::Param_header *target, uint16_t *pofs, bool quiet)
 {
     struct Param_header phdr;
     uint16_t ofs = sizeof(AP_Param::EEPROM_header);
+
     while (ofs < _storage.size()) {
         _storage.read_block(&phdr, ofs, sizeof(phdr));
+
+        if (!quiet){
+            gcs().send_text(MAV_SEVERITY_NOTICE, "DB21: key want %u got %u", (uint32_t)get_key(*target), (uint32_t)get_key(phdr));
+        }
+
+        if (!quiet && get_key(phdr) == get_key(*target)) {
+            gcs().send_text(MAV_SEVERITY_NOTICE, "DB20: type want: %u got: %u", (uint8_t)target->type, (uint8_t)phdr.type);
+            gcs().send_text(MAV_SEVERITY_NOTICE, "DB21: key want %u got %u", (uint32_t)get_key(*target), (uint32_t)get_key(phdr));
+            gcs().send_text(MAV_SEVERITY_NOTICE, "DB22: grp elem want %u got %u", (uint32_t)target->group_element, (uint32_t)phdr.group_element);
+        }
+
         if (phdr.type == target->type &&
             get_key(phdr) == get_key(*target) &&
             phdr.group_element == target->group_element) {
@@ -1802,7 +1814,7 @@ float AP_Param::cast_to_float(enum ap_var_type type) const
 /*
   find an old parameter and return it.
  */
-bool AP_Param::find_old_parameter(const struct ConversionInfo *info, AP_Param *value)
+bool AP_Param::find_old_parameter(const struct ConversionInfo *info, AP_Param *value, bool quiet)
 {
     // find the old value in EEPROM.
     uint16_t pofs;
@@ -1810,7 +1822,7 @@ bool AP_Param::find_old_parameter(const struct ConversionInfo *info, AP_Param *v
     header.type = info->type;
     set_key(header, info->old_key);
     header.group_element = info->old_group_element;
-    if (!scan(&header, &pofs)) {
+    if (!scan(&header, &pofs, quiet)) {
         // the old parameter isn't saved in the EEPROM.
         return false;
     }
@@ -1824,12 +1836,12 @@ bool AP_Param::find_old_parameter(const struct ConversionInfo *info, AP_Param *v
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat"
 // convert one old vehicle parameter to new object parameter
-void AP_Param::convert_old_parameter(const struct ConversionInfo *info, float scaler, uint8_t flags)
+void AP_Param::convert_old_parameter(const struct ConversionInfo *info, float scaler, uint8_t flags, bool quiet)
 {
     uint8_t old_value[type_size(info->type)];
     AP_Param *ap = (AP_Param *)&old_value[0];
 
-    if (!find_old_parameter(info, ap)) {
+    if (!find_old_parameter(info, ap, quiet)) {
         gcs().send_text(MAV_SEVERITY_NOTICE, "DB4: Didnt find param");
         // the old parameter isn't saved in the EEPROM. It was
         // probably still set to the default value, which isn't stored

@@ -418,7 +418,7 @@ public:
     static void         setup_sketch_defaults(void);
 
     // find an old parameter and return it.
-    static bool find_old_parameter(const struct ConversionInfo *info, AP_Param *value);
+    static bool find_old_parameter(const struct ConversionInfo *info, AP_Param *value, bool quiet=true);
 
     // convert old vehicle parameters to new object parameters
     static void         convert_old_parameters(const struct ConversionInfo *conversion_table, uint8_t table_size, uint8_t flags=0);
@@ -435,7 +435,7 @@ public:
         CONVERT_FLAG_REVERSE=1, // handle _REV -> _REVERSED conversion
         CONVERT_FLAG_FORCE=2    // store new value even if configured in eeprom already
     };
-    static void         convert_old_parameter(const struct ConversionInfo *info, float scaler, uint8_t flags=0);
+    static void         convert_old_parameter(const struct ConversionInfo *info, float scaler, uint8_t flags=0, bool quiet=true);
 
     // move old class variables for a class that was sub-classed to one that isn't
     static void         convert_parent_class(uint8_t param_key, void *object_pointer,
@@ -649,7 +649,8 @@ private:
     static bool                 is_sentinal(const Param_header &phrd);
     static bool                 scan(
                                     const struct Param_header *phdr,
-                                    uint16_t *pofs);
+                                    uint16_t *pofs,
+                                    bool quiet=true);
     static void                 eeprom_write_check(
                                     const void *ptr,
                                     uint16_t ofs,

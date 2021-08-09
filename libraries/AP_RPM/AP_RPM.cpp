@@ -159,6 +159,8 @@ void AP_RPM::convert_params(void) {
         // uint8_t old_index = conversionTable[i].old_element;
 
         info.old_group_element = conversionTable[i].old_element;
+
+        // The var type of the params has not changed in the conversion so this is ok:
         info.type = (ap_var_type)AP_RPM_Params::var_info[destination_index].type;
 
         gcs().send_text(MAV_SEVERITY_NOTICE, "DB5 new: %u",(uint32_t)info.type);
@@ -169,7 +171,7 @@ void AP_RPM::convert_params(void) {
 
         gcs().send_text(MAV_SEVERITY_NOTICE, "DB3: %s",param_name);
 
-        AP_Param::convert_old_parameter(&info, 1.0f, 0);
+        AP_Param::convert_old_parameter(&info, 1.0f, 0, false);
     }
 
     // force _params[0]._type into storage to flag that conversion has been done
