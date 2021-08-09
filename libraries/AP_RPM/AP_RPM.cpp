@@ -142,12 +142,12 @@ void AP_RPM::convert_params(void) {
     info.new_name = param_name;
 
 #if APM_BUILD_TYPE(APM_BUILD_ArduPlane)
-    info.old_key = 140;
+    info.old_key = 98;
 #elif APM_BUILD_TYPE(APM_BUILD_ArduCopter)
     gcs().send_text(MAV_SEVERITY_NOTICE, "DB7 we think we are a copter");
-    info.old_key = 100;
+    info.old_key = 250;
 #elif APM_BUILD_TYPE(APM_BUILD_Rover)
-    info.old_key = 57;
+    info.old_key = 98;
 #else
     _params[0]._type.save(true);
     return; // no conversion is supported on this platform
