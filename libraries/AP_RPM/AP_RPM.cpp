@@ -24,83 +24,17 @@ extern const AP_HAL::HAL& hal;
 
 // table of user settable parameters
 const AP_Param::GroupInfo AP_RPM::var_info[] = {
-    // @Param: _TYPE
-    // @DisplayName: RPM type
-    // @Description: What type of RPM sensor is connected
-    // @Values: 0:None,1:PWM,2:AUXPIN,3:EFI,4:Harmonic Notch,5:ESC Telemetry Motors Bitmask
-    // @User: Standard
-    AP_GROUPINFO("_TYPE",    0, AP_RPM, _type[0], 0),
 
-    // @Param: _SCALING
-    // @DisplayName: RPM scaling
-    // @Description: Scaling factor between sensor reading and RPM.
-    // @Increment: 0.001
-    // @User: Standard
-    AP_GROUPINFO("_SCALING", 1, AP_RPM, _scaling[0], 1.0f),
+    // 0-13 used by old param indexes before being moved to AP_RPM_Params
 
-    // @Param: _MAX
-    // @DisplayName: Maximum RPM
-    // @Description: Maximum RPM to report
-    // @Increment: 1
-    // @User: Standard
-    AP_GROUPINFO("_MAX", 2, AP_RPM, _maximum[0], 100000),
-
-    // @Param: _MIN
-    // @DisplayName: Minimum RPM
-    // @Description: Minimum RPM to report
-    // @Increment: 1
-    // @User: Standard
-    AP_GROUPINFO("_MIN", 3, AP_RPM, _minimum[0], 10),
-
-    // @Param: _MIN_QUAL
-    // @DisplayName: Minimum Quality
-    // @Description: Minimum data quality to be used
-    // @Increment: 0.1
-    // @User: Advanced
-    AP_GROUPINFO("_MIN_QUAL", 4, AP_RPM, _quality_min[0], 0.5),
-
-    // @Param: _PIN
-    // @DisplayName: Input pin number
-    // @Description: Which pin to use
-    // @Values: -1:Disabled,50:PixhawkAUX1,51:PixhawkAUX2,52:PixhawkAUX3,53:PixhawkAUX4,54:PixhawkAUX5,55:PixhawkAUX6
-    // @User: Standard
-    AP_GROUPINFO("_PIN",    5, AP_RPM, _pin[0], 54),
-
-    // @Param: _ESC_MASK
-    // @DisplayName: Bitmask of ESC telemetry channels to average
-    // @Description: Mask of channels which support ESC rpm telemetry. RPM telemetry of the selected channels will be averaged
-    // @Bitmask: 0:Channel1,1:Channel2,2:Channel3,3:Channel4,4:Channel5,5:Channel6,6:Channel7,7:Channel8,8:Channel9,9:Channel10,10:Channel11,11:Channel12,12:Channel13,13:Channel14,14:Channel15,15:Channel16
-    // @User: Advanced
-    AP_GROUPINFO("_ESC_MASK",  6, AP_RPM, _esc_mask[0], 0),
+    // @Group: 1_
+    // @Path: AP_RPM_Params.cpp
+    AP_SUBGROUPINFO(_params[0], "1_", 14, AP_RPM, AP_RPM_Params),
 
 #if RPM_MAX_INSTANCES > 1
-    // @Param: 2_TYPE
-    // @DisplayName: Second RPM type
-    // @Description: What type of RPM sensor is connected
-    // @Values: 0:None,1:PWM,2:AUXPIN,3:EFI,4:Harmonic Notch,5:ESC Telemetry Motors Bitmask
-    // @User: Advanced
-    AP_GROUPINFO("2_TYPE",    10, AP_RPM, _type[1], 0),
-
-    // @Param: 2_SCALING
-    // @DisplayName: RPM scaling
-    // @Description: Scaling factor between sensor reading and RPM.
-    // @Increment: 0.001
-    // @User: Advanced
-    AP_GROUPINFO("2_SCALING", 11, AP_RPM, _scaling[1], 1.0f),
-
-    // @Param: 2_PIN
-    // @DisplayName: RPM2 input pin number
-    // @Description: Which pin to use
-    // @Values: -1:Disabled,50:PixhawkAUX1,51:PixhawkAUX2,52:PixhawkAUX3,53:PixhawkAUX4,54:PixhawkAUX5,55:PixhawkAUX6
-    // @User: Standard
-    AP_GROUPINFO("2_PIN",    12, AP_RPM, _pin[1], -1),
-
-    // @Param: 2_ESC_MASK
-    // @DisplayName: Bitmask of ESC telemetry channels to average
-    // @Description: Mask of channels which support ESC rpm telemetry. RPM telemetry of the selected channels will be averaged
-    // @Bitmask: 0:Channel1,1:Channel2,2:Channel3,3:Channel4,4:Channel5,5:Channel6,6:Channel7,7:Channel8,8:Channel9,9:Channel10,10:Channel11,11:Channel12,12:Channel13,13:Channel14,14:Channel15,15:Channel16
-    // @User: Advanced
-    AP_GROUPINFO("2_ESC_MASK",  13, AP_RPM, _esc_mask[1], 0),
+    // @Group: 2_
+    // @Path: AP_RPM_Params.cpp
+    AP_SUBGROUPINFO(_params[1], "2_", 15, AP_RPM, AP_RPM_Params),
 #endif
 
     AP_GROUPEND
@@ -126,7 +60,7 @@ void AP_RPM::init(void)
         return;
     }
     for (uint8_t i=0; i<RPM_MAX_INSTANCES; i++) {
-        switch (_type[i]) {
+        switch (_params[i]._type) {
 #if CONFIG_HAL_BOARD != HAL_BOARD_SITL
         case RPM_TYPE_PWM:
         case RPM_TYPE_PIN:
@@ -168,7 +102,7 @@ void AP_RPM::update(void)
 {
     for (uint8_t i=0; i<num_instances; i++) {
         if (drivers[i] != nullptr) {
-            if (_type[i] == RPM_TYPE_NONE) {
+            if (_params[i]._type == RPM_TYPE_NONE) {
                 // allow user to disable an RPM sensor at runtime and force it to re-learn the quality if re-enabled.
                 state[i].signal_quality = 0;
                 continue;
@@ -184,12 +118,12 @@ void AP_RPM::update(void)
  */
 bool AP_RPM::healthy(uint8_t instance) const
 {
-    if (instance >= num_instances || _type[instance] == RPM_TYPE_NONE) {
+    if (instance >= num_instances || _params[instance]._type == RPM_TYPE_NONE) {
         return false;
     }
 
     // check that data quality is above minimum required
-    if (state[instance].signal_quality < _quality_min[0]) {
+    if (state[instance].signal_quality < _params[instance]._quality_min) {
         return false;
     }
 
@@ -205,7 +139,7 @@ bool AP_RPM::enabled(uint8_t instance) const
         return false;
     }
     // if no sensor type is selected, the sensor is not activated.
-    if (_type[instance] == RPM_TYPE_NONE) {
+    if (_params[instance]._type == RPM_TYPE_NONE) {
         return false;
     }
     return true;

@@ -12,33 +12,24 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#pragma once
+#include <AP_Param/AP_Param.h>
 
-#include <AP_HAL/AP_HAL.h>
+class AP_RPM_Params {
 
-#include "RPM_EFI.h"
+public:
+    // Constructor
+    AP_RPM_Params(void);
 
-#if HAL_EFI_ENABLED
-extern const AP_HAL::HAL& hal;
+    // parameters for each instance
+    AP_Int8  _type;
+    AP_Int8  _pin;
+    AP_Float _scaling;
+    AP_Float _maximum;
+    AP_Float _minimum;
+    AP_Float _quality_min;
+    AP_Int32 _esc_mask;
 
-/* 
-   open the sensor in constructor
-*/
-AP_RPM_EFI::AP_RPM_EFI(AP_RPM &_ap_rpm, uint8_t _instance, AP_RPM::RPM_State &_state) :
-    AP_RPM_Backend(_ap_rpm, _instance, _state)
-{
-    instance = _instance;
-}
+    static const struct AP_Param::GroupInfo var_info[];
 
-void AP_RPM_EFI::update(void)
-{
-    AP_EFI *efi = AP::EFI();
-    if (efi == nullptr) {
-        return;
-    }
-    state.rate_rpm = efi->get_rpm();
-    state.rate_rpm *= ap_rpm._params[state.instance]._scaling;
-    state.signal_quality = 0.5f;
-    state.last_reading_ms = AP_HAL::millis();
-}
-
-#endif // HAL_EFI_ENABLED
+};
