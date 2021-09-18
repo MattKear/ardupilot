@@ -293,6 +293,19 @@ Vector2F Location::get_distance_NE_ftype(const Location &loc2) const
                     diff_longitude(loc2.lng,lng) * ftype(LOCATION_SCALING_FACTOR) * longitude_scale((lat+loc2.lat)/2));
 }
 
+// return the distance in meters in North/East/Down plane as a N/E/D vector to loc2, taking into account alt frame correctly
+Vector3f Location::get_distance_NED_alt_frame(const Location &loc2) const
+{
+    int32_t alt1, alt2 = 0;
+    if (!get_alt_cm(AltFrame::ABSOLUTE, alt1) || !loc2.get_alt_cm(AltFrame::ABSOLUTE, alt2)) {
+        // one or both of the altitudes are invalid, don't do alt distance calc
+        alt1 = 0, alt2 = 0;
+    }
+    return Vector3f((loc2.lat - lat) * LOCATION_SCALING_FACTOR,
+                    diff_longitude(loc2.lng,lng) * LOCATION_SCALING_FACTOR * longitude_scale(loc2.lat+lat)/2),
+                    (alt1 - alt2) * 0.01f);
+}
+
 // extrapolate latitude/longitude given distances (in meters) north and east
 void Location::offset_latlng(int32_t &lat, int32_t &lng, ftype ofs_north, ftype ofs_east)
 {

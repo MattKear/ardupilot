@@ -66,6 +66,7 @@ public:
     // NOT CONSIDERING ALT FRAME!
     Vector3f get_distance_NED(const Location &loc2) const;
     Vector3d get_distance_NED_double(const Location &loc2) const;
+    Vector3f get_distance_NED_alt_frame(const Location &loc2) const;
 
     // return the distance in meters in North/East plane as a N/E vector to loc2
     Vector2f get_distance_NE(const Location &loc2) const;
