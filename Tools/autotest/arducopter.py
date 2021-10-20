@@ -3492,6 +3492,8 @@ class AutoTestCopter(AutoTest):
         self.set_rc(9, 1000)
         self.disarm_vehicle(force=True)
         self.reboot_sitl()
+        self.set_rc(1, 1500)
+        self.set_rc(2, 1500)
 
         # Test that we cannot deploy the sink rate with throttle threshold when in standby
         self.progress("Test should not trip sink rate with throttle check in SB")
