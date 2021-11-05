@@ -253,6 +253,33 @@ void Vector3<T>::rotate(enum Rotation rotation)
         z = -sin_pitch * tmpx + cos_pitch * tmpz;
         return;
     }
+    case ROTATION_ROLL_90_PITCH_339_YAW_270: {
+        float tmpx = x;
+        float tmpy = y;
+        float tmpz = z;
+        x =                0.0 * tmpx +                0.0 * tmpy + -1.0 * tmpz;
+        y = -0.932953534825489 * tmpx +  0.359996808120051 * tmpy +  0.0 * tmpz;
+        z =  0.359996808120051 * tmpx +  0.932953534825489 * tmpy +  0.0 * tmpz;
+        return;
+    }
+    case ROTATION_ROLL_111_PITCH_0_YAW_180: {
+        float tmpx = x;
+        float tmpy = y;
+        float tmpz = z;
+        x = -1.0 * tmpx +                0.0 * tmpy +                0.0 * tmpz;
+        y =  0.0 * tmpx +  0.359996808120051 * tmpy +  0.932953534825489 * tmpz;
+        z =  0.0 * tmpx +  0.932953534825489 * tmpy +  -0.359996808120051 * tmpz;
+        return;
+    }
+    case ROTATION_ROLL_90_PITCH_21_YAW_90: {
+        float tmpx = x;
+        float tmpy = y;
+        float tmpz = z;
+        x =                0.0 * tmpx +                0.0 * tmpy +  1.0 * tmpz;
+        y =  0.932953534825489 * tmpx +  0.359996808120051 * tmpy +  0.0 * tmpz;
+        z = -0.359996808120051 * tmpx +  0.932953534825489 * tmpy +  0.0 * tmpz;
+        return;
+    }
     case ROTATION_CUSTOM: // no-op; caller should perform custom rotations via matrix multiplication
         return;
     }
