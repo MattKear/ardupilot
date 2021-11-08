@@ -123,6 +123,8 @@ class AutoTestCopter(AutoTest):
 
     def set_standby(self, standby_enable):
         '''set copter standby'''
+        self.context_collect('STATUSTEXT')
+        self.progress("Setting Standby mode")
         self.run_cmd(218,
                      76, # standby
                      2 if standby_enable else 0,  # Set if enable otherwise disable
@@ -132,7 +134,8 @@ class AutoTestCopter(AutoTest):
                      0,
                      0
                      )
-        self.progress("Ran command")
+        self.wait_statustext("Stand By", check_context=True)
+        self.context_stop_collecting('STATUSTEXT')
 
     def user_takeoff(self, alt_min=30, timeout=30, max_err=5):
         '''takeoff using mavlink takeoff command'''
