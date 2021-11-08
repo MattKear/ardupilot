@@ -83,7 +83,7 @@ const AP_Param::GroupInfo SIM::var_info[] = {
     // @Param: ENGINE_FAIL
     // @DisplayName: motor failure bitmask
     // @Description: Bitmask to set which motor to fail 
-    // @Bitmask: 0:Motor 1, 1:Motor 2, 2:Motor 3, 3:Motor 4, 4:Motor 5, 5:Motor 6, 6:Motor 7, 7:Motor 8
+    // @Bitmask: 0:Motor1,1:Motor2,2:Motor3,3:Motor4,4:Motor5,5:Motor6,6:Motor7,7:Motor8
     // @User: Standard
     AP_GROUPINFO("ENGINE_FAIL",   58, SIM,  engine_fail,  0),
 #if AP_SIM_SHIP_ENABLED
