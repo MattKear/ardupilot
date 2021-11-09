@@ -814,6 +814,10 @@ function update()
       local file = assert(io.open(string.format(_file_name_fmt, _file_index), "a"), "Could not open file" .. string.format(_file_name_fmt, _file_index))
       file:write(string.format(format_string, tostring(now), _current_thr, calc_pwm(_current_thr), rpm, _voltage, _current, _thrust, _torque, esc_voltage, esc_current, esc_rpm, esc_temp))
       file:close()
+
+      -- Log to data flash logs
+      -- We only log a few variables as the rest is already logged within the cpp
+      logger.write('THST','ThO,Thst,Torq','fff','---','---',_current_thr,_thrust,_torque)
   end
 
   -- Normal re-schedules of update are handled in protected_update()
