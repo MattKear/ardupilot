@@ -248,7 +248,7 @@ for t in $CI_BUILD_TARGET; do
         echo "Building mRoX21-777/"
         $waf configure --Werror --board mRoX21-777
         $waf clean
-        $waf plane
+        $waf copter
 
         # test bi-directional dshot build
         echo "Building KakuteF7Mini"
@@ -314,8 +314,8 @@ for t in $CI_BUILD_TARGET; do
     if [ "$t" == "navigator" ]; then
         echo "Building navigator"
         $waf configure --board navigator --toolchain=arm-linux-musleabihf
-        $waf sub --static
-        ./Tools/scripts/firmware_version_decoder.py -f build/navigator/bin/ardusub --expected-hash $GIT_VERSION
+        $waf copter --static
+        ./Tools/scripts/firmware_version_decoder.py -f build/navigator/bin/arducopter --expected-hash $GIT_VERSION
         continue
     fi
 
@@ -350,7 +350,7 @@ for t in $CI_BUILD_TARGET; do
                 --check-c-compiler="$c_compiler" \
                 --check-cxx-compiler="$cxx_compiler"
         $waf clean
-        $waf all
+        $waf copter
         ccache -s && ccache -z
 
         if [[ $t == "linux" ]]; then
@@ -360,12 +360,12 @@ for t in $CI_BUILD_TARGET; do
     fi
 done
 
-python Tools/autotest/param_metadata/param_parse.py --vehicle Rover
-python Tools/autotest/param_metadata/param_parse.py --vehicle AntennaTracker
+# python Tools/autotest/param_metadata/param_parse.py --vehicle Rover
+# python Tools/autotest/param_metadata/param_parse.py --vehicle AntennaTracker
 python Tools/autotest/param_metadata/param_parse.py --vehicle ArduCopter
-python Tools/autotest/param_metadata/param_parse.py --vehicle ArduPlane
-python Tools/autotest/param_metadata/param_parse.py --vehicle ArduSub
-python Tools/autotest/param_metadata/param_parse.py --vehicle Blimp
+# python Tools/autotest/param_metadata/param_parse.py --vehicle ArduPlane
+# python Tools/autotest/param_metadata/param_parse.py --vehicle ArduSub
+# python Tools/autotest/param_metadata/param_parse.py --vehicle Blimp
 
 echo build OK
 exit 0
