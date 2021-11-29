@@ -99,10 +99,10 @@ local _led_chan = 0
 local _last_led_update = 0
 
 -- Lua param allocation
-local ZERO_OFFSET_PARAM = {"SCR_USER1","SCR_USER3"}
-local CAL_FACT_PARAM = {"SCR_USER2", "SCR_USER4"}
-local CURRENT_LIMIT = "SCR_USER5"
-local MAX_THR_PARAM = "SCR_USER6"
+local ZERO_OFFSET_PARAM = {"SCR_CAL0_THST", "SCR_CAL0_TORQ"}
+local CAL_FACT_PARAM = {"SCR_CAL_M_THST", "SCR_CAL_M_TORQ"}
+local CURRENT_LIMIT = "SCR_CUR_LIM"
+local MAX_THR_PARAM = "SCR_MAX_THR"
 
 -- Measurements
 local _thrust = 0.0

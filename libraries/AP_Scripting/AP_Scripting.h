@@ -52,7 +52,7 @@ public:
     void handle_mission_command(const class AP_Mission::Mission_Command& cmd);
 
    // User parameters for inputs into scripts 
-   AP_Float _user[6];
+   AP_Float _user[8]; 
 
     struct terminal_s {
         int output_fd;
