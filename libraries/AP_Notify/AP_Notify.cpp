@@ -439,7 +439,7 @@ void AP_Notify::handle_rgb_id(uint8_t r, uint8_t g, uint8_t b, uint8_t id)
 }
 
 // handle display override from scripting
-void AP_Notify::handle_scr_disp(uint8_t r, const char *str)
+void AP_Notify::set_display_text(uint8_t r, const char *str)
 {
     for (uint8_t i = 0; i < _num_devices; i++) {
         if (_devices[i] != nullptr) {
