@@ -613,3 +613,8 @@ void Display::update_scr_screen() {
         draw_text(COLUMN(0), ROW(i), _scr_msg[i]);
     }
 }
+
+void Display::clear_display_text()
+{
+    _driver->clear_screen();
+}

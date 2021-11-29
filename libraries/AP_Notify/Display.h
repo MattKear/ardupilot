@@ -22,6 +22,7 @@ public:
 
     // Allows scripting to override the display message
     void scr_disp_overide(uint8_t r, const char *str) override;
+    void clear_display_text(void) override;
 
 private:
     void draw_char(uint16_t x, uint16_t y, const char c);

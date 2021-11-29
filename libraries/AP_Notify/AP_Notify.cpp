@@ -448,6 +448,15 @@ void AP_Notify::set_display_text(uint8_t r, const char *str)
     }
 }
 
+void AP_Notify::clear_display_text()
+{
+    for (uint8_t i = 0; i < _num_devices; i++) {
+        if (_devices[i] != nullptr) {
+            _devices[i]->clear_display_text();
+        }
+    }
+}
+
 // handle a PLAY_TUNE message
 void AP_Notify::handle_play_tune(const mavlink_message_t &msg)
 {

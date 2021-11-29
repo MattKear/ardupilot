@@ -167,6 +167,8 @@ public:
     // handle display override from scripting
     static void set_display_text(uint8_t r, const char *str);
 
+    // allow scripting to clear display
+    void clear_display_text(void);
 
     // play a tune string
     static void play_tune(const char *tune);
