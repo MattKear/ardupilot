@@ -88,29 +88,29 @@ const AP_Param::GroupInfo AP_Scripting::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("DEBUG_OPTS", 4, AP_Scripting, _debug_options, 0),
 
-    // @Param: USER1
+    // @Param: CAL0_THST
     // @DisplayName: Scripting User Parameter1
     // @Description: General purpose user variable input for scripts
     // @User: Standard
-    AP_GROUPINFO("USER1", 5, AP_Scripting, _user[0], 0.0),
+    AP_GROUPINFO("CAL0_THST", 5, AP_Scripting, _user[0], 0.0),
 
-    // @Param: USER2
+    // @Param: CAL_M_THST
     // @DisplayName: Scripting User Parameter2
     // @Description: General purpose user variable input for scripts
     // @User: Standard
-    AP_GROUPINFO("USER2", 6, AP_Scripting, _user[1], 0.0),
+    AP_GROUPINFO("CAL_M_THST", 6, AP_Scripting, _user[1], 0.0),
 
-    // @Param: USER3
+    // @Param: CAL0_TORQ
     // @DisplayName: Scripting User Parameter3
     // @Description: General purpose user variable input for scripts
     // @User: Standard
-    AP_GROUPINFO("USER3", 7, AP_Scripting, _user[2], 0.0),
+    AP_GROUPINFO("CAL0_TORQ", 7, AP_Scripting, _user[2], 0.0),
 
-    // @Param: USER4
+    // @Param: CAL_M_TORQ
     // @DisplayName: Scripting User Parameter4
     // @Description: General purpose user variable input for scripts
     // @User: Standard
-    AP_GROUPINFO("USER4", 8, AP_Scripting, _user[3], 0.0),
+    AP_GROUPINFO("CAL_M_TORQ", 8, AP_Scripting, _user[3], 0.0),
 
     // @Param: USER5
     // @DisplayName: Scripting User Parameter5
@@ -131,6 +131,30 @@ const AP_Param::GroupInfo AP_Scripting::var_info[] = {
     // @RebootRequired: True
     // @User: Advanced
     AP_GROUPINFO("DIR_DISABLE", 9, AP_Scripting, _dir_disable, 0),
+
+    // @Param: CUR_LIM
+    // @DisplayName: Scripting User Parameter5
+    // @Description: General purpose user variable input for scripts
+    // @User: Standard
+    AP_GROUPINFO("CUR_LIM", 10, AP_Scripting, _user[4], 0.0),
+
+    // @Param: MAX_THR
+    // @DisplayName: Scripting User Parameter5
+    // @Description: General purpose user variable input for scripts
+    // @User: Standard
+    AP_GROUPINFO("MAX_THR", 11, AP_Scripting, _user[5], 0.0),
+
+    // @Param: USER7
+    // @DisplayName: Scripting User Parameter7
+    // @Description: General purpose user variable input for scripts
+    // @User: Standard
+    AP_GROUPINFO("USER7", 12, AP_Scripting, _user[6], 0.0),
+
+    // @Param: USER8
+    // @DisplayName: Scripting User Parameter8
+    // @Description: General purpose user variable input for scripts
+    // @User: Standard
+    AP_GROUPINFO("USER8", 13, AP_Scripting, _user[7], 0.0),
 
     AP_GROUPEND
 };

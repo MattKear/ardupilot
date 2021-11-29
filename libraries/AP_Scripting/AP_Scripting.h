@@ -66,7 +66,7 @@ public:
     void restart_all(void);
 
    // User parameters for inputs into scripts 
-   AP_Float _user[6];
+   AP_Float _user[8]; 
 
     struct terminal_s {
         int output_fd;
