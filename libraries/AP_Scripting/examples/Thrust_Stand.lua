@@ -803,16 +803,16 @@ function update()
   end
 
   -- Update ESC telemetry
-  local esc_voltage = blheli:get_voltage(0)
-  local esc_current = blheli:get_current(0)
-  local esc_rpm = blheli:get_rpm(0)
-  local esc_temp = blheli:get_temp(0)
+  -- local esc_voltage = blheli:get_voltage(0)
+  -- local esc_current = blheli:get_current(0)
+  -- local esc_rpm = blheli:get_rpm(0)
+  -- local esc_temp = blheli:get_temp(0)
 
   -- Log values
   if _sys_state == ARMED and run_button_state then
       -- Only log whilst armed and running
       local file = assert(io.open(string.format(_file_name_fmt, _file_index), "a"), "Could not open file" .. string.format(_file_name_fmt, _file_index))
-      file:write(string.format(format_string, tostring(now), _current_thr, calc_pwm(_current_thr), rpm, _voltage, _current, _thrust, _torque, esc_voltage, esc_current, esc_rpm, esc_temp))
+      file:write(string.format(format_string, tostring(now), _current_thr, calc_pwm(_current_thr), rpm, _voltage, _current, _thrust, _torque))--, esc_voltage, esc_current, esc_rpm, esc_temp))
       file:close()
 
       -- Log to data flash logs
