@@ -642,7 +642,7 @@ function init()
 
   -- Setup arming button function to arm and disarm copter aswell. This makes use of logging 
   -- and standard motor protections whilst armed.
-  all_set = all_set and param:set_and_save('BTN_FUNC1', 41)
+  all_set = all_set and param:set_and_save('BTN_FUNC1', 154)
 
   if all_set then
     -- Now main loop can be started
