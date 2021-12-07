@@ -815,6 +815,10 @@ function update()
       logger.write('THST','ThO,Thst,Torq','fff','---','---',_current_thr,_thrust,_torque)
   end
 
+  -- send telem values of thrust and torque to GCS
+  gcs:send_named_float('thrust', _thrust)
+  gcs:send_named_float('torque', _torque)
+
   -- Normal re-schedules of update are handled in protected_update()
 
 end
