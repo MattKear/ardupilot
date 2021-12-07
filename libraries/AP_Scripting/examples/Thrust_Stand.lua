@@ -58,7 +58,6 @@ local AUX1_THROTTLE_MODE = 4 -- Button number for Aux 1
 local _flag_hold_throttle = false
 local _ramp_rate = 0.03 -- (%/s) How quickly throttle is advanced
 local _hold_time = 3 --(s) How long the thottle is held at each discreate step
-local _n_throttle_steps = 10 -- Number of discrete steps that the throttle is held at
 local _last_thr_update = 0 -- (ms) The last time the throttle was updated
 local _current_thr = 0 --(%)
 local _hold_thr_last_time = 0
@@ -995,12 +994,8 @@ end
 ------------------------------------------------------------------------
 function zero_throttle()
   _current_thr = 0
-  -- Ensure minimum of 2 throttle steps
-  if _n_throttle_steps < 2 then 
-    _n_throttle_steps = 2
-  end
   -- Reset throttle step
-  _next_thr_step = _max_throttle/_n_throttle_steps
+  _next_thr_step = constrain(0.1, 0, _max_throttle)
   _flag_hold_throttle = false
   _last_thr_update = 0
   _thr_inc_dec = 1
@@ -1034,18 +1029,13 @@ end
 
 ------------------------------------------------------------------------
 function set_next_thr_step()
-  -- Ensure minimum of 2 throttle steps
-  if _n_throttle_steps < 2 then 
-    _n_throttle_steps = 2
-  end
-
   -- check if we need to start stepping down through the throttle
   if _current_thr >= _max_throttle then
     _thr_inc_dec = -1
   end
 
   -- Update next throttle step
-  _next_thr_step = _next_thr_step + (_max_throttle*_thr_inc_dec)/_n_throttle_steps
+  _next_thr_step = _next_thr_step + (0.1*_thr_inc_dec)
   _next_thr_step = constrain(_next_thr_step,0,_max_throttle)
 end
 ------------------------------------------------------------------------
