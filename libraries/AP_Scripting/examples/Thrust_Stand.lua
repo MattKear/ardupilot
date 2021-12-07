@@ -42,7 +42,7 @@ local _ave_thrust = 0
 local _flag_have_thrust = false
 
 -- Buttons
-local ARMING_BUTTON = 1      -- Button number to start arm and sweep motor
+local SAFE_BUTTON = 1        -- Button number to set safety state
 local CAL_BUTTON = 2         -- Button number for initiating calibration
 local DEAD_MAN = 3           -- Button number for dead mans switch
 local AUX1_THROTTLE_MODE = 4 -- Button number for Aux 1
@@ -640,10 +640,6 @@ function init()
   all_set = all_set and param:set_and_save('MOT_SPIN_MIN', 0)
   all_set = all_set and param:set_and_save('MOT_PWM_MIN', 1000)
 
-  -- Setup arming button function to arm and disarm copter aswell. This makes use of logging 
-  -- and standard motor protections whilst armed.
-  all_set = all_set and param:set_and_save('BTN_FUNC1', 154)
-
   if all_set then
     -- Now main loop can be started
     return protected_update, 100
@@ -664,7 +660,7 @@ function update()
 
   -- Get state of inputs
   local cal_button_state = button:get_button_state(CAL_BUTTON)
-  local arm_button_state = button:get_button_state(ARMING_BUTTON)
+  local safe_button_state = button:get_button_state(SAFE_BUTTON)
   local run_button_state = button:get_button_state(DEAD_MAN)
   local aux1_state = button:get_button_state(AUX1_THROTTLE_MODE)
 
@@ -703,12 +699,12 @@ function update()
   end
 
   -- Check if we should arm the system
-  if arm_button_state and _sys_state == DISARMED and arming:is_armed() then
+  if safe_button_state and _sys_state == DISARMED and arming:is_armed() then
     _sys_state = ARMED
   end
 
   -- Change to local lua diarm state
-  if not arm_button_state and not(_sys_state < DISARMED) then
+  if not safe_button_state and not(_sys_state < DISARMED) then
     -- Arm button has been switched off and we are not in a calibration state
     _sys_state = DISARMED
   end
@@ -746,7 +742,7 @@ function update()
   end
 
   -- Check if we need to reset after an over-current protection event
-  if _sys_state == CURRENT_PROTECTION and not arm_button_state then
+  if _sys_state == CURRENT_PROTECTION and not safe_button_state then
     _sys_state = DISARMED
   end
 
