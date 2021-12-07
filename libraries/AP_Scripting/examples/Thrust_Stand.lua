@@ -671,9 +671,9 @@ function update()
 
   -- Update display cannot be called when fast sampling is being used
   -- for logging transient throttle behaviour. It slows the script run time too much
-  if not (_sys_state == ARMED and _throttle_mode == THROTTLE_MODE_STEP) then
-      update_display(now)
-  end
+  -- if not (_sys_state == ARMED and _throttle_mode == THROTTLE_MODE_STEP) then
+  --     update_display(now)
+  -- end
 
   --- --- --- state machine --- --- ---
   -- Check if we should reset calibration
@@ -1217,84 +1217,84 @@ end
 
 ------------------------------------------------------------------------
 -- Output message screens based on current system state
-function update_display(now_ms)
+-- function update_display(now_ms)
 
-  -- Update the display at 2 Hz only. Notify display is updated at max 2 Hz
-  if (now_ms - _last_display_update_ms < _display_refresh_ms) then
-    return
-  end
+--   -- Update the display at 2 Hz only. Notify display is updated at max 2 Hz
+--   if (now_ms - _last_display_update_ms < _display_refresh_ms) then
+--     return
+--   end
 
-  -- Always reset the refresh rate back to the fastest needed rate of 2 Hz.
-  -- If transients are being recorded and throttle mode is set to step mode
-  -- the refresh will be set back to slower rate.
-  _display_refresh_ms = 500
+--   -- Always reset the refresh rate back to the fastest needed rate of 2 Hz.
+--   -- If transients are being recorded and throttle mode is set to step mode
+--   -- the refresh will be set back to slower rate.
+--   _display_refresh_ms = 500
 
-  if _sys_state ~= _last_state_display then
-    notify:clear_display_text()
-  end
+--   if _sys_state ~= _last_state_display then
+--     notify:clear_display_text()
+--   end
 
-  if _sys_state == REQ_CAL_THRUST_ZERO_OFFSET then
-    -- Tell user to unload thrust sensor for calibration before pressing the button
-    notify:set_display_text(2, "   Unload thrust   ")
-    notify:set_display_text(3, " sensor and press  ")
-    notify:set_display_text(4, "calibration button.")
-  end
+--   if _sys_state == REQ_CAL_THRUST_ZERO_OFFSET then
+--     -- Tell user to unload thrust sensor for calibration before pressing the button
+--     notify:set_display_text(2, "   Unload thrust   ")
+--     notify:set_display_text(3, " sensor and press  ")
+--     notify:set_display_text(4, "calibration button.")
+--   end
 
-  if _sys_state == REQ_CAL_THRUST_FACTOR then
-    -- Tell user to apply calibration load
-    notify:set_display_text(0, " Apply calibration ")
-    notify:set_display_text(1, string.format("  load of %.2f g", _calibration_ref[THRUST]))
-    notify:set_display_text(2, " to thrust sensor  ")
-    notify:set_display_text(3, "     and press    ")
-    notify:set_display_text(4, "calibration button.")
-  end
+--   if _sys_state == REQ_CAL_THRUST_FACTOR then
+--     -- Tell user to apply calibration load
+--     notify:set_display_text(0, " Apply calibration ")
+--     notify:set_display_text(1, string.format("  load of %.2f g", _calibration_ref[THRUST]))
+--     notify:set_display_text(2, " to thrust sensor  ")
+--     notify:set_display_text(3, "     and press    ")
+--     notify:set_display_text(4, "calibration button.")
+--   end
 
-  if _sys_state == REQ_CAL_TORQUE_ZERO_OFFSET then
-    -- Tell user to unload torque sensor for calibration before pressing the button
-    notify:set_display_text(2, "   Unload torque   ")
-    notify:set_display_text(3, " sensor and press  ")
-    notify:set_display_text(4, "calibration button.")
-  end
+--   if _sys_state == REQ_CAL_TORQUE_ZERO_OFFSET then
+--     -- Tell user to unload torque sensor for calibration before pressing the button
+--     notify:set_display_text(2, "   Unload torque   ")
+--     notify:set_display_text(3, " sensor and press  ")
+--     notify:set_display_text(4, "calibration button.")
+--   end
 
-  if _sys_state == REQ_CAL_TORQUE_FACTOR then
-    -- Tell user to apply calibration load
-    notify:set_display_text(0, " Apply calibration ")
-    notify:set_display_text(1, string.format(" load of %.2f gcm", _calibration_ref[TORQUE]))
-    notify:set_display_text(2, " to torque sensor  ")
-    notify:set_display_text(3, "     and press     ")
-    notify:set_display_text(4, "calibration button.")
-  end
+--   if _sys_state == REQ_CAL_TORQUE_FACTOR then
+--     -- Tell user to apply calibration load
+--     notify:set_display_text(0, " Apply calibration ")
+--     notify:set_display_text(1, string.format(" load of %.2f gcm", _calibration_ref[TORQUE]))
+--     notify:set_display_text(2, " to torque sensor  ")
+--     notify:set_display_text(3, "     and press     ")
+--     notify:set_display_text(4, "calibration button.")
+--   end
 
-  if _sys_state == DISARMED or _sys_state == ARMED then
-    -- Display throttle mode
-    if _throttle_mode == THROTTLE_MODE_STEP then
-      notify:set_display_text(0, "Step Throttle Mode")
-      notify:set_display_text(1, "                   ")
-      notify:set_display_text(2, "  Screen will not  ")
-      notify:set_display_text(3, "  work when armed  ")
-      notify:set_display_text(4, "    due to high    ")
-      notify:set_display_text(5, "   logging rate.   ")
+--   if _sys_state == DISARMED or _sys_state == ARMED then
+--     -- Display throttle mode
+--     if _throttle_mode == THROTTLE_MODE_STEP then
+--       notify:set_display_text(0, "Step Throttle Mode")
+--       notify:set_display_text(1, "                   ")
+--       notify:set_display_text(2, "  Screen will not  ")
+--       notify:set_display_text(3, "  work when armed  ")
+--       notify:set_display_text(4, "    due to high    ")
+--       notify:set_display_text(5, "   logging rate.   ")
 
-    else
-      notify:set_display_text(0,"Thr Mode: Ramp")
-      -- Display measurements
-      notify:set_display_text(1, string.format("Throttle: %.2f %%", _current_thr*100.0))
-      notify:set_display_text(2, string.format("  Thrust: %.0f g", _thrust))
-      notify:set_display_text(3, string.format("  Torque: %.2f gcm", _torque))
-      notify:set_display_text(4, string.format(" Current: %.2f A", _current))
-      notify:set_display_text(5, string.format(" Voltage: %.2f V", _voltage))
-    end
-  end
+--     else
+--       notify:set_display_text(0,"Thr Mode: Ramp")
+--       -- Display measurements
+--       notify:set_display_text(1, string.format("Throttle: %.2f %%", _current_thr*100.0))
+--       notify:set_display_text(2, string.format("  Thrust: %.0f g", _thrust))
+--       notify:set_display_text(3, string.format("  Torque: %.2f gcm", _torque))
+--       notify:set_display_text(4, string.format(" Current: %.2f A", _current))
+--       notify:set_display_text(5, string.format(" Voltage: %.2f V", _voltage))
+--     end
+--   end
 
-  if _sys_state == CURRENT_PROTECTION then
-    notify:set_display_text(2, "   Over current    ")
-    notify:set_display_text(3, " protection active ")
-    notify:set_display_text(5, "  Disarm to reset  ")
-  end
+--   if _sys_state == CURRENT_PROTECTION then
+--     notify:set_display_text(2, "   Over current    ")
+--     notify:set_display_text(3, " protection active ")
+--     notify:set_display_text(5, "  Disarm to reset  ")
+--   end
 
-  _last_state_display = _sys_state
-  _last_display_update_ms = now_ms
-end
+--   _last_state_display = _sys_state
+--   _last_display_update_ms = now_ms
+-- end
 ------------------------------------------------------------------------
 
 
