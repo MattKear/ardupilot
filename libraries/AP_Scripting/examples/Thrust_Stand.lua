@@ -48,12 +48,6 @@ local DEAD_MAN = 3           -- Button number for dead mans switch
 local AUX1_THROTTLE_MODE = 4 -- Button number for Aux 1
 -- AUX2 = 5                  -- Button number for Aux 2, Additional btn instance needs adding to AP before this can be used
 
--- Save to file details
--- local _file_name_fmt = "thrust_test_%i.csv"
--- local _file_index_found = false
--- local _file_index = 0
---local format_string = "%s, %.4f, %04i, %.0f, %.4f, %.4f, %.5f, %.5f\n"--, %.2f, %.2f, %05i, %03i\n" -- Time (ms), Throttle (), RC Out (us), Motor Commutations (1/min), Voltage (V), Current (A), Thrust (g), Torque (g.cm), ESC Volt (V), ESC Current (A), ESC RPM (rpm), ESC Temperature (deg C)
-
 -- Update throttle
 local _flag_hold_throttle = false
 local _ramp_rate = 0.03 -- (%/s) How quickly throttle is advanced
@@ -106,7 +100,6 @@ local MAX_THR_PARAM = "SCR_MAX_THR"
 -- Measurements
 local _thrust = 0.0
 local _torque = 0.0
-local _voltage = 0.0
 local _current = 0.0
 
 -- Forward declare functions
@@ -574,32 +567,6 @@ function init()
       return init_nau7802, 100
   end
 
-  -- Setup file to record data to
-  -- Scan through directory to find a unique file name.  Break up search over
-  -- with callbacks every 20 file names
-  -- if not(_file_index_found) then
-  --   for i = 1,20 do
-  --     if not (is_file(string.format(_file_name_fmt, _file_index+i))) then
-  --       -- Set file index to
-  --       _file_index = _file_index + i
-  --       _file_index_found = true
-  --       break
-  --     end
-
-  --     -- Reschedule init to continue searching for a file name
-  --     if i >= 20 then
-  --       _file_index = _file_index+20
-  --       return init, 100
-  --     end
-  --   end
-  -- end
-
-  -- local file = assert(io.open(file_name, "w"),"Could not make file: " .. file_name)
-  -- local file = assert(io.open(string.format(_file_name_fmt, _file_index), "w"), "Could not make file" .. string.format(_file_name_fmt, _file_index))
-  -- local header = 'Time (ms), Throttle (), RC Out (us), Motor Commutations (1/min), Voltage(V), Current (A), Thrust (g), Torque (kg.cm), ESC Volt (V), ESC Current (A), ESC RPM (rpm), ESC Temperature (deg C)\n'
-  -- file:write(header)
-  -- file:close()
-
   -- Set first throttle step
   set_next_thr_step()
 
@@ -783,33 +750,16 @@ function update()
   -----------------------------------------
   --- --- --- Take measurements --- --- ---
   -----------------------------------------
+  -- Get current to check for over-current protection
   if battery:healthy(0) then
-    _voltage = battery:voltage(0)
     _current = battery:current_amps(0)
   end
 
   _thrust = get_load(i2c_thrust, THRUST)
   _torque = get_load(i2c_torque, TORQUE)
 
-  -- Update rpm
-  local rpm = RPM:get_rpm(0)
-  if (rpm == nil) then
-      rpm = -1
-  end
-
-  -- Update ESC telemetry
-  -- local esc_voltage = blheli:get_voltage(0)
-  -- local esc_current = blheli:get_current(0)
-  -- local esc_rpm = blheli:get_rpm(0)
-  -- local esc_temp = blheli:get_temp(0)
-
   -- Log values
   if _sys_state == ARMED and run_button_state then
-      -- Only log whilst armed and running
-      --local file = assert(io.open(string.format(_file_name_fmt, _file_index), "a"), "Could not open file" .. string.format(_file_name_fmt, _file_index))
-      --file:write(string.format(format_string, tostring(now), _current_thr, calc_pwm(_current_thr), rpm, _voltage, _current, _thrust, _torque))--, esc_voltage, esc_current, esc_rpm, esc_temp))
-      --file:close()
-
       -- Log to data flash logs
       -- We only log a few variables as the rest is already logged within the cpp
       logger.write('THST','ThO,Thst,Torq','fff','---','---',_current_thr,_thrust,_torque)
@@ -1298,21 +1248,6 @@ end
 
 --   _last_state_display = _sys_state
 --   _last_display_update_ms = now_ms
--- end
-------------------------------------------------------------------------
-
-
-------------------------------------------------------------------------
--- function is_file(name)
---   -- To test if the file actualy exists attempt to read the first line in the file.
---   local file = io.open(name,"r")
---   local content = file:read()
---   file:close()
-
---   if content~=nil then
---     return true
---   end
---   return false
 -- end
 ------------------------------------------------------------------------
 
