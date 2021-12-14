@@ -183,15 +183,13 @@ end
 ------------------------------------------------------------------------
 -- Function to return the samples per second output by the qwiic scale
 local function get_sps(rate)
+  if rate == 0 then return 10 end
+  if rate == 1 then return 20 end
+  if rate == 2 then return 40 end
+  if rate == 3 then return 80 end
+  if rate == 7 then return 320 end
   -- Error value
-  local ret_val = -1
-  if rate == 0 then ret_val = 10 end
-  if rate == 1 then ret_val = 20 end
-  if rate == 2 then ret_val = 40 end
-  if rate == 3 then ret_val = 80 end
-  if rate == 7 then ret_val = 320 end
-
-  return ret_val
+  return false
 end
 ------------------------------------------------------------------------
 
@@ -689,7 +687,7 @@ function update()
     _sys_state = ARMED
   end
 
-  -- Change to local lua diarm state
+  -- Change to local lua disarm state
   if not safe_button_state and not(_sys_state < DISARMED) then
     -- Arm button has been switched off and we are not in a calibration state
     _sys_state = DISARMED
@@ -1019,7 +1017,7 @@ end
 function update_sample_rate(rate)
   -- Set sample rate appropriate to mode
   if not setSampleRate(i2c_thrust, rate) or not setSampleRate(i2c_torque, rate) then
-    gcs:send_text(4,"Amp rate set fail")
+    gcs:send_text(4,"rate set fail")
   end
 end
 ------------------------------------------------------------------------
@@ -1062,7 +1060,7 @@ function update_lights(now_ms)
   local r, g, b = 0, 0, 0
   local remain = 0
 
-  -- Update state array for full throttle range
+  -- Update state array for full throttle range showing where max throttle is
   remain = _max_throttle
   for i = 1, _num_leds do
     remain = remain - throttle_to_led_pct
@@ -1082,7 +1080,7 @@ function update_lights(now_ms)
   end
 
 
-  -- Update state array for full throttle range
+  -- Update state array for full throttle range showing where current throttle is
   remain = _current_thr
   for i = 1, _num_leds do
     remain = remain - throttle_to_led_pct
