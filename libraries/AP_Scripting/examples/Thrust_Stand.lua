@@ -216,7 +216,8 @@ local function setSampleRate(i2c_dev, rate)
   -- set sample delta time in lua
   _samp_dt_ms = math.ceil(1000/get_sps(rate))
 
-  return i2c_dev:write_register(2, value)
+  -- handle both error cases of not writting to the register and not getting a valid sample rate
+  return i2c_dev:write_register(2, value) and _samp_dt_ms > 0
 end
 ------------------------------------------------------------------------
 
@@ -358,11 +359,14 @@ function calc_average(i2c_dev)
 
   if ((now - _ave_last_samp_ms) > _samp_dt_ms  or  _ave_last_samp_ms == 0) and available(i2c_dev) then
     -- Add new reading to average
-    _ave_total = _ave_total + getReading(i2c_dev)
-    _ave_n_samp_aquired = _ave_n_samp_aquired + 1
+    val = getReading(i2c_dev)
+    if val then
+      _ave_total = _ave_total + val
+      _ave_n_samp_aquired = _ave_n_samp_aquired + 1
 
-    -- Record time of last measurement
-    _ave_last_samp_ms = now
+      -- Record time of last measurement
+      _ave_last_samp_ms = now
+    end
   end
 
   if (_ave_n_samp_aquired == _ave_n_samples) or (_ave_callback > 50) then
@@ -464,14 +468,28 @@ end
 -- Returns the instentanious load on a given load cell
 local function get_load(i2c_dev, index)
 
-  if not available(i2c_dev) then
-    return 0
+  -- we try to get the load 10 times to try and side step race conditions with the amplifier
+  -- this is a bit of a hack to offset the run times
+  for i = 1,10,1 do
+    if available(i2c_dev) then
+      break
+    elseif i >= 10 then
+      -- We tried, but cannot hang the script any longer
+      return false
+    else
+      -- offset by a little to get away from the race
+      --sleep(10)
+    end
   end
 
   local on_scale = getReading(i2c_dev)
 
   -- Calc and return load
-  return (on_scale - _zero_offset[index]) / _calibration_factor[index]
+  if on_scale then
+    return (on_scale - _zero_offset[index]) / _calibration_factor[index]
+  else
+    return false
+  end
 
 end
 ------------------------------------------------------------------------
@@ -493,6 +511,14 @@ local function begin(i2c_dev)
                                                           -- Poll for completion with calAFEStatus() or wait with waitForCalibrateAFE()
   return result
 
+end
+------------------------------------------------------------------------
+
+------------------------------------------------------------------------
+function sleep(ms)  -- milli seconds
+  local t0 = uint32_t()
+  t0 = millis()
+  while millis() - t0 <= uint32_t(ms) do end
 end
 ------------------------------------------------------------------------
 
