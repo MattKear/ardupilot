@@ -71,6 +71,8 @@ local DISARMED = 5                      -- Ready to go, not running
 local ARMED = 6                         -- Armed and motor running
 local CURRENT_PROTECTION = 10           -- Error State
 
+local _debug                            -- debug mode
+
 local _sys_state = REQ_CAL_THRUST_ZERO_OFFSET
 local _last_sys_state = -1
 local _state_str = "Calibration"
@@ -763,6 +765,9 @@ function update()
   else
     -- Do not run motor without valid calibration, when disarmed, or when in an error state
     zero_throttle()
+
+    -- only allow changes of debug state when not running
+    _debug = param:get('SCR_TS_DEBUG') > 0
   end
 
   -----------------------------------------
@@ -775,6 +780,20 @@ function update()
 
   _thrust = get_load(i2c_thrust, THRUST)
   _torque = get_load(i2c_torque, TORQUE)
+
+  -- Don't log if thrust or load returns false
+  -- let debug mode enable us to see bad data in the log
+  if _debug then
+    if not _thrust then
+      _thrust = 0.0
+    end
+    if not _torque then
+      _torque = 0.0
+    end
+  -- If we aren't in debug mode then remove the bad data from the log
+  elseif (not _thrust or not _torque) then
+    return
+  end
 
   -- Log values
   if _sys_state == ARMED and run_button_state then
