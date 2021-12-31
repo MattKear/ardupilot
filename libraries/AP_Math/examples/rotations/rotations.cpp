@@ -242,6 +242,7 @@ static void test_eulers(void)
     test_euler(ROTATION_PITCH_7, 0, 7, 0);
     test_euler(ROTATION_ROLL_0_PITCH_69_YAW_270, 0, 68.9, 270);
     test_euler(ROTATION_ROLL_0_PITCH_111_YAW_270, 0, 111.1, 270);
+    test_euler(ROTATION_ROLL_311_PITCH_66_YAW_223, -49.0922, 66.0776, 223.468);
 }
 
 static bool have_rotation(const Matrix3f &m)

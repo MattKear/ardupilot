@@ -269,6 +269,15 @@ void Vector3<T>::rotate(enum Rotation rotation)
         z = -0.932953534825489 * tmpx +  0.0 * tmpy +  -0.359996808120051 * tmpz;
         return;
     }
+    case ROTATION_ROLL_311_PITCH_66_YAW_223: {
+        float tmpx = x;
+        float tmpy = y;
+        float tmpz = z;
+        x = -0.294294420602103 * tmpx +  0.951882999687300 * tmpy +  0.085495899953041 * tmpz;
+        y = -0.278962761524244 * tmpx +  0.000004929817288 * tmpy + -0.960301920053513 * tmpz;
+        z = -0.914095493745178 * tmpx + -0.306461669515137 * tmpy +  0.265538459423028 * tmpz;
+        return;
+    }
     case ROTATION_CUSTOM: 
         // Error: caller must perform custom rotations via matrix multiplication
         INTERNAL_ERROR(AP_InternalError::error_t::flow_of_control);
