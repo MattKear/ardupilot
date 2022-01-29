@@ -370,9 +370,15 @@ int SITL_State::sim_fd(const char *name, const char *arg)
     } else if (streq(name, "fetteconewireesc")) {
         sitl_model->set_fetteconewireesc(&_sitl->fetteconewireesc_sim);
         return _sitl->fetteconewireesc_sim.fd();
+
     } else if (streq(name, "ie24")) {
         sitl_model->set_ie24(&_sitl->ie24_sim);
         return _sitl->ie24_sim.fd();
+
+    } else if (streq(name, "ieppm")) {
+        sitl_model->set_ie_ppm(&_sitl->ie_ppm_sim);
+        return _sitl->ie_ppm_sim.fd();
+
     } else if (streq(name, "gyus42v2")) {
         if (gyus42v2 != nullptr) {
             AP_HAL::panic("Only one gyus42v2 at a time");
@@ -495,8 +501,13 @@ int SITL_State::sim_fd_write(const char *name)
         return _sitl->richenpower_sim.write_fd();
     } else if (streq(name, "fetteconewireesc")) {
         return _sitl->fetteconewireesc_sim.write_fd();
+
     } else if (streq(name, "ie24")) {
         return _sitl->ie24_sim.write_fd();
+
+    } else if (streq(name, "ieppm")) {
+        return _sitl->ie_ppm_sim.write_fd();
+
     } else if (streq(name, "gyus42v2")) {
         if (gyus42v2 == nullptr) {
             AP_HAL::panic("No gyus42v2 created");

@@ -18,7 +18,7 @@
 
 #include <AP_Math/AP_Math.h>
 
-#include "SIM_IntelligentEnergy24.h"
+#include "SIM_IntelligentEnergy_PPM.h"
 #include "SITL.h"
 
 #include <errno.h>
@@ -30,36 +30,36 @@ extern const AP_HAL::HAL& hal;
 using namespace SITL;
 
 // table of user settable parameters
-const AP_Param::GroupInfo IntelligentEnergy24::var_info[] = {
+const AP_Param::GroupInfo IntelligentEnergyPPM::var_info[] = {
 
     // @Param: ENABLE
     // @DisplayName: IntelligentEnergy 2.4kWh FuelCell sim enable/disable
     // @Description: Allows you to enable (1) or disable (0) the FuelCell simulator
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
-    AP_GROUPINFO("ENABLE", 1, IntelligentEnergy24, enabled, 0),
+    AP_GROUPINFO("ENABLE", 1, IntelligentEnergyPPM, enabled, 0),
 
     // @Param: STATE
     // @DisplayName: Explicitly set state
     // @Description: Explicitly specify a state for the generator to be in
     // @User: Advanced
-    AP_GROUPINFO("STATE", 2, IntelligentEnergy24, set_state, -1),
+    AP_GROUPINFO("STATE", 2, IntelligentEnergyPPM, set_state, -1),
 
     // @Param: ERROR
     // @DisplayName: Explicitly set error code
     // @Description: Explicitly specify an error code to send to the generator
     // @User: Advanced
-    AP_GROUPINFO("ERROR", 3, IntelligentEnergy24, err_code, 0),
+    AP_GROUPINFO("ERROR", 3, IntelligentEnergyPPM, err_code, 0),
 
     AP_GROUPEND
 };
 
-IntelligentEnergy24::IntelligentEnergy24() : IntelligentEnergy::IntelligentEnergy()
+IntelligentEnergyPPM::IntelligentEnergyPPM() : IntelligentEnergy::IntelligentEnergy()
 {
     AP_Param::setup_object_defaults(this, var_info);
 }
 
-void IntelligentEnergy24::update(const struct sitl_input &input)
+void IntelligentEnergyPPM::update(const struct sitl_input &input)
 {
     if (!enabled.get()) {
         return;
@@ -68,7 +68,7 @@ void IntelligentEnergy24::update(const struct sitl_input &input)
     update_send();
 }
 
-void IntelligentEnergy24::update_send()
+void IntelligentEnergyPPM::update_send()
 {
     // just send a chunk of data at 1Hz:
     const uint32_t now = AP_HAL::millis();
@@ -90,7 +90,7 @@ void IntelligentEnergy24::update_send()
     const float max_bat_vol = 50.4f;
     const float max_bat_capactiy_mAh = 3300;
 
-    battery_voltage = bat_capacity_mAh / max_bat_capactiy_mAh * (max_bat_vol - min_bat_vol) + min_bat_vol;
+    battery_voltage = constrain_float(bat_capacity_mAh / max_bat_capactiy_mAh * (max_bat_vol - min_bat_vol) + min_bat_vol, min_bat_vol, max_bat_vol);
 
     // Decide if we need to charge or discharge the battery
     if (battery_voltage <= min_bat_vol) {
