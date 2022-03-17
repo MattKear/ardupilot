@@ -144,11 +144,11 @@ const AP_Param::GroupInfo AP_Scripting::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("MAX_THR", 11, AP_Scripting, _user[5], 0.0),
 
-    // @Param: TS_DEBUG
+    // @Param: USER7
     // @DisplayName: Scripting User Parameter7
     // @Description: General purpose user variable input for scripts
     // @User: Standard
-    AP_GROUPINFO("TS_DEBUG", 12, AP_Scripting, _user[6], 0.0),
+    AP_GROUPINFO("USER7", 12, AP_Scripting, _user[6], 0.0),
 
     // @Param: USER8
     // @DisplayName: Scripting User Parameter8
