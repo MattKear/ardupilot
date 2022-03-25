@@ -1123,7 +1123,19 @@ function update_lights(now_ms)
 
   serialLED:send(_led_chan)
 
-  -- Update the calibration button led
+  update_cali_btn_led()
+
+  _last_led_update = now_ms
+end
+------------------------------------------------------------------------
+
+gpio:pinMode(95,1) -- red
+gpio:pinMode(96,1) -- green
+gpio:pinMode(97,1) -- blue
+------------------------------------------------------------------------
+-- Update the calibration button led
+function update_cali_btn_led()
+
   local CAL_LED_RED = 95     -- Servo function assigned to red led on calibration ring led
   local CAL_LED_GREEN = 96   -- Servo function assigned to green led on calibration ring led
   local CAL_LED_BLUE = 97    -- Servo function assigned to blue led on calibration ring led
@@ -1132,37 +1144,72 @@ function update_lights(now_ms)
   local HALF_ON_PWM = 6500
   local ON_PWM = 20000
 
+
   if _sys_state == REQ_CAL_THRUST_ZERO_OFFSET then
-    SRV_Channels:set_output_pwm(CAL_LED_RED, OFF_PWM)
-    SRV_Channels:set_output_pwm(CAL_LED_GREEN, ON_PWM)
-    SRV_Channels:set_output_pwm(CAL_LED_BLUE, ON_PWM)
+    gpio:write(CAL_LED_RED, 0)
+    gpio:write(CAL_LED_GREEN, 1)
+    gpio:write(CAL_LED_BLUE, 1)
   end
 
   if _sys_state == REQ_CAL_THRUST_FACTOR then
-    SRV_Channels:set_output_pwm(CAL_LED_RED, OFF_PWM)
-    SRV_Channels:set_output_pwm(CAL_LED_GREEN, OFF_PWM)
-    SRV_Channels:set_output_pwm(CAL_LED_BLUE, ON_PWM)
+    gpio:write(CAL_LED_RED, 0)
+    gpio:write(CAL_LED_GREEN, 0)
+    gpio:write(CAL_LED_BLUE, 1)
   end
 
   if _sys_state == REQ_CAL_TORQUE_ZERO_OFFSET then
-    SRV_Channels:set_output_pwm(CAL_LED_RED, ON_PWM)
-    SRV_Channels:set_output_pwm(CAL_LED_GREEN, ON_PWM)
-    SRV_Channels:set_output_pwm(CAL_LED_BLUE, OFF_PWM)
+    gpio:write(CAL_LED_RED, 1)
+    gpio:write(CAL_LED_GREEN, 1)
+    gpio:write(CAL_LED_BLUE, 0)
   end
 
   if _sys_state == REQ_CAL_TORQUE_FACTOR then
-    SRV_Channels:set_output_pwm(CAL_LED_RED, ON_PWM)
-    SRV_Channels:set_output_pwm(CAL_LED_GREEN, HALF_ON_PWM)
-    SRV_Channels:set_output_pwm(CAL_LED_BLUE, OFF_PWM)
+    gpio:write(CAL_LED_RED, 1)
+    gpio:write(CAL_LED_GREEN, 0)
+    gpio:write(CAL_LED_BLUE, 0)
   end
 
   if _sys_state >= DISARMED then
-    SRV_Channels:set_output_pwm(CAL_LED_RED, ON_PWM)
-    SRV_Channels:set_output_pwm(CAL_LED_GREEN, OFF_PWM)
-    SRV_Channels:set_output_pwm(CAL_LED_BLUE, ON_PWM)
+    gpio:write(CAL_LED_RED, 1)
+    gpio:write(CAL_LED_GREEN, 0)
+    gpio:write(CAL_LED_BLUE, 1)
   end
 
-  _last_led_update = now_ms
+
+
+
+
+
+
+  -- if _sys_state == REQ_CAL_THRUST_ZERO_OFFSET then
+  --   SRV_Channels:set_output_pwm(CAL_LED_RED, OFF_PWM)
+  --   SRV_Channels:set_output_pwm(CAL_LED_GREEN, ON_PWM)
+  --   SRV_Channels:set_output_pwm(CAL_LED_BLUE, ON_PWM)
+  -- end
+
+  -- if _sys_state == REQ_CAL_THRUST_FACTOR then
+  --   SRV_Channels:set_output_pwm(CAL_LED_RED, OFF_PWM)
+  --   SRV_Channels:set_output_pwm(CAL_LED_GREEN, OFF_PWM)
+  --   SRV_Channels:set_output_pwm(CAL_LED_BLUE, ON_PWM)
+  -- end
+
+  -- if _sys_state == REQ_CAL_TORQUE_ZERO_OFFSET then
+  --   SRV_Channels:set_output_pwm(CAL_LED_RED, ON_PWM)
+  --   SRV_Channels:set_output_pwm(CAL_LED_GREEN, ON_PWM)
+  --   SRV_Channels:set_output_pwm(CAL_LED_BLUE, OFF_PWM)
+  -- end
+
+  -- if _sys_state == REQ_CAL_TORQUE_FACTOR then
+  --   SRV_Channels:set_output_pwm(CAL_LED_RED, ON_PWM)
+  --   SRV_Channels:set_output_pwm(CAL_LED_GREEN, HALF_ON_PWM)
+  --   SRV_Channels:set_output_pwm(CAL_LED_BLUE, OFF_PWM)
+  -- end
+
+  -- if _sys_state >= DISARMED then
+  --   SRV_Channels:set_output_pwm(CAL_LED_RED, ON_PWM)
+  --   SRV_Channels:set_output_pwm(CAL_LED_GREEN, OFF_PWM)
+  --   SRV_Channels:set_output_pwm(CAL_LED_BLUE, ON_PWM)
+  -- end
 
 end
 ------------------------------------------------------------------------
