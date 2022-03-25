@@ -17,7 +17,6 @@ local MOTOR_TIMEOUT = 3000 --(s)
 -- Variables needed for setup and init of NAU7802
 local _nau7802_setup_started = false
 local _nau7802_i2c_dev
-local _nau7802_sensor_index
 local FAST_SAMPLE = 3
 local SLOW_SAMPLE = 0
 
@@ -26,20 +25,13 @@ local THRUST = 1 -- Index for calibration values relating to thrust sensor
 local TORQUE = 2 -- Index for calibration values relating to torque sensor
 local _dev_initialised = {false, false}
 local _dev_name = {"Thrust", "Torque"}
-local _calibration_factor = {1,1}
-local _zero_offset = {0,0}
-local _calibration_ref = {2074,5.47} -- (grams, kg.cm) The known mass/torque value that the sensor will be calibrated with
 
 -- Script vars used in average calculation
 local _ave_total = 0 -- Average value obtained
 local _ave_n_samp_aquired = 0 -- Number of samples recorded in this average calculation
 local _ave_last_samp_ms = 0 -- Time that the last sample was retrieved
-local _ave_callback = 0 -- Number of times the average dunction is called back
-local _ave_n_samples = 10 -- The number of samples that are requested in the average
-
--- Average thrust
-local _ave_thrust = 0
-local _flag_have_thrust = false
+local _ave_callback = 0 -- Number of times the average function has been called back
+local AVE_N_SAMPLES = 10 -- The number of samples that are requested in the average
 
 -- Buttons
 local SAFE_BUTTON = 1        -- Button number to set safety state
@@ -71,16 +63,9 @@ local DISARMED = 5                      -- Ready to go, not running
 local ARMED = 6                         -- Armed and motor running
 local CURRENT_PROTECTION = 10           -- Error State
 
-local _debug                            -- debug mode
-
 local _sys_state = REQ_CAL_THRUST_ZERO_OFFSET
 local _last_sys_state = -1
 local _state_str = "Calibration"
-
--- Used to clear the screen when the system state changes
-local _last_state_display = -1
-local _last_display_update_ms = 0
-local _display_refresh_ms = 500
 
 -- Throttle mode
 local THROTTLE_MODE_RAMP = 0 -- Throttle gradual ramp up and down
@@ -89,7 +74,7 @@ local _throttle_mode = THROTTLE_MODE_RAMP
 local _last_aux1_state
 
 -- LEDs
-local _num_leds = 10
+local NUM_LEDS = 10
 local _led_chan = 0
 local _last_led_update = 0
 
@@ -373,7 +358,7 @@ function calc_average(i2c_dev)
     end
   end
 
-  if (_ave_n_samp_aquired == _ave_n_samples) or (_ave_callback > 50) then
+  if (_ave_n_samp_aquired == AVE_N_SAMPLES) or (_ave_callback > 50) then
     -- Compute average
     if _ave_n_samp_aquired > 0  then
         _ave_total = _ave_total/_ave_n_samp_aquired
@@ -653,7 +638,7 @@ function init()
   _led_chan = _led_chan + 1
 
   -- Added an extra LED to account for logic level shifter
-  if not serialLED:set_num_neopixel(_led_chan,  _num_leds+1) then
+  if not serialLED:set_num_neopixel(_led_chan,  NUM_LEDS+1) then
     gcs:send_text(6, "LEDs: neopixle not set")
   end
 
@@ -687,7 +672,6 @@ function update()
   local safe_button_state = button:get_button_state(SAFE_BUTTON)
   local run_button_state = button:get_button_state(DEAD_MAN)
   local aux1_state = button:get_button_state(AUX1_THROTTLE_MODE)
-
 
   -- must be called before update_lights()
   update_throttle_max()
@@ -766,8 +750,6 @@ function update()
     -- Do not run motor without valid calibration, when disarmed, or when in an error state
     zero_throttle()
 
-    -- only allow changes of debug state when not running
-    _debug = param:get('SCR_TS_DEBUG') > 0
   end
 
   -----------------------------------------
@@ -799,7 +781,7 @@ function update()
   if _sys_state == ARMED and run_button_state then
       -- Log to data flash logs
       -- We only log a few variables as the rest is already logged within the cpp
-      logger.write('THST','ThO,Thst,Torq','fff','---','---',_current_thr,_thrust,_torque)
+      logger.write('THST','ThO,Thst,Torq','fff','---','---',_current_thr, _thrust, _torque)
   end
 
   -- send telem values of thrust and torque to GCS
@@ -1056,23 +1038,23 @@ function update_lights(now_ms)
 
   -- Array to keep track of state of each led
   local led_state = {}
-  for i = 1, _num_leds do
+  for i = 1, NUM_LEDS do
     led_state[i] = {} --create a new row
     led_state[i]['act'] = 0
     led_state[i]['max'] = 0
   end
 
   -- Calculate the throttle percentage that each led is worth
-  if _num_leds <= 0 then
-    _num_leds = 1
+  if NUM_LEDS <= 0 then
+    NUM_LEDS = 1
   end
-  local throttle_to_led_pct = 1/_num_leds
+  local throttle_to_led_pct = 1/NUM_LEDS
   local r, g, b = 0, 0, 0
   local remain = 0
 
   -- Update state array for full throttle range showing where max throttle is
   remain = _max_throttle
-  for i = 1, _num_leds do
+  for i = 1, NUM_LEDS do
     remain = remain - throttle_to_led_pct
 
     if (remain <= 0) and (remain >= -throttle_to_led_pct) then
@@ -1092,7 +1074,7 @@ function update_lights(now_ms)
 
   -- Update state array for full throttle range showing where current throttle is
   remain = _current_thr
-  for i = 1, _num_leds do
+  for i = 1, NUM_LEDS do
     remain = remain - throttle_to_led_pct
 
     if (remain <= 0) and (remain >= -throttle_to_led_pct) then
@@ -1114,7 +1096,7 @@ function update_lights(now_ms)
 
   if _sys_state <= DISARMED then
     -- Update led setting
-    for i = 1, _num_leds do
+    for i = 1, NUM_LEDS do
       r = colour['disarm'][1]*(led_state[i]['max'])
       g = colour['disarm'][2]*(led_state[i]['max'])
       b = colour['disarm'][3]*(led_state[i]['max'])
@@ -1123,7 +1105,7 @@ function update_lights(now_ms)
 
   elseif _sys_state == ARMED then
     -- update led setting
-    for i = 1, _num_leds do
+    for i = 1, NUM_LEDS do
       r = colour['max'][1]*(led_state[i]['max']-led_state[i]['act']) + colour['act'][1]*led_state[i]['act']
       g = colour['max'][2]*(led_state[i]['max']-led_state[i]['act']) + colour['act'][2]*led_state[i]['act']
       b = colour['max'][3]*(led_state[i]['max']-led_state[i]['act']) + colour['act'][3]*led_state[i]['act']
@@ -1131,7 +1113,7 @@ function update_lights(now_ms)
     end
 
   else --CURRENT_PROTECTION
-    for i = 1, _num_leds do
+    for i = 1, NUM_LEDS do
       r = colour['error'][1]
       g = colour['error'][2]
       b = colour['error'][3]
