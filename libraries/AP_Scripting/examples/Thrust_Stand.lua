@@ -94,10 +94,14 @@ local _led_chan = 0
 local _last_led_update = 0
 
 -- Lua param allocation
-local ZERO_OFFSET_PARAM = {"SCR_USER1","SCR_USER3"}
-local CAL_FACT_PARAM = {"SCR_USER2", "SCR_USER4"}
-local CURRENT_LIMIT = "SCR_USER5"
-local MAX_THR_PARAM = "SCR_USER6"
+-- The values have been left but they get overwritten by param objects
+local ZERO_OFFSET_PARAM = {"THST_CAL0_THST","THST_CAL0_TORQ"}--{"SCR_USER1","SCR_USER3"}
+local CAL_FACT_PARAM = {"THST_CAL_M_THST", "THST_CAL_M_TORQ"}
+local CURRENT_LIMIT = Parameter()
+local MAX_THR_PARAM = Parameter()
+local CALI_REF_PARAM = {2.0, 5.47} -- (grams, kg.cm) The known mass/torque value that the sensor will be calibrated with
+local DEBUG_PARAM = Parameter()         -- debug mode
+
 
 -- Measurements
 local _thrust = 0.0
@@ -407,13 +411,11 @@ end
 calculate_zero_offset = function()
 
   if calc_average(_nau7802_i2c_dev) then
-    _zero_offset[_nau7802_index] = _ave_total
-    gcs:send_text(4, _dev_name[_nau7802_index] .. " 0 offset: " .. tostring(_zero_offset[_nau7802_index]))
-
     -- Save offset to EEPROM with param
-    if not(param:set_and_save(ZERO_OFFSET_PARAM[_nau7802_index], _zero_offset[_nau7802_index])) then
-        gcs:send_text(4, _dev_name[_nau7802_index] .. " 0 offset param set fail")
-    end
+    assert(ZERO_OFFSET_PARAM[_nau7802_index]:set_and_save(_ave_total), _dev_name[_nau7802_index] .. " 0 offset param set fail")
+
+    -- send successful message
+    gcs:send_text(4, _dev_name[_nau7802_index] .. " 0 offset: " .. tostring(ZERO_OFFSET_PARAM[_nau7802_index]:get()))
 
     -- Advance state to next step in calibration process
     _sys_state = _sys_state + 1
@@ -433,23 +435,17 @@ end
 calculate_calibration_factor = function()
 
   if calc_average(_nau7802_i2c_dev) then
-    -- we have got average, calc claibration gradient
-    _calibration_factor[_nau7802_index] = (_ave_total - _zero_offset[_nau7802_index]) / _calibration_ref[_nau7802_index]
-    gcs:send_text(4, _dev_name[_nau7802_index] .. " calibration factor: " .. tostring(_calibration_factor[_nau7802_index]))
+    -- we have got average, calc calibration gradient
+    local cal_fact = (_ave_total - ZERO_OFFSET_PARAM[_nau7802_index]:get()) / CALI_REF_PARAM[_nau7802_index]:get()
+    gcs:send_text(4, _dev_name[_nau7802_index] .. " calibration factor: " .. tostring(cal_fact))
 
     -- Protect against divide by zero
-    if _calibration_factor[_nau7802_index] <= 0.000001 and _calibration_factor[_nau7802_index] > -0.000001 then
-      if _calibration_factor[_nau7802_index] < 0 then
-        _calibration_factor[_nau7802_index] = -0.000001
-      else
-        _calibration_factor[_nau7802_index] = 0.000001
-      end
+    if 0.000001 <= cal_fact and cal_fact > -0.000001 then
+        cal_fact = 0.000001
     end
 
     -- Save calibration factor to EEPROM with param
-    if not(param:set_and_save(CAL_FACT_PARAM[_nau7802_index], _calibration_factor[_nau7802_index])) then
-      gcs:send_text(1, _dev_name[_nau7802_index] .. " cal factor param set fail")
-    end
+    assert(CAL_FACT_PARAM[_nau7802_index]:set_and_save(cal_fact), _dev_name[_nau7802_index] .. " cal factor param set fail")
 
     -- Advance system state and exit calibration
     _sys_state = _sys_state + 1
@@ -486,7 +482,7 @@ local function get_load(i2c_dev, index)
 
   -- Calc and return load
   if on_scale then
-    return (on_scale - _zero_offset[index]) / _calibration_factor[index]
+    return (on_scale - ZERO_OFFSET_PARAM[index]:get()) / CAL_FACT_PARAM[index]:get()
   else
     return false
   end
@@ -578,9 +574,45 @@ init_nau7802 = function()
 end
 ------------------------------------------------------------------------
 
+------------------------------------------------------------------------
+-- bind a parameter to a variable
+function bind_param(name)
+  local p = Parameter()
+  assert(p:init(name), string.format('could not find %s parameter', name))
+  return p
+end
+------------------------------------------------------------------------
 
 ------------------------------------------------------------------------
 function init()
+
+  -- Setup param table
+  -- key must be a number between 0 and 200. The key is persistent in storage
+  local PARAM_TABLE_KEY = 73
+  -- generate table
+  assert(param:add_table(PARAM_TABLE_KEY, "THST_", 9), 'could not add param table')
+
+  -- generate params and their defaults
+  assert(param:add_param(PARAM_TABLE_KEY, 1, 'THST_REF', 2.0), 'could not add param THST_REF') -- (kg)
+  assert(param:add_param(PARAM_TABLE_KEY, 2, 'TORQ_REF', 5.47), 'could not add param TORQ_REF') -- (kg.cm)
+  assert(param:add_param(PARAM_TABLE_KEY, 3, 'CAL0_THST', 0.0), 'could not add param CAL0_THST')
+  assert(param:add_param(PARAM_TABLE_KEY, 4, 'CAL0_TORQ', 0.0), 'could not add param CAL0_TORQ')
+  assert(param:add_param(PARAM_TABLE_KEY, 5, 'CAL_M_THST', 0.0), 'could not add param CAL_M_THST')
+  assert(param:add_param(PARAM_TABLE_KEY, 6, 'CAL_M_TORQ', 0.0), 'could not add param CAL_M_TORQ')
+  assert(param:add_param(PARAM_TABLE_KEY, 7, 'CUR_LIM', 50.0), 'could not add param CUR_LIM')
+  assert(param:add_param(PARAM_TABLE_KEY, 8, 'MAX_THR', 100.0), 'could not add param MAX_THR') -- (%) constrained to 0 to 100
+  assert(param:add_param(PARAM_TABLE_KEY, 9, 'DEBUG', 0), 'could not add param DEBUG')
+  
+  -- setup param bindings
+  CALI_REF_PARAM[THRUST] = bind_param("THST_THST_REF")
+  CALI_REF_PARAM[TORQUE] =  bind_param("THST_TORQ_REF")
+  ZERO_OFFSET_PARAM[THRUST] = bind_param("THST_CAL0_THST")
+  ZERO_OFFSET_PARAM[TORQUE] = bind_param("THST_CAL0_TORQ")
+  CAL_FACT_PARAM[THRUST] = bind_param("THST_CAL_M_THST")
+  CAL_FACT_PARAM[TORQUE] = bind_param("THST_CAL_M_TORQ")
+  CURRENT_LIMIT = bind_param("THST_CUR_LIM")
+  MAX_THR_PARAM = bind_param("THST_MAX_THR")
+  DEBUG_PARAM = bind_param("THST_DEBUG")
 
   -- Init load cells
   if not(_dev_initialised[THRUST]) then
@@ -596,15 +628,15 @@ function init()
   -- Set first throttle step
   set_next_thr_step()
 
-  _calibration_loaded_flag = load_calibration(THRUST)
-  if _calibration_loaded_flag then
+  local calibration_valid = check_calibration(THRUST)
+  if calibration_valid then
     gcs:send_text(4,"Thrust calibration values loaded ")
     -- Advance system state, thrust calibration not needed
     _sys_state = REQ_CAL_TORQUE_ZERO_OFFSET
   end
 
-  _calibration_loaded_flag = _calibration_loaded_flag and load_calibration(TORQUE)
-  if _calibration_loaded_flag then
+  calibration_valid = calibration_valid and check_calibration(TORQUE)
+  if calibration_valid then
     gcs:send_text(4,"Torque calibration values loaded ")
     -- Advance system state, no calibration needed
     _sys_state = DISARMED
@@ -668,20 +700,12 @@ function update()
     _sys_state = REQ_CAL_THRUST_ZERO_OFFSET
 
     -- Reset calibration in memory
-    if not(param:set_and_save(ZERO_OFFSET_PARAM[THRUST], 0)) then
-      gcs:send_text(4,"Thrust 0 offset param set fail")
-    end
-    if not(param:set_and_save(CAL_FACT_PARAM[THRUST], 0)) then
-      gcs:send_text(4,"Thrust cal factor param set fail")
-    end
-    if not(param:set_and_save(ZERO_OFFSET_PARAM[TORQUE], 0)) then
-      gcs:send_text(4,"Torque 0 offset param set fail")
-    end
-    if not(param:set_and_save(CAL_FACT_PARAM[TORQUE], 0)) then
-      gcs:send_text(4,"Torque cal factor param set fail")
-    end
+    assert(ZERO_OFFSET_PARAM[THRUST]:set_and_save(0.0), "Thrust 0 offset param set fail")
+    assert(CAL_FACT_PARAM[THRUST]:set_and_save(0.0), "Thrust cal factor param set fail")
+    assert(ZERO_OFFSET_PARAM[TORQUE]:set_and_save(0.0), "Torque 0 offset param set fail")
+    assert(CAL_FACT_PARAM[TORQUE]:set_and_save(0.0), "Torque cal factor param set fail")
 
-    return protected_update, 500
+    return
   end
 
   -- Check if we should arm the system
@@ -748,8 +772,7 @@ function update()
   -- If system is armed update the throttle
   if _sys_state == ARMED and run_button_state then
     -- Current protection
-    local current_limit_amps = param:get(CURRENT_LIMIT)
-    if (current_limit_amps <= 0) or (_current < current_limit_amps) then
+    if (CURRENT_LIMIT:get() <= 0) or (_current < CURRENT_LIMIT:get()) then
       -- Update the output throttle
       if _throttle_mode == THROTTLE_MODE_STEP then
         update_throttle_transient(now)
@@ -783,7 +806,7 @@ function update()
 
   -- Don't log if thrust or load returns false
   -- let debug mode enable us to see bad data in the log
-  if _debug then
+  if DEBUG_PARAM:get() > 0.0 then
     if not _thrust then
       _thrust = 0.0
     end
@@ -866,27 +889,18 @@ end
 
 
 ------------------------------------------------------------------------
-function load_calibration(index)
+function check_calibration(index)
 
   -- Load sensor calibration values
-  local temp = param:get(ZERO_OFFSET_PARAM[index])
-  if (temp == 0) then
+  if (ZERO_OFFSET_PARAM[index]:get() == 0) then
     -- Don't have valid calibration stored
     return false
   end
-  -- Set value from storage
-  _zero_offset[index] = temp
 
-  temp = param:get(CAL_FACT_PARAM[index])
-  if (temp == 0) then
-      -- Don't have valid calibration stored
-      return false
+  if (CAL_FACT_PARAM[index]:get() == 0) then
+    -- Don't have valid calibration stored
+    return false
   end
-
-  -- Set value from storage
-  _calibration_factor[index] = temp
-
-  gcs:send_text(4,"DB: cal fact = " .. tostring(_calibration_factor[index]))
 
   return true
 end
@@ -1004,7 +1018,7 @@ function update_throttle_max()
     return
   end
 
-  _max_throttle = constrain(param:get(MAX_THR_PARAM)*0.01,0,1)
+  _max_throttle = constrain(MAX_THR_PARAM:get()*0.01,0,1)
 end
 ------------------------------------------------------------------------
 
