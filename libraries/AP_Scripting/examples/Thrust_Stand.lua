@@ -728,29 +728,6 @@ function update()
     end
   end
 
-  -------------------------------------------
-  --- --- --- Calibration routine --- --- ---
-  -------------------------------------------
-  if _sys_state == REQ_CAL_THRUST_ZERO_OFFSET and cal_button_state then
-    set_device(i2c_thrust, THRUST)
-    return calculate_zero_offset, 500
-  end
-
-  if _sys_state == REQ_CAL_THRUST_FACTOR and cal_button_state then
-    set_device(i2c_thrust, THRUST)
-    return calculate_calibration_factor, 500
-  end
-
-  if _sys_state == REQ_CAL_TORQUE_ZERO_OFFSET and cal_button_state then
-    set_device(i2c_torque, TORQUE)
-    return calculate_zero_offset, 500
-  end
-
-  if _sys_state == REQ_CAL_TORQUE_FACTOR and cal_button_state then
-    set_device(i2c_torque, TORQUE)
-    return calculate_calibration_factor, 500
-  end
-
   -- Check if we need to reset after an over-current protection event
   if _sys_state == CURRENT_PROTECTION and not safe_button_state then
     _sys_state = DISARMED
@@ -1222,11 +1199,43 @@ end
 
 ------------------------------------------------------------------------
 function protected_update()
+  -- Normal operation uses a pcall incase we hit an error whilst the motor is running
+  -- we still need to be able to stop it safely
+  if _sys_state > REQ_CAL_TORQUE_FACTOR then
     local success, err = pcall(update)
     if not success then
       gcs:send_text(0, "Internal Error: " .. err)
       return protected_update, 1000
     end
+  end
+
+  -------------------------------------------
+  --- --- --- Calibration routine --- --- ---
+  -------------------------------------------
+  local cal_button_state = button:get_button_state(CAL_BUTTON)
+
+  if _sys_state == REQ_CAL_THRUST_ZERO_OFFSET and cal_button_state then
+    set_device(i2c_thrust, THRUST)
+    return calculate_zero_offset, 500
+  end
+
+  if _sys_state == REQ_CAL_THRUST_FACTOR and cal_button_state then
+    update_cali_btn_led()
+    set_device(i2c_thrust, THRUST)
+    return calculate_calibration_factor, 500
+  end
+
+  if _sys_state == REQ_CAL_TORQUE_ZERO_OFFSET and cal_button_state then
+    update_cali_btn_led()
+    set_device(i2c_torque, TORQUE)
+    return calculate_zero_offset, 500
+  end
+
+  if _sys_state == REQ_CAL_TORQUE_FACTOR and cal_button_state then
+    update_cali_btn_led()
+    set_device(i2c_torque, TORQUE)
+    return calculate_calibration_factor, 500
+  end
 
     return protected_update, _samp_dt_ms
 end
