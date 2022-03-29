@@ -247,7 +247,7 @@ void Copter::parachute_check()
     parachute.set_is_flying(!ap.land_complete);
 
     // pass sink rate to parachute library
-    parachute.update(-inertial_nav.get_velocity_z() * 0.01f,
+    parachute.update(-inertial_nav.get_velocity_z_up_cms() * 0.01f,
                     copter.ahrs.get_accel_ef().z,
                     motors->limit.throttle_upper, standby_active);
 
