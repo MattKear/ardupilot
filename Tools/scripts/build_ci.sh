@@ -353,9 +353,9 @@ for t in $CI_BUILD_TARGET; do
         $waf copter
         ccache -s && ccache -z
 
-        if [[ $t == "linux" ]]; then
-            $waf check
-        fi
+        #if [[ $t == "linux" ]]; then
+        #    $waf check
+        #fi
         continue
     fi
 done
