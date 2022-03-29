@@ -58,6 +58,6 @@ jobs:
           PATH="/github/home/.local/bin:$PATH"
           echo $PATH
           ./waf configure --board ${{matrix.config}}
-          ./waf
+          ./waf copter
           ccache -s
           ccache -z
