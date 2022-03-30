@@ -3216,13 +3216,15 @@ class AutoTestCopter(AutoTest):
 
         # Initial setup
         self.set_rc(9, 1000)
-        self.set_parameter("CHUTE_ENABLED", 1)
-        self.set_parameter("CHUTE_TYPE", 10)
-        self.set_parameter("CHUTE_CRT_SINK", 6)
-        self.set_parameter("CHUTE_CRT_SNK_AB", 6)
-        self.set_parameter("SERVO9_FUNCTION", 27)
-        self.set_parameter("SIM_PARA_ENABLE", 1)
-        self.set_parameter("SIM_PARA_PIN", 9)
+        self.set_parameters({
+            "CHUTE_ENABLED": 1,
+            "CHUTE_TYPE": 10,
+            "SERVO9_FUNCTION": 27,
+            "SIM_PARA_ENABLE": 1,
+            "SIM_PARA_PIN": 9,
+            "CHUTE_CRT_SINK": 6,
+            "CHUTE_CRT_SNK_AB": 6,
+        })
 
         # Test trigger from mission command
         self.progress("Test triggering parachute in mission")
@@ -3238,7 +3240,7 @@ class AutoTestCopter(AutoTest):
 
         # Test trigger direct from mavlink message
         self.progress("Test triggering with mavlink message")
-        self.takeoff(alt_min=20, takeoff_throttle=1800, require_absolute=True, mode="ALT_HOLD", timeout=120)
+        self.takeoff(20)
         self.run_cmd(mavutil.mavlink.MAV_CMD_DO_PARACHUTE,
                      2, # release
                      0,
@@ -3279,6 +3281,8 @@ class AutoTestCopter(AutoTest):
                 raise NotAchievedException("Parachute deployed when in notify only mode")
         self.set_rc(9, 1000)
         self.set_parameter("CHUTE_OPTIONS", 0)
+        self.disarm_vehicle(force=True)
+        self.reboot_sitl()
 
         self.progress("Test mavlink triggering")
         self.takeoff(20)
@@ -3357,7 +3361,7 @@ class AutoTestCopter(AutoTest):
                      0, # param6
                      0 # param7
                      )
-        self.wait_statustext('BANG! Parachute deployed', timeout=2)
+        self.wait_statustext('BANG', timeout=2)
         self.disarm_vehicle(force=True)
         self.reboot_sitl()
 
@@ -3366,22 +3370,28 @@ class AutoTestCopter(AutoTest):
         self.progress("Crashing with 3pos switch in enable position")
         self.takeoff(40)
         self.set_rc(9, 1500)
-        self.set_parameter("SIM_ENGINE_FAIL", 15)
-        self.set_parameter("SIM_ENGINE_MUL", 0.55)
+        self.set_parameters({
+            "SIM_ENGINE_FAIL": 15,
+            "SIM_ENGINE_MUL": 0.55,
+        })
         self.wait_statustext('BANG', timeout=60)
         self.set_rc(9, 1000)
         self.disarm_vehicle(force=True)
         self.reboot_sitl()
-        self.set_parameter("SIM_ENGINE_FAIL", 0)
-        self.set_parameter("SIM_ENGINE_MUL", 1)
+        self.set_parameters({
+            "SIM_ENGINE_FAIL": 0,
+            "SIM_ENGINE_MUL": 1,
+        })
         self.context_pop()
 
         # Test motor failure with 3 position switch setting disabled - Chute should not deploy
         self.progress("Crashing with 3pos switch in disable position")
         self.takeoff(40, mode='LOITER', timeout=120)
         self.set_rc(9, 1100)
-        self.set_parameter("SIM_ENGINE_FAIL", 15)
-        self.set_parameter("SIM_ENGINE_MUL", 0.55)
+        self.set_parameters({
+            "SIM_ENGINE_FAIL": 15,
+            "SIM_ENGINE_MUL": 0.55,
+        })
         tstart = self.get_sim_time()
         while self.get_sim_time_cached() < tstart + 5:
             m = self.mav.recv_match(type='STATUSTEXT', blocking=True, timeout=1)
@@ -3394,8 +3404,10 @@ class AutoTestCopter(AutoTest):
         self.set_rc(9, 1000)
         self.disarm_vehicle(force=True)
         # reset params for next test
-        self.set_parameter("SIM_ENGINE_FAIL", 0)
-        self.set_parameter("SIM_ENGINE_MUL", 1)
+        self.set_parameters({
+            "SIM_ENGINE_FAIL": 0,
+            "SIM_ENGINE_MUL": 1,
+        })
         self.reboot_sitl()
 
         # Test sink rate trigger below min alt - Chute should not deploy
@@ -3404,8 +3416,10 @@ class AutoTestCopter(AutoTest):
         self.takeoff(15, mode='LOITER')
         # Enable chute via 3 pos switch
         self.set_rc(9, 1500)
-        self.set_parameter("SIM_ENGINE_FAIL", 15)
-        self.set_parameter("SIM_ENGINE_MUL", 0.5)
+        self.set_parameters({
+            "SIM_ENGINE_FAIL": 15,
+            "SIM_ENGINE_MUL": 0.5,
+        })
         tstart = self.get_sim_time()
         while self.get_sim_time_cached() < tstart + 5:
             m = self.mav.recv_match(type='STATUSTEXT', blocking=True, timeout=1)
@@ -3418,9 +3432,11 @@ class AutoTestCopter(AutoTest):
         self.set_rc(9, 1000)
         self.disarm_vehicle(force=True)
         # reset params for next test
-        self.set_parameter("SIM_ENGINE_FAIL", 0)
-        self.set_parameter("SIM_ENGINE_MUL", 1)
-        self.set_parameter("CHUTE_ALT_MIN", 10)
+        self.set_parameters({
+            "SIM_ENGINE_FAIL": 0,
+            "SIM_ENGINE_MUL": 1,
+            "CHUTE_ALT_MIN": 10,
+        })
         self.reboot_sitl()
 
         # Test loss of control
@@ -3435,38 +3451,43 @@ class AutoTestCopter(AutoTest):
         self.set_rc(1, 2000)
         self.set_rc(2, 2000)
         # Total motor failure on motor 1 and 4 to cause tumbling
-        self.set_parameter("SIM_ENGINE_FAIL", 9)
-        self.set_parameter("SIM_ENGINE_MUL", 0)
+        self.set_parameters({
+            "SIM_ENGINE_FAIL": 9,
+            "SIM_ENGINE_MUL": 0,
+        })
         self.wait_statustext('loss of control', timeout=30)
         self.set_rc(9, 1000)
         self.disarm_vehicle(force=True)
         # reset params for next test
-        self.set_parameter("SIM_ENGINE_FAIL", 0)
-        self.set_parameter("SIM_ENGINE_MUL", 1)
+        self.set_parameters({
+            "SIM_ENGINE_FAIL": 0,
+            "SIM_ENGINE_MUL": 1,
+        })
         self.reboot_sitl()
 
     def test_parachute_standby(self):
 
         # Initial setup
         self.set_rc(9, 1000)
-        self.set_parameter("CHUTE_ENABLED", 1)
-        self.set_parameter("CHUTE_TYPE", 10)
-        self.set_parameter("CHUTE_CRT_SINK", 6)
-        self.set_parameter("CHUTE_CRT_SNK_AB", 6)
-        self.set_parameter("CHUTE_SB_MX_ANG", 40)
-        self.set_parameter("SERVO9_FUNCTION", 27)
-        self.set_parameter("SIM_PARA_ENABLE", 1)
-        self.set_parameter("SIM_PARA_PIN", 9)
-        # self.set_parameter("RC10_OPTION", 76)
-        # self.set_rc(10, 2000)
-        # self.wait_statustext("Stand By Enabled", timeout=60)
+        self.set_parameters({
+            "CHUTE_ENABLED": 1,
+            "CHUTE_TYPE": 10,
+            "SERVO9_FUNCTION": 27,
+            "SIM_PARA_ENABLE": 1,
+            "SIM_PARA_PIN": 9,
+            "CHUTE_CRT_SINK": 6,
+            "CHUTE_CRT_SNK_AB": 6,
+            "CHUTE_SB_MX_ANG": 40,
+        })
 
         # Test loss of control, should trip on SB angle error
         self.progress("Motor failure one motor - test loss of control")
         self.set_standby(standby_enable=True)
-        self.set_parameter("CHUTE_CRT_SINK", 0)
-        self.set_parameter("CHUTE_MIN_ACCEL", 0)
-        self.set_parameter("CHUTE_CRT_SNK_AB", 0)
+        self.set_parameters({
+            "CHUTE_CRT_SINK": 0,
+            "CHUTE_MIN_ACCEL": 0,
+            "CHUTE_CRT_SNK_AB": 0,
+        })
         self.takeoff(40, mode='LOITER', timeout=120)
         # Enable chute via 3 pos switch
         self.set_rc(9, 1500)
@@ -3475,15 +3496,19 @@ class AutoTestCopter(AutoTest):
         self.set_rc(1, 2000)
         self.set_rc(2, 2000)
         # Total motor failure on motor 1 and 4 to cause tumbling
-        self.set_parameter("SIM_ENGINE_FAIL", 9)
-        self.set_parameter("SIM_ENGINE_MUL", 0)
+        self.set_parameters({
+            "SIM_ENGINE_FAIL": 9,
+            "SIM_ENGINE_MUL": 0,
+        })
         self.wait_statustext('loss of control', timeout=30)
         self.set_rc(9, 1000)
         self.disarm_vehicle(force=True)
         self.set_rc(1, 1500)
         self.set_rc(2, 1500)
-        self.set_parameter("SIM_ENGINE_FAIL", 0)
-        self.set_parameter("SIM_ENGINE_MUL", 1)
+        self.set_parameters({
+            "SIM_ENGINE_FAIL": 0,
+            "SIM_ENGINE_MUL": 1,
+        })
         self.set_standby(standby_enable=False)
         self.reboot_sitl()
 
@@ -3495,8 +3520,10 @@ class AutoTestCopter(AutoTest):
         self.set_rc(1, 2000)
         self.set_rc(2, 2000)
         # Total motor failure on motor 1 and 4 to cause tumbling
-        self.set_parameter("SIM_ENGINE_FAIL", 9)
-        self.set_parameter("SIM_ENGINE_MUL", 0)
+        self.set_parameters({
+            "SIM_ENGINE_FAIL": 9,
+            "SIM_ENGINE_MUL": 0,
+        })
         tstart = self.get_sim_time()
         while self.get_sim_time_cached() < tstart + 15:
             m = self.mav.recv_match(type='STATUSTEXT', blocking=True, timeout=1)
@@ -3506,8 +3533,10 @@ class AutoTestCopter(AutoTest):
                 self.set_rc(9, 1000)
                 self.reboot_sitl()
                 raise NotAchievedException("Parachute deployed when disabled")
-        self.set_parameter("SIM_ENGINE_FAIL", 0)
-        self.set_parameter("SIM_ENGINE_MUL", 1)
+        self.set_parameters({
+            "SIM_ENGINE_FAIL": 0,
+            "SIM_ENGINE_MUL": 1,
+        })
         self.set_rc(9, 1000)
         self.disarm_vehicle(force=True)
         self.set_rc(1, 1500)
@@ -3520,15 +3549,19 @@ class AutoTestCopter(AutoTest):
         self.set_standby(standby_enable=True)
         self.set_parameter("CHUTE_CRT_SINK", 6)
         # We only want to be able to trip sink with throttle so switch off all other thresholds or make them very large
-        self.set_parameter("CHUTE_MIN_ACCEL", 0)
-        self.set_parameter("CHUTE_CRT_SNK_AB", 0)
-        self.set_parameter("CHUTE_SB_MX_ANG", 1000)
-        self.set_parameter("CHUTE_ALT_MIN", 0)
+        self.set_parameters({
+            "CHUTE_MIN_ACCEL": 0,
+            "CHUTE_CRT_SNK_AB": 0,
+            "CHUTE_SB_MX_ANG": 1000,
+            "CHUTE_ALT_MIN": 0,
+        })
         # Take off to hover
         self.takeoff(40, mode='LOITER', timeout=120)
         # Total motor failure on all motors
-        self.set_parameter("SIM_ENGINE_FAIL", 15)
-        self.set_parameter("SIM_ENGINE_MUL", 0)
+        self.set_parameters({
+            "SIM_ENGINE_FAIL": 15,
+            "SIM_ENGINE_MUL": 0,
+        })
         while self.get_sim_time_cached() < tstart + 60:
             m = self.mav.recv_match(type='STATUSTEXT', blocking=True, timeout=1)
             if m is None:
@@ -3537,8 +3570,10 @@ class AutoTestCopter(AutoTest):
                 self.reboot_sitl()
                 raise NotAchievedException("Parachute deployed on sink rate with throttle in standby")
         # reset for next test
-        self.set_parameter("SIM_ENGINE_FAIL", 0)
-        self.set_parameter("SIM_ENGINE_MUL", 1)
+        self.set_parameters({
+            "SIM_ENGINE_FAIL": 0,
+            "SIM_ENGINE_MUL": 1,
+        })
         self.disarm_vehicle(force=True)
         self.set_standby(standby_enable=False)
         self.reboot_sitl()
@@ -3546,20 +3581,26 @@ class AutoTestCopter(AutoTest):
         # Test that we can deploy on absolute sink rate in standby
         self.progress("Test should trip abs sink rate check in SB")
         self.set_standby(standby_enable=True)
-        self.set_parameter("CHUTE_CRT_SNK_AB", 8)
-        self.set_parameter("CHUTE_CRT_SINK", 0)
-        self.set_parameter("CHUTE_MIN_ACCEL", 0)
-        self.set_parameter("CHUTE_SB_MX_ANG", 1000)
-        self.set_parameter("CHUTE_ALT_MIN", 0)
+        self.set_parameters({
+            "CHUTE_CRT_SNK_AB": 8,
+            "CHUTE_CRT_SINK": 0,
+            "CHUTE_MIN_ACCEL": 0,
+            "CHUTE_SB_MX_ANG": 1000,
+            "CHUTE_ALT_MIN": 0,
+        })
         # Take off to hover
         self.takeoff(40, mode='LOITER', timeout=120)
         # Total failure on motor 1 and 4 for tumbling
-        self.set_parameter("SIM_ENGINE_FAIL", 9)
-        self.set_parameter("SIM_ENGINE_MUL", 0)
+        self.set_parameters({
+            "SIM_ENGINE_FAIL": 9,
+            "SIM_ENGINE_MUL": 0,
+        })
         self.wait_statustext('sink rate', timeout=30)
         # reset for next test
-        self.set_parameter("SIM_ENGINE_FAIL", 0)
-        self.set_parameter("SIM_ENGINE_MUL", 1)
+        self.set_parameters({
+            "SIM_ENGINE_FAIL": 0,
+            "SIM_ENGINE_MUL": 1,
+        })
         self.disarm_vehicle(force=True)
         self.set_standby(standby_enable=False)
         self.reboot_sitl()
