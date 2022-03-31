@@ -3212,6 +3212,33 @@ class AutoTestCopter(AutoTest):
         if ex is not None:
             raise ex
 
+    def test_auto_rtl(self):
+
+        # Test set mode
+        self.progress("Test AUTO_RTL via set mode")
+        self.load_mission("copter_auto_rtl_mission.txt")
+        self.set_parameter("AUTO_RTL_TYPE", 4)
+        self.change_mode('LOITER')
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+        self.change_mode('AUTO')
+        self.set_rc(3, 1600)
+        self.wait_current_waypoint(3, timeout=120)
+        self.change_mode('LOITER')
+        self.run_cmd(mavutil.mavlink.MAV_CMD_DO_LAND_START,
+                     0,
+                     0,
+                     0,
+                     0,
+                     0,
+                     0,
+                     0)
+        #time.sleep(1)
+        self.wait_mode('AUTO_RTL')
+        self.wait_mode()
+        self.disarm_vehicle(force=True)
+        self.reboot_sitl()
+
     def test_parachute(self):
 
         # Initial setup
@@ -8705,6 +8732,10 @@ class AutoTestCopter(AutoTest):
             ("SurfaceTracking",
              "Test Surface Tracking",
              self.test_surface_tracking),  # 45s
+
+            ("AutoRTL",
+             "Test AutoRTL",
+             self.test_auto_rtl),
 
             ("Parachute",
              "Test Parachute Functionality",
