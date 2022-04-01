@@ -3235,7 +3235,6 @@ class AutoTestCopter(AutoTest):
                      0)
         #time.sleep(1)
         self.wait_mode('AUTO_RTL')
-        self.wait_mode()
         self.disarm_vehicle(force=True)
         self.reboot_sitl()
 
