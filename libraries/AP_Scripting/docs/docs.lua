@@ -1980,3 +1980,27 @@ function follow:get_last_update_ms() end
 -- desc
 ---@return boolean
 function follow:have_target() end
+
+-- desc
+---@class airspeed
+airspeed = {}
+
+-- desc
+---@return boolean
+---@param i integer
+function follow:enabled(i) end
+
+-- desc
+---@return boolean
+---@param i integer
+function follow:healthy(i) end
+
+-- desc
+---@return number
+---@param i integer
+function follow:get_airspeed(i) end
+
+-- desc
+---@return number
+---@param i integer
+function follow:get_raw_airspeed(i) end
