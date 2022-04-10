@@ -36,7 +36,6 @@ local AVE_N_SAMPLES = 10 -- The number of samples that are requested in the aver
 -- Buttons
 local SAFE_BUTTON = 1        -- Button number to set safety state
 local CAL_BUTTON = 2         -- Button number for initiating calibration
-local DEAD_MAN = 3           -- Button number for dead mans switch
 local AUX1_THROTTLE_MODE = 4 -- Button number for Aux 1
 -- AUX2 = 5                  -- Button number for Aux 2, Additional btn instance needs adding to AP before this can be used
 
@@ -670,7 +669,6 @@ function update()
   -- Get state of inputs
   local cal_button_state = button:get_button_state(CAL_BUTTON)
   local safe_button_state = button:get_button_state(SAFE_BUTTON)
-  local run_button_state = button:get_button_state(DEAD_MAN)
   local aux1_state = button:get_button_state(AUX1_THROTTLE_MODE)
 
   -- must be called before update_lights()
@@ -731,7 +729,7 @@ function update()
 
 
   -- If system is armed update the throttle
-  if _sys_state == ARMED and run_button_state then
+  if _sys_state == ARMED and safe_button_state then
     -- Current protection
     if (CURRENT_LIMIT:get() <= 0) or (_current < CURRENT_LIMIT:get()) then
       -- Update the output throttle
@@ -778,7 +776,7 @@ function update()
   end
 
   -- Log values
-  if _sys_state == ARMED and run_button_state then
+  if _sys_state == ARMED then
       -- Log to data flash logs
       -- We only log a few variables as the rest is already logged within the cpp
       logger.write('THST','ThO,Thst,Torq','fff','---','---',_current_thr, _thrust, _torque)
