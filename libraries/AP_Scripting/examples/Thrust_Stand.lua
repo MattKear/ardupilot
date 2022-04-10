@@ -66,11 +66,14 @@ local _sys_state = REQ_CAL_THRUST_ZERO_OFFSET
 local _last_sys_state = -1
 local _state_str = "Calibration"
 
--- Throttle mode
+-- mode
+local MODE_RAMP = 0 -- (copter stabilise) Throttle gradual ramp up and down
+local MODE_STEPS = 1 -- (copter acro) Step inputs around hover throttle
+local _last_mode
+
 local THROTTLE_MODE_RAMP = 0 -- Throttle gradual ramp up and down
 local THROTTLE_MODE_STEP = 1 -- Step inputs around hover throttle
 local _throttle_mode = THROTTLE_MODE_RAMP
-local _last_aux1_state
 
 -- LEDs
 local NUM_LEDS = 10
@@ -669,7 +672,9 @@ function update()
   -- Get state of inputs
   local cal_button_state = button:get_button_state(CAL_BUTTON)
   local safe_button_state = button:get_button_state(SAFE_BUTTON)
-  local aux1_state = button:get_button_state(AUX1_THROTTLE_MODE)
+
+  -- Get flight mode. We use AP flight mode as a hack to have easy thrust stand modes that can be changed via mavlink
+  local mode = vehicle:get_mode()
 
   -- must be called before update_lights()
   update_throttle_max()
@@ -696,7 +701,7 @@ function update()
   end
 
   -- Change to local lua disarm state
-  if not safe_button_state and not(_sys_state < DISARMED) then
+  if (not safe_button_state or not arming:is_armed()) and not(_sys_state < DISARMED) then
     -- Arm button has been switched off and we are not in a calibration state
     _sys_state = DISARMED
   end
@@ -717,14 +722,15 @@ function update()
 
   -- Update throttle mode.
   -- Only allow throttle mode to be changed in Disarmed State
-  if _sys_state == DISARMED and _last_aux1_state ~= aux1_state then
-    if aux1_state then
+  if _sys_state == DISARMED and _last_mode ~= mode then
+    if mode == MODE_STEPS then
       _throttle_mode = THROTTLE_MODE_STEP
       update_sample_rate(FAST_SAMPLE)
     else
       _throttle_mode = THROTTLE_MODE_RAMP
       update_sample_rate(SLOW_SAMPLE)
     end
+    _last_mode = mode
   end
 
 
