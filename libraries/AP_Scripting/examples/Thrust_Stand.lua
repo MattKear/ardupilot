@@ -103,6 +103,10 @@ local init_nau7802
 ------------------------------------------------------------------------
 -- Mask & set a given bit within a register
 local function setBit(i2c_dev, bitNumber, registerAddress)
+  if i2c_dev == nil then
+    return false
+  end
+
   local value = i2c_dev:read_registers(registerAddress)
 
   if value == nil then
@@ -118,6 +122,10 @@ end
 ------------------------------------------------------------------------
 -- Mask & clear a given bit within a register
 local function clearBit(i2c_dev, bitNumber, registerAddress)
+  if i2c_dev == nil then
+    return false
+  end
+
   local value = i2c_dev:read_registers(registerAddress)
 
   if value then
@@ -133,6 +141,10 @@ end
 ------------------------------------------------------------------------
 -- Return a given bit within a register
 local function getBit(i2c_dev, bitNumber, registerAddress)
+  if i2c_dev == nil then
+    return 0
+  end
+
   local value = i2c_dev:read_registers(registerAddress)
 
   if value == nil then
@@ -191,6 +203,9 @@ end
 -- Set the readings per second
 -- 10, 20, 40, and 80 samples per second is available
 local function setSampleRate(i2c_dev, rate)
+  if i2c_dev == nil then
+    return false
+  end
   if rate > 7 then
     rate = 7
   end
@@ -251,6 +266,9 @@ end
 -- 2.4, 2.7, 3.0, 3.3, 3.6, 3.9, 4.2, 4.5V are available
 local function setLDO(i2c_dev, ldoValue)
   -- Error check
+  if i2c_dev == nil then
+    return false
+  end
   if ldoValue > 7 then
     ldoValue = 7
   end
@@ -278,6 +296,10 @@ end
 -- Set the gain
 -- x1, 2, 4, 8, 16, 32, 64, 128 are avaialable
 local function setGain(i2c_dev, gainValue)
+  if i2c_dev == nil then
+    return false
+  end
+
   if gainValue > 7 then
     gainValue = 7 -- Error check
   end
@@ -300,6 +322,9 @@ end
 -- Returns 24-bit reading
 -- Assumes CR Cycle Ready bit (ADC conversion complete) has been checked to be 1
 local function getReading(i2c_dev)
+  if i2c_dev == nil then
+    return false
+  end
 
   local MSB = i2c_dev:read_registers(18) --ADC_OUT[23:16]
   local MID = i2c_dev:read_registers(19) --ADC_OUT[15:8]
