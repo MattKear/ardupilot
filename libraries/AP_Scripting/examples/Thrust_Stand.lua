@@ -1204,42 +1204,6 @@ function update_cali_btn_led()
     gpio:write(CAL_LED_BLUE, 1)
   end
 
-
-
-
-
-
-
-  -- if _sys_state == REQ_CAL_THRUST_ZERO_OFFSET then
-  --   SRV_Channels:set_output_pwm(CAL_LED_RED, OFF_PWM)
-  --   SRV_Channels:set_output_pwm(CAL_LED_GREEN, ON_PWM)
-  --   SRV_Channels:set_output_pwm(CAL_LED_BLUE, ON_PWM)
-  -- end
-
-  -- if _sys_state == REQ_CAL_THRUST_FACTOR then
-  --   SRV_Channels:set_output_pwm(CAL_LED_RED, OFF_PWM)
-  --   SRV_Channels:set_output_pwm(CAL_LED_GREEN, OFF_PWM)
-  --   SRV_Channels:set_output_pwm(CAL_LED_BLUE, ON_PWM)
-  -- end
-
-  -- if _sys_state == REQ_CAL_TORQUE_ZERO_OFFSET then
-  --   SRV_Channels:set_output_pwm(CAL_LED_RED, ON_PWM)
-  --   SRV_Channels:set_output_pwm(CAL_LED_GREEN, ON_PWM)
-  --   SRV_Channels:set_output_pwm(CAL_LED_BLUE, OFF_PWM)
-  -- end
-
-  -- if _sys_state == REQ_CAL_TORQUE_FACTOR then
-  --   SRV_Channels:set_output_pwm(CAL_LED_RED, ON_PWM)
-  --   SRV_Channels:set_output_pwm(CAL_LED_GREEN, HALF_ON_PWM)
-  --   SRV_Channels:set_output_pwm(CAL_LED_BLUE, OFF_PWM)
-  -- end
-
-  -- if _sys_state >= DISARMED then
-  --   SRV_Channels:set_output_pwm(CAL_LED_RED, ON_PWM)
-  --   SRV_Channels:set_output_pwm(CAL_LED_GREEN, OFF_PWM)
-  --   SRV_Channels:set_output_pwm(CAL_LED_BLUE, ON_PWM)
-  -- end
-
 end
 ------------------------------------------------------------------------
 
