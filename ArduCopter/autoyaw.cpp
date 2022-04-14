@@ -61,32 +61,9 @@ void Mode::AutoYaw::set_mode(autopilot_yaw_mode yaw_mode)
     // perform initialisation
     switch (_mode) {
 
-    case AUTO_YAW_HOLD:
-        break;
-
-    case AUTO_YAW_LOOK_AT_NEXT_WP:
-        // wpnav will initialise heading when wpnav's set_destination method is called
-        break;
-
-    case AUTO_YAW_ROI:
-        // look ahead until we know otherwise
-        break;
-
-    case AUTO_YAW_FIXED:
-        // keep heading pointing in the direction held in fixed_yaw
-        // caller should set the fixed_yaw
-        break;
-
     case AUTO_YAW_LOOK_AHEAD:
         // Commanded Yaw to automatically look ahead.
         _look_ahead_yaw = copter.ahrs.yaw_sensor;
-        break;
-
-    case AUTO_YAW_RESETTOARMEDYAW:
-        // initial_armed_bearing will be set during arming so no init required
-        break;
-
-    case AUTO_YAW_ANGLE_RATE:
         break;
 
     case AUTO_YAW_RATE:
@@ -94,8 +71,12 @@ void Mode::AutoYaw::set_mode(autopilot_yaw_mode yaw_mode)
         _yaw_rate_cds = 0.0f;
         break;
 
-    case AUTO_YAW_CIRCLE:
+    default:
         // no initialisation required
+        // case AUTO_YAW_LOOK_AT_NEXT_WP: wpnav will initialise heading when wpnav's set_destination method is called
+        // case AUTO_YAW_ROI: look ahead until we know otherwise
+        // case AUTO_YAW_FIXED: keep heading pointing in the direction held in fixed_yaw. caller should set the fixed_yaw
+        // case AUTO_YAW_RESETTOARMEDYAW: initial_armed_bearing will be set during arming so no init required
         break;
     }
 }
