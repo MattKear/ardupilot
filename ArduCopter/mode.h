@@ -115,6 +115,11 @@ public:
     virtual bool pause() { return false; };
     virtual bool resume() { return false; };
 
+    // true is weathervaning is allowed in the current mode
+#if WEATHERVANE_ENABLED == ENABLED
+    virtual bool allows_weathervaning() const { return false; }
+#endif
+
 protected:
 
     // helper functions
@@ -229,7 +234,7 @@ public:
         float yaw();
 
         // mode(): current method of determining desired yaw:
-        autopilot_yaw_mode mode() const { return (autopilot_yaw_mode)_mode; }
+        autopilot_yaw_mode mode() const { return _mode; }
         void set_mode_to_default(bool rtl);
         void set_mode(autopilot_yaw_mode new_mode);
         autopilot_yaw_mode default_mode(bool rtl) const;
@@ -247,6 +252,9 @@ public:
                            bool relative_angle);
 
         void set_yaw_angle_rate(float yaw_angle_d, float yaw_rate_ds);
+#if WEATHERVANE_ENABLED == ENABLED
+        void update_weathervane(const int16_t roll_cdeg, const int16_t pitch_cdeg, const int16_t pilot_yaw, const int32_t hgt_cm);
+#endif
 
         bool fixed_yaw_slew_finished() { return is_zero(_fixed_yaw_offset_cd); }
 
@@ -256,7 +264,8 @@ public:
         float roi_yaw() const;
 
         // auto flight mode's yaw mode
-        uint8_t _mode = AUTO_YAW_LOOK_AT_NEXT_WP;
+        autopilot_yaw_mode _mode = AUTO_YAW_LOOK_AT_NEXT_WP;
+        autopilot_yaw_mode _last_mode;
 
         // Yaw will point at this location if mode is set to AUTO_YAW_ROI
         Vector3f roi;
@@ -468,6 +477,11 @@ public:
     // Mission change detector
     AP_Mission_ChangeDetector mis_change_detector;
 
+    // true is weathervaning is allowed in auto
+#if WEATHERVANE_ENABLED == ENABLED
+    bool allows_weathervaning(void) const override;
+#endif
+
 protected:
 
     const char *name() const override { return auto_RTL? "AUTO RTL" : "AUTO"; }
@@ -484,6 +498,7 @@ private:
         AllowArming                        = (1 << 0U),
         AllowTakeOffWithoutRaisingThrottle = (1 << 1U),
         IgnorePilotYaw                     = (1 << 2U),
+        AllowWeatherVaning                 = (1 << 7U),
     };
 
     bool start_command(const AP_Mission::Mission_Command& cmd);
@@ -983,6 +998,11 @@ public:
     bool pause() override;
     bool resume() override;
 
+    // true is weathervaning is allowed in guided
+#if WEATHERVANE_ENABLED == ENABLED
+    bool allows_weathervaning(void) const override;
+#endif
+
 protected:
 
     const char *name() const override { return "GUIDED"; }
@@ -1003,6 +1023,7 @@ private:
         DoNotStabilizePositionXY = (1U << 4),
         DoNotStabilizeVelocityXY = (1U << 5),
         WPNavUsedForPosControl = (1U << 6),
+        AllowWeatherVaning = (1U << 7)
     };
 
     // wp controller

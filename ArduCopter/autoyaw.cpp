@@ -56,6 +56,7 @@ void Mode::AutoYaw::set_mode(autopilot_yaw_mode yaw_mode)
     if (_mode == yaw_mode) {
         return;
     }
+    _last_mode = _mode;
     _mode = yaw_mode;
 
     // perform initialisation
@@ -96,6 +97,9 @@ void Mode::AutoYaw::set_mode(autopilot_yaw_mode yaw_mode)
 
     case AUTO_YAW_CIRCLE:
         // no initialisation required
+        break;
+
+    case AUTO_YAW_WEATHERVANE:
         break;
     }
 }
@@ -261,6 +265,7 @@ float Mode::AutoYaw::rate_cds() const
 
     case AUTO_YAW_ANGLE_RATE:
     case AUTO_YAW_RATE:
+    case AUTO_YAW_WEATHERVANE:
         return _yaw_rate_cds;
 
     case AUTO_YAW_LOOK_AT_NEXT_WP:
@@ -270,3 +275,25 @@ float Mode::AutoYaw::rate_cds() const
     // return zero turn rate (this should never happen)
     return 0.0f;
 }
+
+// handle the interface to the weathervane library
+// pilot_yaw can be an angle or a rate or rcin from yaw channel. It just needs to represent a pilot's request to yaw the vehicle to enable pilot overrides.
+#if WEATHERVANE_ENABLED == ENABLED
+void Mode::AutoYaw::update_weathervane(const int16_t roll_cdeg, const int16_t pitch_cdeg, const int16_t pilot_yaw, const int32_t hgt_cm)
+{
+    float yaw_rate_cds;
+    if (copter.g2.weathervane.get_yaw_out(yaw_rate_cds, pilot_yaw, hgt_cm*0.01, roll_cdeg, pitch_cdeg, copter.flightmode->is_taking_off(), copter.flightmode->is_landing())) {
+        set_mode(AUTO_YAW_WEATHERVANE);
+        _yaw_rate_cds = yaw_rate_cds;
+
+    } else if (mode() == AUTO_YAW_WEATHERVANE) {
+        // if the weathervane controller has previously been activated we need to ensure we return control back to what was previously set
+        _yaw_rate_cds = 0.0;
+        if (_last_mode == AUTO_YAW_HOLD) {
+            set_mode_to_default(false);
+        } else {
+            set_mode(_last_mode);
+        }
+    }
+}
+#endif // WEATHERVANE_ENABLED == ENABLED
