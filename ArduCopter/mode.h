@@ -229,7 +229,7 @@ public:
         float yaw();
 
         // mode(): current method of determining desired yaw:
-        autopilot_yaw_mode mode() const { return (autopilot_yaw_mode)_mode; }
+        autopilot_yaw_mode mode() const { return _mode; }
         void set_mode_to_default(bool rtl);
         void set_mode(autopilot_yaw_mode new_mode);
         autopilot_yaw_mode default_mode(bool rtl) const;
@@ -247,6 +247,7 @@ public:
                            bool relative_angle);
 
         void set_yaw_angle_rate(float yaw_angle_d, float yaw_rate_ds);
+        void update_weathervane(const int16_t roll_cdeg, const int16_t pitch_cdeg, const int16_t pilot_yaw, const int32_t hgt_cm);
 
         bool fixed_yaw_slew_finished() { return is_zero(_fixed_yaw_offset_cd); }
 
@@ -256,7 +257,7 @@ public:
         float roi_yaw() const;
 
         // auto flight mode's yaw mode
-        uint8_t _mode = AUTO_YAW_LOOK_AT_NEXT_WP;
+        autopilot_yaw_mode _mode = AUTO_YAW_LOOK_AT_NEXT_WP;
 
         // Yaw will point at this location if mode is set to AUTO_YAW_ROI
         Vector3f roi;
@@ -276,8 +277,12 @@ public:
         // turn rate (in cds) when auto_yaw_mode is set to AUTO_YAW_RATE
         float _yaw_angle_cd;
         float _yaw_rate_cds;
+
+        autopilot_yaw_mode _last_mode;
     };
     static AutoYaw auto_yaw;
+
+    bool allows_weathervaning_auto(void) const;
 
     // pass-through functions to reduce code churn on conversion;
     // these are candidates for moving into the Mode base
@@ -468,6 +473,13 @@ public:
     // Mission change detector
     AP_Mission_ChangeDetector mis_change_detector;
 
+        enum class Options : int32_t {
+        AllowArming                        = (1 << 0U),
+        AllowTakeOffWithoutRaisingThrottle = (1 << 1U),
+        IgnorePilotYaw                     = (1 << 2U),
+        AllowWeatherVaning                 = (1 << 7U),
+    };
+
 protected:
 
     const char *name() const override { return auto_RTL? "AUTO RTL" : "AUTO"; }
@@ -480,11 +492,7 @@ protected:
 
 private:
 
-    enum class Options : int32_t {
-        AllowArming                        = (1 << 0U),
-        AllowTakeOffWithoutRaisingThrottle = (1 << 1U),
-        IgnorePilotYaw                     = (1 << 2U),
-    };
+    bool allows_weathervaning(void) const;
 
     bool start_command(const AP_Mission::Mission_Command& cmd);
     bool verify_command(const AP_Mission::Mission_Command& cmd);
@@ -1003,6 +1011,7 @@ private:
         DoNotStabilizePositionXY = (1U << 4),
         DoNotStabilizeVelocityXY = (1U << 5),
         WPNavUsedForPosControl = (1U << 6),
+        AllowWeatherVaning = (1U << 7)
     };
 
     // wp controller
@@ -1021,6 +1030,7 @@ private:
     void pause_control_run();
     void posvelaccel_control_run();
     void set_yaw_state(bool use_yaw, float yaw_cd, bool use_yaw_rate, float yaw_rate_cds, bool relative_angle);
+    bool allows_weathervaning(void) const;
 
     // controls which controller is run (pos or vel):
     SubMode guided_mode = SubMode::TakeOff;
