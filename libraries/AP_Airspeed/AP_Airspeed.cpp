@@ -737,6 +737,48 @@ bool AP_Airspeed::all_healthy(void) const
     return true;
 }
 
+// return true if airspeed is enabled
+bool AP_Airspeed::enabled(uint8_t i) const {
+    if (i < AIRSPEED_MAX_SENSORS) {
+        return param[i].type.get() != TYPE_NONE;
+    }
+    return false;
+}
+
+// return health status of sensor
+bool AP_Airspeed::healthy(uint8_t i) const {
+    bool ok = state[i].healthy && enabled(i) && sensor[i] != nullptr;
+#ifndef HAL_BUILD_AP_PERIPH
+    // sanity check the offset parameter.  Zero is permitted if we are skipping calibration.
+    ok &= (fabsf(param[i].offset) > 0 || state[i].use_zero_offset || param[i].skip_cal);
+#endif
+    return ok;
+}
+
+// return the unfiltered airspeed in m/s
+float AP_Airspeed::get_raw_airspeed(uint8_t i) const {
+    if (!healthy(i)) {
+        return 0.0;
+    }
+    return state[i].raw_airspeed;
+}
+
+// return the differential pressure in Pascal for the last airspeed reading
+float AP_Airspeed::get_differential_pressure(uint8_t i) const {
+    if (!healthy(i)) {
+        return 0.0;
+    }
+    return state[i].last_pressure;
+}
+
+// return the current corrected pressure
+float AP_Airspeed::get_corrected_pressure(uint8_t i) const {
+    if (!healthy(i)) {
+        return 0.0;
+    }
+    return state[i].corrected_pressure;
+}
+
 #else  // build type is not appropriate; provide a dummy implementation:
 const AP_Param::GroupInfo AP_Airspeed::var_info[] = { AP_GROUPEND };
 
