@@ -342,7 +342,7 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
         CHECK_PAYLOAD_SIZE(COMMAND_LONG);
         mavlink_command_long_t pkt_msg{};
         copter.parachute.send_chute_msg(pkt_msg);
-        GCS_MAVLINK::send_message(MAVLINK_MSG_ID_COMMAND_LONG, (char*) &pkt_msg);
+        GCS_MAVLINK::send_to_components(MAVLINK_MSG_ID_COMMAND_LONG, (char*) &pkt_msg, sizeof(pkt_msg));
         break;
 #endif
     }
