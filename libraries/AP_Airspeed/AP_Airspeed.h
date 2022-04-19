@@ -72,15 +72,13 @@ public:
     // altitude/climb_rate/acceleration interfaces are ever used
     void calibrate(bool in_startup);
 
-    // return the current airspeed in m/s
-    float get_airspeed(uint8_t i) const {
-        return state[i].airspeed;
-    }
-    float get_airspeed(void) const { return get_airspeed(primary); }
+    // get the current airspeed in m/s as pass by reference, returns healthy
+    bool get_airspeed(float &as, const uint8_t i);
+    bool get_airspeed(float &as) { return get_airspeed(as, primary); }
 
-    // return the unfiltered airspeed in m/s
-    float get_raw_airspeed(uint8_t i) const;
-    float get_raw_airspeed(void) const { return get_raw_airspeed(primary); }
+    // get the unfiltered airspeed in m/s as pass by reference, returns healthy
+    bool get_raw_airspeed(float &as, const uint8_t i);
+    bool get_raw_airspeed(float &as) { return get_raw_airspeed(as, primary); }
 
     // return the current airspeed ratio (dimensionless)
     float get_airspeed_ratio(uint8_t i) const {
@@ -111,9 +109,9 @@ public:
     bool enabled(uint8_t i) const;
     bool enabled(void) const { return enabled(primary); }
 
-    // return the differential pressure in Pascal for the last airspeed reading
-    float get_differential_pressure(uint8_t i) const;
-    float get_differential_pressure(void) const { return get_differential_pressure(primary); }
+    // get the differential pressure in Pascal as pass by reference, returns healthy
+    bool get_differential_pressure(float &press, const uint8_t i);
+    bool get_differential_pressure(float &press) { return get_differential_pressure(press, primary); }
 
     // update airspeed ratio calibration
     void update_calibration(const Vector3f &vground, int16_t max_airspeed_allowed_during_cal);
@@ -168,10 +166,10 @@ public:
     
     static AP_Airspeed *get_singleton() { return _singleton; }
 
-    // return the current corrected pressure, public for AP_Periph
-    float get_corrected_pressure(uint8_t i) const;
-    float get_corrected_pressure(void) const {
-        return get_corrected_pressure(primary);
+    // get the current corrected pressure as pass by reference, returns healthy, public for AP_Periph
+    bool get_corrected_pressure(float &press, const uint8_t i);
+    bool get_corrected_pressure(float &press) {
+        return get_corrected_pressure(press, primary);
     }
 
 #if HAL_MSP_AIRSPEED_ENABLED

@@ -721,8 +721,9 @@ AP_AHRS_DCM::drift_correction(float deltat)
 
         float airspeed = _last_airspeed;
 #if AP_AIRSPEED_ENABLED
-        if (airspeed_sensor_enabled()) {
-            airspeed = AP::airspeed()->get_airspeed();
+        if (!AP::airspeed()->get_airspeed(airspeed)) {
+            // reset back to last value if airspeed sensor is unhealthy
+            airspeed = _last_airspeed;
         }
 #endif
 
@@ -1034,9 +1035,10 @@ void AP_AHRS_DCM::estimate_wind(void)
     }
 
 #if AP_AIRSPEED_ENABLED
-    if (now - _last_wind_time > 2000 && airspeed_sensor_enabled()) {
+    float aspeed;
+    if (now - _last_wind_time > 2000 && airspeed_sensor_enabled() && AP::airspeed()->get_airspeed(aspeed)) {
         // when flying straight use airspeed to get wind estimate if available
-        const Vector3f airspeed = _dcm_matrix.colx() * AP::airspeed()->get_airspeed();
+        const Vector3f airspeed = _dcm_matrix.colx() * aspeed;
         const Vector3f wind = velocity - (airspeed * get_EAS2TAS());
         _wind = _wind * 0.92f + wind * 0.08f;
     }
@@ -1123,8 +1125,9 @@ bool AP_AHRS_DCM::airspeed_estimate(uint8_t airspeed_index, float &airspeed_ret)
 bool AP_AHRS_DCM::get_unconstrained_airspeed_estimate(uint8_t airspeed_index, float &airspeed_ret) const
 {
 #if AP_AIRSPEED_ENABLED
-    if (airspeed_sensor_enabled(airspeed_index)) {
-        airspeed_ret = AP::airspeed()->get_airspeed(airspeed_index);
+    float aspeed;
+    if (airspeed_sensor_enabled(airspeed_index) && AP::airspeed()->get_airspeed(aspeed, airspeed_index)) {
+        airspeed_ret = aspeed;
         return true;
     }
 #endif

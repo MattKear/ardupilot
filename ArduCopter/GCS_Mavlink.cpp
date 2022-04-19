@@ -223,8 +223,9 @@ float GCS_MAVLINK_Copter::vfr_hud_airspeed() const
     // will use an airspeed sensor, that value is constrained by the
     // ground speed. When reporting we should send the true airspeed
     // value if possible:
-    if (copter.airspeed.enabled() && copter.airspeed.healthy()) {
-        return copter.airspeed.get_airspeed();
+    float aspeed
+    if (copter.airspeed.get_airspeed(aspeed)) {
+        return aspeed;
     }
 #endif
     

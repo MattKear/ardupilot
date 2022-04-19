@@ -248,13 +248,13 @@ float GCS_MAVLINK_Plane::vfr_hud_airspeed() const
     // ground speed.  When reporting we should send the true airspeed
     // value if possible:
 #if AP_AIRSPEED_ENABLED
-    if (plane.airspeed.enabled() && plane.airspeed.healthy()) {
-        return plane.airspeed.get_airspeed();
+    float aspeed;
+    if (plane.airspeed.get_airspeed(aspeed)) {
+        return aspeed;
     }
 #endif
 
     // airspeed estimates are OK:
-    float aspeed;
     if (AP::ahrs().airspeed_estimate(aspeed)) {
         return aspeed;
     }

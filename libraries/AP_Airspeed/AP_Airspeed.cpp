@@ -755,28 +755,28 @@ bool AP_Airspeed::healthy(uint8_t i) const {
     return ok;
 }
 
-// return the unfiltered airspeed in m/s
-float AP_Airspeed::get_raw_airspeed(uint8_t i) const {
-    if (!healthy(i)) {
-        return 0.0;
-    }
-    return state[i].raw_airspeed;
+// get the current airspeed in m/s as pass by reference, returns healthy
+bool AP_Airspeed::get_airspeed(float &as, const uint8_t i) {
+    as = state[i].airspeed;
+    return healthy(i);
 }
 
-// return the differential pressure in Pascal for the last airspeed reading
-float AP_Airspeed::get_differential_pressure(uint8_t i) const {
-    if (!healthy(i)) {
-        return 0.0;
-    }
-    return state[i].last_pressure;
+// get the unfiltered airspeed in m/s as pass by reference, returns healthy
+bool AP_Airspeed::get_raw_airspeed(float &as, const uint8_t i) {
+    as = state[i].raw_airspeed;
+    return healthy(i);
 }
 
-// return the current corrected pressure
-float AP_Airspeed::get_corrected_pressure(uint8_t i) const {
-    if (!healthy(i)) {
-        return 0.0;
-    }
-    return state[i].corrected_pressure;
+// get the differential pressure in Pascal as pass by reference, returns healthy
+bool AP_Airspeed::get_differential_pressure(float &press, const uint8_t i) {
+    press = state[i].last_pressure;
+    return healthy(i);
+}
+
+// get the current corrected pressure as pass by reference, returns healthy
+bool AP_Airspeed::get_corrected_pressure(float &press, const uint8_t i) {
+    press = state[i].corrected_pressure;
+    return healthy(i);
 }
 
 #else  // build type is not appropriate; provide a dummy implementation:
