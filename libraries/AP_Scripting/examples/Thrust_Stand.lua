@@ -53,6 +53,18 @@ local _thr_inc_dec = 1 --(-) Used to switch the motor from increment to decremen
 local _hover_point_achieved = false -- Has the controller achieved the hover throttle
 local _throttle_step_index = 1 -- Index in the table of throttle steps to work through
 
+-- setup the fast access pwm_min parameter
+local mot_pwm_min_param = Parameter()
+assert(mot_pwm_min_param:init('MOT_PWM_MIN'), 'failed get MOT_PWM_MIN')
+-- init the local variable from the param value
+local mot_pwm_min = mot_pwm_min_param:get()
+
+-- setup the fast access pwm_max parameter
+local mot_pwm_max_param = Parameter()
+assert(mot_pwm_max_param:init('MOT_PWM_MAX'), 'failed get MOT_PWM_MAX')
+-- init the local variable from the param value
+local mot_pwm_max = mot_pwm_max_param:get()
+
 -- Sys state - The current state of the system
 local REQ_CAL_THRUST_ZERO_OFFSET = 1    -- Requires calibration, needs zero offset
 local REQ_CAL_THRUST_FACTOR = 2         -- In calibration, needs calibration factor
@@ -677,8 +689,6 @@ function init()
   -- Setup motor 1 so that we can apply servo overrides.  That way, if the lua script dies the 
   -- override will time out and the motor will be stopped
   local all_set = param:set_and_save('SERVO1_FUNCTION', 33)
-  all_set = all_set and param:set_and_save('MOT_SPIN_MIN', 0)
-  all_set = all_set and param:set_and_save('MOT_PWM_MIN', 1000)
 
   if all_set then
     -- Now main loop can be started
@@ -766,6 +776,10 @@ function update()
     _last_mode = mode
   end
 
+  -- If the sys state is disarmed then run non-critical updates
+  if _sys_state == DISARMED then
+    update_while_disarmed()
+  end
 
   -- If system is armed update the throttle
   if _sys_state == ARMED and safe_button_state then
@@ -883,6 +897,22 @@ function update_state_msg()
   end
 
   _last_sys_state = _sys_state
+end
+------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------
+function update_while_disarmed()
+  -- update mot pwm min and max
+  local min_pwm = mot_pwm_min_param:get()
+  if min_pwm then
+    mot_pwm_min = min_pwm
+  end
+
+  local max_pwm = mot_pwm_max_param:get()
+  if max_pwm then
+    mot_pwm_max = max_pwm
+  end
 end
 ------------------------------------------------------------------------
 
@@ -1031,8 +1061,7 @@ end
 ------------------------------------------------------------------------
 function calc_pwm(throttle_pct)
   -- Calc pwm from throttle as a % (0-1)
-  local pwm = math.floor((throttle_pct * 1000) + 1000)
-  return pwm
+  return math.floor((throttle_pct * (mot_pwm_max - mot_pwm_min)) + mot_pwm_min)
 end
 ------------------------------------------------------------------------
 
