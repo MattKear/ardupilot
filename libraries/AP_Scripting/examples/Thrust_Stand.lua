@@ -1,11 +1,16 @@
 -- Port of Sparkfun Qwiic Scale library for NAU7802
 -- https://github.com/sparkfun/SparkFun_NAU7802_Scale_Arduino_Library
 
+local USE_TORQUE = false
+
 -- Set pointer to load cell address
 local i2c_thrust = i2c.get_device(1,0x2A)
-local i2c_torque = i2c.get_device(0,0x2A)
 i2c_thrust:set_retries(10)
-i2c_torque:set_retries(10)
+
+if USE_TORQUE then
+  local i2c_torque = i2c.get_device(0,0x2A)
+  i2c_torque:set_retries(10)
+end
 
 -- Time (ms) between samples
 local _samp_dt_ms = 0
@@ -66,15 +71,12 @@ assert(mot_pwm_max_param:init('MOT_PWM_MAX'), 'failed get MOT_PWM_MAX')
 local mot_pwm_max = mot_pwm_max_param:get()
 
 -- Sys state - The current state of the system
-local REQ_CAL_THRUST_ZERO_OFFSET = 1    -- Requires calibration, needs zero offset
-local REQ_CAL_THRUST_FACTOR = 2         -- In calibration, needs calibration factor
-local REQ_CAL_TORQUE_ZERO_OFFSET = 3    -- Requires calibration, needs zero offset
-local REQ_CAL_TORQUE_FACTOR = 4         -- In calibration, needs calibration factor
-local DISARMED = 5                      -- Ready to go, not running
-local ARMED = 6                         -- Armed and motor running
+local CALIBRATION_REQ = 1               -- Requires calibration, needs zero offset
+local DISARMED = 2                      -- Ready to go, not running
+local ARMED = 3                         -- Armed and motor running
 local CURRENT_PROTECTION = 10           -- Error State
 
-local _sys_state = REQ_CAL_THRUST_ZERO_OFFSET
+local _sys_state = CALIBRATION_REQ
 local _last_sys_state = -1
 local _state_str = "Calibration"
 
@@ -101,17 +103,11 @@ local CAL_FACT_PARAM = {"THST_CAL_M_THST", "THST_CAL_M_TORQ"}
 local CURRENT_LIMIT = Parameter()
 local MAX_THR_PARAM = Parameter()
 local CALI_REF_PARAM = {2.0, 5.47} -- (grams, kg.cm) The known mass/torque value that the sensor will be calibrated with
-local DEBUG_PARAM = Parameter()         -- debug mode
-
 
 -- Measurements
-local _thrust = 0.0
-local _torque = 0.0
 local _current = 0.0
 
 -- Forward declare functions
-local calculate_zero_offset
-local calculate_calibration_factor
 local init_nau7802
 
 ------------------------------------------------------------------------
@@ -432,30 +428,6 @@ end
 
 
 ------------------------------------------------------------------------
--- Call when load cell is setup, at running temperature, with no load applied
--- set_device(i2c_dev, index) must be called before this function
-calculate_zero_offset = function()
-
-  if calc_average(_nau7802_i2c_dev) then
-    -- Save offset to EEPROM with param
-    assert(ZERO_OFFSET_PARAM[_nau7802_index]:set_and_save(_ave_total), _dev_name[_nau7802_index] .. " 0 offset param set fail")
-
-    -- send successful message
-    gcs:send_text(4, _dev_name[_nau7802_index] .. " 0 offset: " .. tostring(ZERO_OFFSET_PARAM[_nau7802_index]:get()))
-
-    -- Advance state to next step in calibration process
-    _sys_state = _sys_state + 1
-    return protected_update, _samp_dt_ms
-  end
-
-  -- carry on doing average calculation
-  return calculate_zero_offset, _samp_dt_ms
-
-end
-------------------------------------------------------------------------
-
-
-------------------------------------------------------------------------
 -- Call after zeroing. Provide the float weight sitting on scale. Units do not matter.
 -- set_device(i2c_dev, index) must be called before this function
 calculate_calibration_factor = function()
@@ -487,8 +459,8 @@ end
 
 
 ------------------------------------------------------------------------
--- Returns the instentanious load on a given load cell
-local function get_load(i2c_dev, index)
+-- Returns the instentanious raw output from the amplifer
+local function get_raw_reading(i2c_dev, index)
 
   -- we try to get the load 10 times to try and side step race conditions with the amplifier
   -- this is a bit of a hack to offset the run times
@@ -506,12 +478,27 @@ local function get_load(i2c_dev, index)
 
   local on_scale = getReading(i2c_dev)
 
-  -- Calc and return load
-  if on_scale then
-    return (on_scale - ZERO_OFFSET_PARAM[index]:get()) / CAL_FACT_PARAM[index]:get()
-  else
+  if not on_scale then
     return false
   end
+
+  return on_scale
+end
+------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------
+-- Returns the instentanious load on a given load cell applying the calibration
+local function get_load(i2c_dev, index)
+
+  local on_scale = get_raw_reading(i2c_dev, index)
+
+  -- Calc and return load
+  if not on_scale then
+    return false
+  end
+
+  return (on_scale - ZERO_OFFSET_PARAM[index]:get()) / CAL_FACT_PARAM[index]:get()
 
 end
 ------------------------------------------------------------------------
@@ -530,11 +517,11 @@ local function begin(i2c_dev)
   result = result and i2c_dev:write_register(21, 48)      -- Turn off CLK_CHP. From 9.1 power on sequencing.
   result = result and setBit(i2c_dev, 7, 28)              -- Enable 330pF decoupling cap on chan 2. From 9.14 application circuit note.
   result = result and setBit(i2c_dev, 2, 2)               -- Begin asynchronous calibration of the analog front end.
-                                                          -- Poll for completion with calAFEStatus() or wait with waitForCalibrateAFE()
   return result
 
 end
 ------------------------------------------------------------------------
+
 
 ------------------------------------------------------------------------
 function sleep(ms)  -- milli seconds
@@ -543,6 +530,7 @@ function sleep(ms)  -- milli seconds
   while millis() - t0 <= uint32_t(ms) do end
 end
 ------------------------------------------------------------------------
+
 
 ----------------------------------------------------------------------------------------------------------
 --                                  Thrust test stand code                                              --
@@ -577,7 +565,7 @@ init_nau7802 = function()
       gcs:send_text(0,"Inialization done: " .. _dev_name[_nau7802_index])
       _dev_initialised[_nau7802_index] = true
 
-      -- Reset _nau7802 calibration variables
+      -- Reset _nau7802 calibration variable
       _nau7802_setup_started = false
 
       -- Device initalised, return to main code
@@ -586,7 +574,7 @@ init_nau7802 = function()
 
     if cal_status == 1 then
       -- Cal in progress, wait
-      gcs:send_text(4, "DB: cal in progress")
+      gcs:send_text(4, "amp setup in progress")
       return init_nau7802, 100
     end
 
@@ -639,7 +627,6 @@ function init()
   CAL_FACT_PARAM[TORQUE] = bind_param("THST_CAL_M_TORQ")
   CURRENT_LIMIT = bind_param("THST_CUR_LIM")
   MAX_THR_PARAM = bind_param("THST_MAX_THR")
-  DEBUG_PARAM = bind_param("THST_DEBUG")
   THROTTLE_HOLD_TIME_PARAM = bind_param("THST_HOLD_S")
 
   -- Init load cells
@@ -648,7 +635,7 @@ function init()
       return init_nau7802, 100
   end
 
-  if not(_dev_initialised[TORQUE]) then
+  if not(_dev_initialised[TORQUE]) and USE_TORQUE then
       set_device(i2c_torque, TORQUE)
       return init_nau7802, 100
   end
@@ -656,19 +643,7 @@ function init()
   -- Set first throttle step
   set_next_thr_step()
 
-  local calibration_valid = check_calibration(THRUST)
-  if calibration_valid then
-    gcs:send_text(4,"Thrust calibration values loaded ")
-    -- Advance system state, thrust calibration not needed
-    _sys_state = REQ_CAL_TORQUE_ZERO_OFFSET
-  end
 
-  calibration_valid = calibration_valid and check_calibration(TORQUE)
-  if calibration_valid then
-    gcs:send_text(4,"Torque calibration values loaded ")
-    -- Advance system state, no calibration needed
-    _sys_state = DISARMED
-  end
 
   -- Init neopixles
   _led_chan = SRV_Channels:find_channel(98)
@@ -718,18 +693,6 @@ function update()
   update_lights(now)
 
   --- --- --- state machine --- --- ---
-  -- Check if we should reset calibration
-  if _sys_state == DISARMED and cal_button_state then
-    _sys_state = REQ_CAL_THRUST_ZERO_OFFSET
-
-    -- Reset calibration in memory
-    assert(ZERO_OFFSET_PARAM[THRUST]:set_and_save(0.0), "Thrust 0 offset param set fail")
-    assert(CAL_FACT_PARAM[THRUST]:set_and_save(0.0), "Thrust cal factor param set fail")
-    assert(ZERO_OFFSET_PARAM[TORQUE]:set_and_save(0.0), "Torque 0 offset param set fail")
-    assert(CAL_FACT_PARAM[TORQUE]:set_and_save(0.0), "Torque cal factor param set fail")
-
-    return
-  end
 
   -- Check if we should arm the system
   if safe_button_state and _sys_state == DISARMED and arming:is_armed() then
@@ -742,7 +705,7 @@ function update()
     _sys_state = DISARMED
   end
 
-  -- Disarm copter if we are not in 'armed' in lua.
+  -- Disarm copter if we are not 'armed' in lua.
   -- This handles the copter disarm when we enter an error state e.g. over current protection
   if _sys_state ~= ARMED and _last_sys_state >= ARMED then
     local has_disarmed = false
@@ -764,10 +727,12 @@ function update()
     if mode == MODE_STEPS then
       _throttle_mode = THROTTLE_MODE_STEP
       update_sample_rate(FAST_SAMPLE)
+
     elseif mode == MODE_HOLD then
       _throttle_mode = THROTTLE_MODE_HOLD
       _hold_time = THROTTLE_HOLD_TIME_PARAM:get()
       update_sample_rate(SLOW_SAMPLE)
+
     else
       _throttle_mode = THROTTLE_MODE_RAMP
       _hold_time = 3 -- (s)
@@ -814,33 +779,33 @@ function update()
     _current = battery:current_amps(0)
   end
 
-  _thrust = get_load(i2c_thrust, THRUST)
-  _torque = get_load(i2c_torque, TORQUE)
+  local thrust = get_load(i2c_thrust, THRUST)
+
+  local torque = 0.0
+  if USE_TORQUE then
+    torque = get_load(i2c_torque, TORQUE)
+  end
 
   -- Don't log if thrust or load returns false
   -- let debug mode enable us to see bad data in the log
-  if DEBUG_PARAM:get() > 0.0 then
-    if not _thrust then
-      _thrust = 0.0
-    end
-    if not _torque then
-      _torque = 0.0
-    end
-  -- If we aren't in debug mode then remove the bad data from the log
-  elseif (not _thrust or not _torque) then
-    return
+  if not thrust then
+    thrust = 0.0
   end
+  if not torque then
+    torque = 0.0
+  end
+
 
   -- Log values
   if _sys_state == ARMED then
       -- Log to data flash logs
       -- We only log a few variables as the rest is already logged within the cpp
-      logger.write('THST','ThO,Thst,Torq','fff','---','---',_current_thr, _thrust, _torque)
+      logger.write('THST','ThO,Thst,Torq','fff','---','---',_current_thr, thrust, torque)
   end
 
   -- send telem values of thrust and torque to GCS
-  gcs:send_named_float('thrust', _thrust)
-  gcs:send_named_float('torque', _torque)
+  gcs:send_named_float('thrust', thrust)
+  gcs:send_named_float('torque', torque)
 
   -- Normal re-schedules of update are handled in protected_update()
 
@@ -853,32 +818,6 @@ function update_state_msg()
 
   if _sys_state == _last_sys_state then
       return
-  end
-
-  if _sys_state == REQ_CAL_THRUST_ZERO_OFFSET then
-    gcs:send_text(4,"In calibration")
-    gcs:send_text(4,"Unload thrust load cell and press cal button")
-    _state_str = "Calibration"
-  end
-
-  if _sys_state == REQ_CAL_THRUST_FACTOR then
-    gcs:send_text(4,"In calibration")
-    gcs:send_text(4,"Apply calibration mass to thrust load")
-    gcs:send_text(4,"cell and press calibration button")
-    _state_str = "Calibration"
-  end
-
-  if _sys_state == REQ_CAL_TORQUE_ZERO_OFFSET then
-    gcs:send_text(4,"In calibration")
-    gcs:send_text(4,"Unload torque load cell and press cal button")
-    _state_str = "Calibration"
-  end
-
-  if _sys_state == REQ_CAL_TORQUE_FACTOR then
-    gcs:send_text(4,"In calibration")
-    gcs:send_text(4,"Apply calibration mass to torque load")
-    gcs:send_text(4,"cell and press calibration button")
-    _state_str = "Calibration"
   end
 
   if _sys_state == DISARMED then
@@ -913,6 +852,13 @@ function update_while_disarmed()
   if max_pwm then
     mot_pwm_max = max_pwm
   end
+
+  --- --- --- Calibration routine --- --- ---
+  -- we log and measure a mean value that can be used to easily get the raw values needed to calbrate
+  -- the gradient and zero offset
+  -- AUX 1 switch can be used to select thrust or torque sensor to fetch the raw values
+  local cal_button_state = button:get_button_state(CAL_BUTTON)
+  
 end
 ------------------------------------------------------------------------
 
@@ -1086,10 +1032,12 @@ end
 ------------------------------------------------------------------------
 
 ------------------------------------------------------------------------
+-- Set sample rate appropriate to mode
 function update_sample_rate(rate)
-  -- Set sample rate appropriate to mode
-  if not setSampleRate(i2c_thrust, rate) or not setSampleRate(i2c_torque, rate) then
-    gcs:send_text(4,"rate set fail")
+  assert(setSampleRate(i2c_thrust, rate), 'Thrust rate set fail')
+
+  if USE_TORQUE then
+    assert(setSampleRate(i2c_torque, rate), 'Torque rate set fail')
   end
 end
 ------------------------------------------------------------------------
@@ -1203,58 +1151,7 @@ function update_lights(now_ms)
 
   serialLED:send(_led_chan)
 
-  update_cali_btn_led()
-
   _last_led_update = now_ms
-end
-------------------------------------------------------------------------
-
-gpio:pinMode(95,1) -- red
-gpio:pinMode(96,1) -- green
-gpio:pinMode(97,1) -- blue
-------------------------------------------------------------------------
--- Update the calibration button led
-function update_cali_btn_led()
-
-  local CAL_LED_RED = 95     -- Servo function assigned to red led on calibration ring led
-  local CAL_LED_GREEN = 96   -- Servo function assigned to green led on calibration ring led
-  local CAL_LED_BLUE = 97    -- Servo function assigned to blue led on calibration ring led
-
-  local OFF_PWM = 0
-  local HALF_ON_PWM = 6500
-  local ON_PWM = 20000
-
-
-  if _sys_state == REQ_CAL_THRUST_ZERO_OFFSET then
-    gpio:write(CAL_LED_RED, 0)
-    gpio:write(CAL_LED_GREEN, 1)
-    gpio:write(CAL_LED_BLUE, 1)
-  end
-
-  if _sys_state == REQ_CAL_THRUST_FACTOR then
-    gpio:write(CAL_LED_RED, 0)
-    gpio:write(CAL_LED_GREEN, 0)
-    gpio:write(CAL_LED_BLUE, 1)
-  end
-
-  if _sys_state == REQ_CAL_TORQUE_ZERO_OFFSET then
-    gpio:write(CAL_LED_RED, 1)
-    gpio:write(CAL_LED_GREEN, 1)
-    gpio:write(CAL_LED_BLUE, 0)
-  end
-
-  if _sys_state == REQ_CAL_TORQUE_FACTOR then
-    gpio:write(CAL_LED_RED, 1)
-    gpio:write(CAL_LED_GREEN, 0)
-    gpio:write(CAL_LED_BLUE, 0)
-  end
-
-  if _sys_state >= DISARMED then
-    gpio:write(CAL_LED_RED, 1)
-    gpio:write(CAL_LED_GREEN, 0)
-    gpio:write(CAL_LED_BLUE, 1)
-  end
-
 end
 ------------------------------------------------------------------------
 
@@ -1280,34 +1177,6 @@ function protected_update()
       gcs:send_text(0, "Internal Error: " .. err)
       return protected_update, 1000
     end
-  end
-
-  -------------------------------------------
-  --- --- --- Calibration routine --- --- ---
-  -------------------------------------------
-  local cal_button_state = button:get_button_state(CAL_BUTTON)
-
-  if _sys_state == REQ_CAL_THRUST_ZERO_OFFSET and cal_button_state then
-    set_device(i2c_thrust, THRUST)
-    return calculate_zero_offset, 500
-  end
-
-  if _sys_state == REQ_CAL_THRUST_FACTOR and cal_button_state then
-    update_cali_btn_led()
-    set_device(i2c_thrust, THRUST)
-    return calculate_calibration_factor, 500
-  end
-
-  if _sys_state == REQ_CAL_TORQUE_ZERO_OFFSET and cal_button_state then
-    update_cali_btn_led()
-    set_device(i2c_torque, TORQUE)
-    return calculate_zero_offset, 500
-  end
-
-  if _sys_state == REQ_CAL_TORQUE_FACTOR and cal_button_state then
-    update_cali_btn_led()
-    set_device(i2c_torque, TORQUE)
-    return calculate_calibration_factor, 500
   end
 
     return protected_update, _samp_dt_ms
