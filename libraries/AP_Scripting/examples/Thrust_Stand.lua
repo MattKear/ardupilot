@@ -17,7 +17,7 @@ local _samp_dt_ms = 0
 
 -- Motor function to override
 _motor_channel = SRV_Channels:find_channel(33)
-local MOTOR_TIMEOUT = 3000 --(s)
+local MOTOR_TIMEOUT = 1000 --(ms)
 
 -- Variables needed for setup and init of NAU7802
 local _nau7802_setup_started = false
@@ -907,7 +907,7 @@ function set_next_thr_step()
     _next_thr_step = _next_thr_step + (0.1*_thr_inc_dec)
 
   end
-  _next_thr_step = constrain(_next_thr_step,0,_max_throttle)
+  _next_thr_step = constrain(_next_thr_step, 0.0, _max_throttle)
 end
 ------------------------------------------------------------------------
 
