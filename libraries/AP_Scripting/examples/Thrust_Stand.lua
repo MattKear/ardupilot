@@ -73,15 +73,11 @@ local _last_sys_state = -1
 local _state_str = "Needs Cali"
 
 -- mode
-local MODE_RAMP = 0 -- (copter stabilise) Throttle gradual ramp up and down
-local MODE_STEPS = 1 -- (copter acro) Step inputs around hover throttle
-local MODE_HOLD = 2 -- (copter mode alt hold) Ramp throttle to THST_MAX_THR and hold for THST_HOLD_S
-local _last_mode
-
-local THROTTLE_MODE_RAMP = 0 -- Throttle gradual ramp up and down
-local THROTTLE_MODE_STEP = 1 -- Step inputs around hover throttle
-local THROTTLE_MODE_HOLD = 2 -- Ramp to max and hold for defined time
+local THROTTLE_MODE_RAMP = 0 -- (copter stabilise) Throttle gradual ramp up and down
+local THROTTLE_MODE_STEP = 1 -- (copter acro) Step inputs around hover throttle
+local THROTTLE_MODE_HOLD = 2 -- (copter mode alt hold) Ramp to max and hold for defined time
 local _throttle_mode = THROTTLE_MODE_RAMP
+local _last_mode
 
 -- LEDs
 local NUM_LEDS = 10
@@ -546,8 +542,8 @@ function init()
       return init_nau7802, 100
   end
 
-  -- Set first throttle step
-  set_next_thr_step()
+  -- Set first throttle step.  This is appropriate for the throttle mode we boot into
+  _next_thr_step = 0.1
 
   -- Init neopixles
   _led_chan = SRV_Channels:find_channel(98)
@@ -596,7 +592,9 @@ function update()
   update_lights(now)
   fetch_measurements(now)
 
-  --- --- --- state machine --- --- ---
+  -----------------------------------------
+  --- --- ---       State       --- --- ---
+  -----------------------------------------
 
   -- Check if we should arm the system
   if safe_button_state and _sys_state == DISARMED and arming:is_armed() then
@@ -605,13 +603,15 @@ function update()
 
   -- Change to local lua disarm state
   if (not safe_button_state or not arming:is_armed()) then
-    -- Arm button has been switched off and we are not in a calibration state
     _sys_state = DISARMED
   end
 
   -- Disarm copter if we are not 'armed' in lua.
   -- This handles the copter disarm when we enter an error state e.g. over current protection
   if _sys_state ~= ARMED and _last_sys_state >= ARMED then
+    -- we zero throttle once, so that we do not have to keep overiding the motors channel
+    zero_throttle()
+
     local has_disarmed = false
     while (has_disarmed == false) do
       has_disarmed = arming:disarm()
@@ -619,31 +619,14 @@ function update()
   end
 
   -- Check if we need to reset after an over-current protection event
+  -- We hold the error state until the safe switch has been closed
   if _sys_state == CURRENT_PROTECTION and not safe_button_state then
     _sys_state = DISARMED
   end
 
-  -- Update throttle mode.
-  -- Get flight mode. We use AP flight mode as a hack to have easy thrust stand modes that can be changed via mavlink
-  local mode = vehicle:get_mode()
-  -- Only allow throttle mode to be changed in Disarmed State
-  if _sys_state == DISARMED and _last_mode ~= mode then
-    if mode == MODE_STEPS then
-      _throttle_mode = THROTTLE_MODE_STEP
-      update_sample_rate(FAST_SAMPLE)
-
-    elseif mode == MODE_HOLD then
-      _throttle_mode = THROTTLE_MODE_HOLD
-      _hold_time = THROTTLE_HOLD_TIME_PARAM:get()
-      update_sample_rate(SLOW_SAMPLE)
-
-    else
-      _throttle_mode = THROTTLE_MODE_RAMP
-      _hold_time = 3 -- (s)
-      update_sample_rate(SLOW_SAMPLE)
-    end
-    _last_mode = mode
-  end
+  -----------------------------------------
+  --- --- ---      Control      --- --- ---
+  -----------------------------------------
 
   -- If the sys state is disarmed then run non-critical updates
   if _sys_state == DISARMED then
@@ -657,26 +640,20 @@ function update()
       -- Update the output throttle
       if _throttle_mode == THROTTLE_MODE_STEP then
         update_throttle_transient(now)
-      elseif _throttle_mode == THROTTLE_MODE_HOLD then
-        _hold_time = THROTTLE_HOLD_TIME_PARAM:get()
-        update_throttle_ramp(now, true)
-      else
-        update_throttle_ramp(now, false)
+
+      else --_throttle_mode == THROTTLE_MODE_RAMP or _throttle_mode == THROTTLE_MODE_HOLD
+        update_throttle_ramp(now)
       end
+
     else
       -- Activate current protection
       zero_throttle()
       _sys_state = CURRENT_PROTECTION
     end
-
-  else
-    -- Do not run motor without valid calibration, when disarmed, or when in an error state
-    zero_throttle()
-
   end
 
   -----------------------------------------
-  --- --- --- Take measurements --- --- ---
+  --- --- ---    Measurement    --- --- ---
   -----------------------------------------
 
   -- Get current to check for over-current protection
@@ -756,6 +733,23 @@ end
 
 ------------------------------------------------------------------------
 function update_while_disarmed()
+  -- Update throttle mode.
+  -- Get flight mode. We use AP flight mode as a hack to have easy thrust stand modes that can be changed via mavlink
+  local mode = vehicle:get_mode()
+  if _last_mode ~= mode then
+     -- Only allow throttle mode to be changed in Disarmed State
+    _throttle_mode = mode
+
+    if _throttle_mode == THROTTLE_MODE_STEP then
+      update_sample_rate(FAST_SAMPLE)
+
+    else --_throttle_mode == THROTTLE_MODE_RAMP or _throttle_mode == THROTTLE_MODE_HOLD
+      update_sample_rate(SLOW_SAMPLE)
+    end
+
+    _last_mode = mode
+  end
+
   -- update mot pwm min and max
   local min_pwm = mot_pwm_min_param:get()
   if min_pwm then
@@ -767,40 +761,42 @@ function update_while_disarmed()
     mot_pwm_max = max_pwm
   end
 
+  -- always reset the throttle step
+  reset_thr_step()
+
 end
 ------------------------------------------------------------------------
 
-
 ------------------------------------------------------------------------
-function update_throttle_ramp(time, hold_at_max_only)
+function update_throttle_ramp(time)
 
-  -- Check whether to switch throttle hold off
-  if (time - _hold_thr_last_time) > (_hold_time * 1000) and (_flag_hold_throttle == true) then
-    _flag_hold_throttle = false
-  end
+  -- Check whether to throttle hold or advance throttle
+  if (time - _hold_thr_last_time) > (THROTTLE_HOLD_TIME_PARAM:get() * 1000) then
+    -- timer has passed, advance throttle
+    _current_thr = (_current_thr + _ramp_rate * (time - _last_thr_update) * 0.001 * _thr_inc_dec)
 
-  -- Check if we should advance throttle
-  if not(_flag_hold_throttle) and (_last_thr_update > 0) then
-    -- Calculate throttle if it is to be increased
-    _current_thr = constrain((_current_thr + _ramp_rate * (time - _last_thr_update) * 0.001 * _thr_inc_dec), 0, _max_throttle)
-    _last_thr_update = time
-
-    -- See if we are at a throttle hold point
-    -- now check if we are pausing at increments up the throttle ramp
-    if ((_current_thr >= _next_thr_step) and (_thr_inc_dec > 0)) or ((_current_thr <= _next_thr_step) and (_thr_inc_dec < 0)) then
-      -- we may only want to hold the throttle at maximum, depending on the throttle mode
-      _hold_thr_last_time = time
-      _flag_hold_throttle = true
-
-      -- Calculate new throttle step
-      set_next_thr_step(hold_at_max_only)
+    -- constrain the current throttle
+    if _thr_inc_dec > 0 then
+      -- ramp up
+      _current_thr = constrain(_current_thr, 0, _next_thr_step)
+    else
+      -- ramp down
+      _current_thr = constrain(_current_thr, _next_thr_step, _max_throttle)
     end
-
-  else
-    _last_thr_update = time
   end
 
+  -- See if we are at a throttle hold point
+  -- now check if we are pausing at increments up the throttle ramp
+  if ((_current_thr >= _next_thr_step) and (_thr_inc_dec > 0)) or ((_current_thr <= _next_thr_step) and (_thr_inc_dec < 0)) then
+    _hold_thr_last_time = time
+
+    -- Calculate new throttle step
+    set_next_thr_step()
+  end
+
+  -- update throttle overide
   SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_pwm(_current_thr), MOTOR_TIMEOUT)
+  _last_thr_update = time
 end
 ------------------------------------------------------------------------
 
@@ -865,15 +861,9 @@ end
 ------------------------------------------------------------------------
 function zero_throttle()
   _current_thr = 0
-  -- Reset throttle step
-  if _throttle_mode == THROTTLE_MODE_HOLD then
-    _next_thr_step = _max_throttle
-  else
-    _next_thr_step = constrain(0.1, 0, _max_throttle)
-  end
+  reset_thr_step()
   _flag_hold_throttle = false
   _last_thr_update = 0
-  _thr_inc_dec = 1
   _hover_point_achieved = false
   _throttle_step_index = 1
   SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_pwm(_current_thr), MOTOR_TIMEOUT)
@@ -902,23 +892,39 @@ end
 
 
 ------------------------------------------------------------------------
-function set_next_thr_step(hold_at_max_only)
+function set_next_thr_step()
   -- check if we need to start stepping down through the throttle
   if _current_thr >= _max_throttle then
     _thr_inc_dec = -1
   end
 
   -- Update next throttle step
-  if hold_at_max_only then
-    -- the only time we will update the throttle step in throttle hold is to ramp back down
-    _next_thr_step = 0
-    _thr_inc_dec = -1
+  if _throttle_mode == THROTTLE_MODE_HOLD then
+    -- this could set a negative throttle but it just gets contstained to 0 below
+    _next_thr_step = _max_throttle*_thr_inc_dec
+
   else
     _next_thr_step = _next_thr_step + (0.1*_thr_inc_dec)
+
   end
   _next_thr_step = constrain(_next_thr_step,0,_max_throttle)
 end
 ------------------------------------------------------------------------
+
+------------------------------------------------------------------------
+function reset_thr_step()
+  -- set ramp direction
+    _thr_inc_dec = 1
+
+  -- Update next throttle step
+  if _throttle_mode == THROTTLE_MODE_HOLD then
+    _next_thr_step = _max_throttle
+  else
+    _next_thr_step = 0.1
+  end
+end
+------------------------------------------------------------------------
+
 
 ------------------------------------------------------------------------
 -- Set sample rate appropriate to mode
