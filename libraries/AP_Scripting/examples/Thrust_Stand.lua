@@ -1,16 +1,58 @@
 -- Port of Sparkfun Qwiic Scale library for NAU7802
 -- https://github.com/sparkfun/SparkFun_NAU7802_Scale_Arduino_Library
 
-local USE_TORQUE = false
+local THRUST = 1 -- Index for calibration values relating to thrust sensor
+local TORQUE = 2 -- Index for calibration values relating to torque sensor
+
+-- Setup param table
+-- key must be a number between 0 and 200. The key is persistent in storage
+local PARAM_TABLE_KEY = 73
+-- generate table
+assert(param:add_table(PARAM_TABLE_KEY, "THST_", 8), 'could not add param table')
+
+------------------------------------------------------------------------
+-- bind a parameter to a variable
+function bind_param(name)
+  local p = Parameter()
+  assert(p:init(name), string.format('could not find %s parameter', name))
+  return p
+end
+------------------------------------------------------------------------
+
+-- generate params and their defaults
+assert(param:add_param(PARAM_TABLE_KEY, 1, 'CAL0_THST', 0.0), 'could not add param CAL0_THST')
+assert(param:add_param(PARAM_TABLE_KEY, 2, 'CAL0_TORQ', 0.0), 'could not add param CAL0_TORQ')
+assert(param:add_param(PARAM_TABLE_KEY, 3, 'CAL_M_THST', 1.0), 'could not add param CAL_M_THST')
+assert(param:add_param(PARAM_TABLE_KEY, 4, 'CAL_M_TORQ', 1.0), 'could not add param CAL_M_TORQ')
+assert(param:add_param(PARAM_TABLE_KEY, 5, 'CUR_LIM', 20.0), 'could not add param CUR_LIM')
+assert(param:add_param(PARAM_TABLE_KEY, 6, 'MAX_THR', 100.0), 'could not add param MAX_THR') -- (%) constrained to 0 to 100
+assert(param:add_param(PARAM_TABLE_KEY, 7, 'HOLD_S', 3), 'could not add param HOLD_S')
+assert(param:add_param(PARAM_TABLE_KEY, 8, 'ENBL_TORQ', 1), 'could not add param ENBL_TORQ')
+
+-- setup param bindings
+local ZERO_OFFSET_PARAM = {0,0}
+local CAL_FACT_PARAM = {0,0}
+ZERO_OFFSET_PARAM[THRUST] = bind_param("THST_CAL0_THST")
+ZERO_OFFSET_PARAM[TORQUE] = bind_param("THST_CAL0_TORQ")
+CAL_FACT_PARAM[THRUST] = bind_param("THST_CAL_M_THST")
+CAL_FACT_PARAM[TORQUE] = bind_param("THST_CAL_M_TORQ")
+local CURRENT_LIMIT = bind_param("THST_CUR_LIM")
+local MAX_THR_PARAM = bind_param("THST_MAX_THR")
+local THROTTLE_HOLD_TIME_PARAM = bind_param("THST_HOLD_S")
+local USE_TORQUE = bind_param("THST_ENBL_TORQ")
+
+------------------------------------------------------------------------
+local function torque_enabled()
+  return (USE_TORQUE:get() > 0)
+end
+------------------------------------------------------------------------
 
 -- Set pointer to load cell address
 local i2c_thrust = i2c.get_device(1,0x2A)
 i2c_thrust:set_retries(10)
 
-if USE_TORQUE then
-  local i2c_torque = i2c.get_device(0,0x2A)
-  i2c_torque:set_retries(10)
-end
+local i2c_torque = i2c.get_device(0,0x2A)
+i2c_torque:set_retries(10)
 
 -- Time (ms) between samples
 local _samp_dt_ms = 0
@@ -26,8 +68,6 @@ local FAST_SAMPLE = 3
 local SLOW_SAMPLE = 0
 
 -- Script vars used in calibration
-local THRUST = 1 -- Index for calibration values relating to thrust sensor
-local TORQUE = 2 -- Index for calibration values relating to torque sensor
 local _dev_initialised = {false, false}
 local _dev_name = {"Thrust", "Torque"}
 
@@ -70,7 +110,6 @@ local CURRENT_PROTECTION = 10           -- Error State
 
 local _sys_state = DISARMED
 local _last_sys_state = -1
-local _state_str = "Needs Cali"
 
 -- mode
 local THROTTLE_MODE_RAMP = 0 -- (copter stabilise) Throttle gradual ramp up and down
@@ -83,13 +122,6 @@ local _last_mode
 local NUM_LEDS = 10
 local _led_chan = 0
 local _last_led_update = 0
-
--- Lua param allocation
--- The values have been left but they get overwritten by param objects
-local ZERO_OFFSET_PARAM = {"THST_CAL0_THST","THST_CAL0_TORQ"}--{"SCR_USER1","SCR_USER3"}
-local CAL_FACT_PARAM = {"THST_CAL_M_THST", "THST_CAL_M_TORQ"}
-local CURRENT_LIMIT = Parameter()
-local MAX_THR_PARAM = Parameter()
 
 -- Measurements
 local _current = 0.0
@@ -409,7 +441,7 @@ local function fetch_measurements(now)
     _thrust_time_ms = now
   end
 
-  if USE_TORQUE then
+  if torque_enabled() then
     local q = get_raw_reading(i2c_torque)
     if q ~= nil then
       _torque_raw = q
@@ -495,40 +527,7 @@ end
 ------------------------------------------------------------------------
 
 ------------------------------------------------------------------------
--- bind a parameter to a variable
-function bind_param(name)
-  local p = Parameter()
-  assert(p:init(name), string.format('could not find %s parameter', name))
-  return p
-end
-------------------------------------------------------------------------
-
-------------------------------------------------------------------------
 function init()
-
-  -- Setup param table
-  -- key must be a number between 0 and 200. The key is persistent in storage
-  local PARAM_TABLE_KEY = 73
-  -- generate table
-  assert(param:add_table(PARAM_TABLE_KEY, "THST_", 10), 'could not add param table')
-
-  -- generate params and their defaults
-  assert(param:add_param(PARAM_TABLE_KEY, 1, 'CAL0_THST', 0.0), 'could not add param CAL0_THST')
-  assert(param:add_param(PARAM_TABLE_KEY, 2, 'CAL0_TORQ', 0.0), 'could not add param CAL0_TORQ')
-  assert(param:add_param(PARAM_TABLE_KEY, 3, 'CAL_M_THST', 0.0), 'could not add param CAL_M_THST')
-  assert(param:add_param(PARAM_TABLE_KEY, 4, 'CAL_M_TORQ', 0.0), 'could not add param CAL_M_TORQ')
-  assert(param:add_param(PARAM_TABLE_KEY, 5, 'CUR_LIM', 50.0), 'could not add param CUR_LIM')
-  assert(param:add_param(PARAM_TABLE_KEY, 6, 'MAX_THR', 100.0), 'could not add param MAX_THR') -- (%) constrained to 0 to 100
-  assert(param:add_param(PARAM_TABLE_KEY, 7, 'HOLD_S', 6), 'could not add param HOLD_S')
-
-  -- setup param bindings
-  ZERO_OFFSET_PARAM[THRUST] = bind_param("THST_CAL0_THST")
-  ZERO_OFFSET_PARAM[TORQUE] = bind_param("THST_CAL0_TORQ")
-  CAL_FACT_PARAM[THRUST] = bind_param("THST_CAL_M_THST")
-  CAL_FACT_PARAM[TORQUE] = bind_param("THST_CAL_M_TORQ")
-  CURRENT_LIMIT = bind_param("THST_CUR_LIM")
-  MAX_THR_PARAM = bind_param("THST_MAX_THR")
-  THROTTLE_HOLD_TIME_PARAM = bind_param("THST_HOLD_S")
 
   -- Init thrust load cell amplifier
   if not(_dev_initialised[THRUST]) then
@@ -537,7 +536,7 @@ function init()
   end
 
   -- Init torque load cell amplifier if using
-  if not(_dev_initialised[TORQUE]) and USE_TORQUE then
+  if not(_dev_initialised[TORQUE]) and torque_enabled() then
       set_device(i2c_torque, TORQUE)
       return init_nau7802, 100
   end
@@ -667,7 +666,7 @@ function update()
   end
 
   local torque = 0.0
-  if USE_TORQUE and ((now - _torque_time_ms) < (_samp_dt_ms*1.5)) then
+  if torque_enabled() and ((now - _torque_time_ms) < (_samp_dt_ms*1.5)) then
     torque = get_load(TORQUE)
   end
 
@@ -689,6 +688,8 @@ function update()
 
     gcs:send_named_float('thrust', thrust)
     gcs:send_named_float('torque', torque)
+
+    -- gcs:send_text(6, 'q_enable: ' .. tostring(torque_enabled()))
 
     -- send info via send named text to allow for calibration
     if button:get_button_state(AUX1_BUTTON) then
@@ -931,7 +932,7 @@ end
 function update_sample_rate(rate)
   assert(setSampleRate(i2c_thrust, rate), 'Thrust rate set fail')
 
-  if USE_TORQUE then
+  if torque_enabled() then
     assert(setSampleRate(i2c_torque, rate), 'Torque rate set fail')
   end
 end
