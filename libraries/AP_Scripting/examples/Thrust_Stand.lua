@@ -770,6 +770,10 @@ end
 
 ------------------------------------------------------------------------
 function update_throttle_ramp(time)
+  -- set update time when starting the throttle ramp
+  if _last_thr_update <= 0 then
+    _last_thr_update = time
+  end
 
   -- Check whether to throttle hold or advance throttle
   if (time - _hold_thr_last_time) > (THROTTLE_HOLD_TIME_PARAM:get() * 1000) then
