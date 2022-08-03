@@ -180,6 +180,7 @@ void AP_InertialSensor_Backend::_publish_gyro(uint8_t instance, const Vector3f &
 void AP_InertialSensor_Backend::apply_gyro_filters(const uint8_t instance, const Vector3f &gyro)
 {
     Vector3f gyro_filtered = gyro;
+    Vector3f ntch_gyro_filtered = gyro;
 
     // apply the harmonic notch filters
     for (auto &notch : _imu.harmonic_notches) {
@@ -201,12 +202,12 @@ void AP_InertialSensor_Backend::apply_gyro_filters(const uint8_t instance, const
             // will be the first input sample
             notch.filter[instance].reset();
         } else {
-            gyro_filtered = notch.filter[instance].apply(gyro_filtered);
+            ntch_gyro_filtered = notch.filter[instance].apply(gyro_filtered);
         }
     }
 
     // apply the low pass filter last to attentuate any notch induced noise
-    gyro_filtered = _imu._gyro_filter[instance].apply(gyro_filtered);
+    gyro_filtered = _imu._gyro_filter[instance].apply(ntch_gyro_filtered);
 
     // if the filtering failed in any way then reset the filters and keep the old value
     if (gyro_filtered.is_nan() || gyro_filtered.is_inf()) {
@@ -216,6 +217,7 @@ void AP_InertialSensor_Backend::apply_gyro_filters(const uint8_t instance, const
         }
     } else {
         _imu._gyro_filtered[instance] = gyro_filtered;
+        _imu._gyro_ntch_filtered[instance] = ntch_gyro_filtered;
     }
 }
 
@@ -320,7 +322,8 @@ void AP_InertialSensor_Backend::_notify_new_gyro_raw_sample(uint8_t instance,
         log_gyro_raw(instance, sample_us, gyro);
     }
     else {
-        log_gyro_raw(instance, sample_us, _imu._gyro_filtered[instance]);
+        // MYHACK
+        log_gyro_raw(instance, sample_us, _imu._gyro_ntch_filtered[instance]);
     }
 }
 
@@ -421,7 +424,7 @@ void AP_InertialSensor_Backend::_notify_new_delta_angle(uint8_t instance, const 
         log_gyro_raw(instance, sample_us, gyro);
     }
     else {
-        log_gyro_raw(instance, sample_us, _imu._gyro_filtered[instance]);
+        log_gyro_raw(instance, sample_us, _imu._gyro_ntch_filtered[instance]);
     }
 }
 

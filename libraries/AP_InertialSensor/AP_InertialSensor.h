@@ -520,6 +520,7 @@ private:
     LowPassFilter2pVector3f _gyro_filter[INS_MAX_INSTANCES];
     Vector3f _accel_filtered[INS_MAX_INSTANCES];
     Vector3f _gyro_filtered[INS_MAX_INSTANCES];
+    Vector3f _gyro_ntch_filtered[INS_MAX_INSTANCES];
 #if HAL_WITH_DSP
     // Thread-safe public version of _last_raw_gyro
     Vector3f _gyro_raw[INS_MAX_INSTANCES];
