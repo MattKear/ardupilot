@@ -461,16 +461,16 @@ int32_t AP_Mission::get_next_ground_course_cd(int32_t default_angle)
 // set_current_cmd - jumps to command specified by index
 bool AP_Mission::set_current_cmd(uint16_t index, bool rewind)
 {
-    _flags.in_landing_sequence = false;
-    _flags.in_rejoin_sequence = false;
 
     // read command to check for DO_LAND_START
     Mission_Command cmd;
     read_cmd_from_storage(index, cmd);
     if (cmd.id == MAV_CMD_DO_LAND_START) {
         _flags.in_landing_sequence = true;
+        _flags.in_rejoin_sequence = false;
     } else if (cmd.id == MAV_CMD_DO_LAND_REJOIN) {
         _flags.in_rejoin_sequence = true;
+        _flags.in_landing_sequence = false;
     }
 
     // mission command has been set and not as rewind command, don't track history.
