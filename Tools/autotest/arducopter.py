@@ -3233,10 +3233,88 @@ class AutoTestCopter(AutoTest):
                      0,
                      0,
                      0)
-        #time.sleep(1)
         self.wait_mode('AUTO_RTL')
         self.disarm_vehicle(force=True)
+        self.set_rc(3, 1000)
         self.reboot_sitl()
+
+        # Test that DO_JUMP does not change back to AUTO from AUTO_RTL
+        self.progress("Test DO_JUMP does not reset AUTO_RTL flags")
+        self.load_mission("copter_auto_rtl_mission.txt")
+        self.set_parameter("AUTO_RTL_TYPE", 4)
+        self.change_mode('LOITER')
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+        self.change_mode('AUTO')
+        self.set_rc(3, 1600)
+        self.wait_current_waypoint(3, timeout=120)
+        self.run_cmd(mavutil.mavlink.MAV_CMD_DO_LAND_START,
+                     0,
+                     0,
+                     0,
+                     0,
+                     0,
+                     0,
+                     0)
+        self.wait_mode('AUTO_RTL')
+        self.set_current_waypoint(4)
+        self.wait_mode('AUTO_RTL')
+        self.disarm_vehicle(force=True)
+        self.set_rc(3, 1000)
+        self.reboot_sitl()
+
+        # Test SET_MODE for AUTO_RTL from AUTO
+        self.progress("Test AUTO_RTL via set mode")
+        self.load_mission("copter_auto_rtl_mission.txt")
+        self.set_parameter("AUTO_RTL_TYPE", 4)
+        self.change_mode('LOITER')
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+        self.change_mode('AUTO')
+        self.set_rc(3, 1600)
+        self.wait_current_waypoint(3, timeout=120)
+        self.change_mode('AUTO_RTL')
+        self.wait_mode('AUTO_RTL')
+        self.disarm_vehicle(force=True)
+        self.set_rc(3, 1000)
+        self.reboot_sitl()
+
+        # Test SET_MODE for AUTO_RTL - from LOITER
+        self.progress("Test AUTO_RTL via set mode")
+        self.load_mission("copter_auto_rtl_mission.txt")
+        self.set_parameter("AUTO_RTL_TYPE", 4)
+        self.change_mode('LOITER')
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+        self.change_mode('AUTO')
+        self.set_rc(3, 1600)
+        self.wait_current_waypoint(3, timeout=120)
+        self.change_mode('LOITER')
+        self.change_mode('AUTO_RTL')
+        self.wait_mode('AUTO_RTL')
+        self.disarm_vehicle(force=True)
+        self.set_rc(3, 1000)
+        self.reboot_sitl()
+
+        # Test SET_MODE from AUTO_RTL to AUTO
+        self.progress("Test AUTO_RTL via set mode")
+        self.load_mission("copter_auto_rtl_mission.txt")
+        self.set_parameter("AUTO_RTL_TYPE", 4)
+        self.change_mode('LOITER')
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+        self.change_mode('AUTO')
+        self.set_rc(3, 1600)
+        self.wait_current_waypoint(3, timeout=120)
+        self.change_mode('LOITER')
+        self.change_mode('AUTO_RTL')
+        self.wait_mode('AUTO_RTL')
+        self.change_mode('AUTO')
+        self.wait_mode('AUTO')
+        self.disarm_vehicle(force=True)
+        self.set_rc(3, 1000)
+        self.reboot_sitl()
+
 
     def test_parachute(self):
 
