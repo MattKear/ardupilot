@@ -2102,12 +2102,6 @@ bool AP_Mission::jump_to_landing_sequence(struct Location start_loc)
 {
     uint16_t land_idx = get_landing_sequence_start(start_loc);
     if (land_idx != 0 && set_current_cmd(land_idx)) {
-
-        //if the mission has ended it has to be restarted
-        if (state() == AP_Mission::MISSION_STOPPED) {
-            resume();
-        }
-
         gcs().send_text(MAV_SEVERITY_INFO, "Landing sequence start");
         return true;
     }
@@ -2174,12 +2168,6 @@ bool AP_Mission::jump_to_shortest_landing_sequence(struct Location start_loc)
 {
     uint16_t landing_start_index = get_shortest_landing_sequence_start(start_loc);
     if (landing_start_index != 0 && set_current_cmd(landing_start_index)) {
-
-        // if the mission has ended it has to be restarted
-        if (state() == AP_Mission::MISSION_STOPPED) {
-            resume();
-        }
-
         gcs().send_text(MAV_SEVERITY_INFO, "Shortest Landing sequence start");
         return true;
     }
@@ -2231,12 +2219,6 @@ bool AP_Mission::jump_to_closest_mission_leg(struct Location start_loc)
     }
 
     if (landing_start_index != 0 && set_current_cmd(landing_start_index)) {
-
-        // if the mission has ended it has to be restarted
-        if (state() == AP_Mission::MISSION_STOPPED) {
-            resume();
-        }
-
         gcs().send_text(MAV_SEVERITY_INFO, "Rejoin Landing sequence start");
         _flags.in_rejoin_sequence = true;
         return true;
@@ -2290,12 +2272,6 @@ bool AP_Mission::jump_to_shortest_mission_leg(struct Location start_loc)
     }
 
     if (landing_start_index != 0 && set_current_cmd(landing_start_index)) {
-
-        // if the mission has ended it has to be restarted
-        if (state() == AP_Mission::MISSION_STOPPED) {
-            resume();
-        }
-
         gcs().send_text(MAV_SEVERITY_INFO, "Rejoin shortest Landing sequence start");
         _flags.in_rejoin_sequence = true;
         return true;
@@ -2335,11 +2311,6 @@ bool AP_Mission::jump_to_abort_landing_sequence(struct Location start_loc)
     }
 
     if (abort_index != 0 && set_current_cmd(abort_index)) {
-
-        //if the mission has ended it has to be restarted
-        if (state() == AP_Mission::MISSION_STOPPED) {
-            resume();
-        }
 
         _flags.in_landing_sequence = false;
         _flags.in_rejoin_sequence = false;
