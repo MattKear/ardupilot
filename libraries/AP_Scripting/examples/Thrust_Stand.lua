@@ -48,10 +48,10 @@ end
 ------------------------------------------------------------------------
 
 -- Set pointer to load cell address
-local i2c_thrust = i2c.get_device(1,0x2A)
+local i2c_thrust = i2c.get_device(0,42)
 i2c_thrust:set_retries(10)
 
-local i2c_torque = i2c.get_device(0,0x2A)
+local i2c_torque = i2c.get_device(1,42)
 i2c_torque:set_retries(10)
 
 -- Time (ms) between samples
