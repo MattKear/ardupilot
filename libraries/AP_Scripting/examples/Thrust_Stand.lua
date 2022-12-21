@@ -91,6 +91,9 @@ local _thr_inc_dec = 1 --(-) Used to switch the motor from increment to decremen
 local _hover_point_achieved = false -- Has the controller achieved the hover throttle
 local _throttle_step_index = 1 -- Index in the table of throttle steps to work through
 
+-- Read in PWM if we are using an external throttle
+local pwm_in = PWMSource()
+
 -- setup the fast access pwm_min parameter
 local mot_pwm_min_param = Parameter()
 assert(mot_pwm_min_param:init('MOT_PWM_MIN'), 'failed get MOT_PWM_MIN')
@@ -559,18 +562,12 @@ function init()
     gcs:send_text(6, "LEDs: neopixle not set")
   end
 
-  --- --- --- Set prerequisite parameters --- --- ---
-  -- Setup motor 1 so that we can apply servo overrides.  That way, if the lua script dies the
-  -- override will time out and the motor will be stopped
-  local all_set = param:set_and_save('SERVO1_FUNCTION', 33)
+  -- init PWM in
+  -- F765 Wing PIN 52 is PWM 3
+  assert(pwm_in:set_pin(52), "Failed to setup PWM in (52)")
 
-  if all_set then
-    -- Now main loop can be started
-    return protected_update, 100
-  else
-    gcs:send_text(6, "Param set fail in init")
-    return --TODO: handle this case better instead of just dying
-  end
+  -- Now main loop can be started
+  return protected_update, 100
 
 end
 ------------------------------------------------------------------------
@@ -679,7 +676,7 @@ function update()
   if _sys_state == ARMED then
       -- Log to data flash logs
       -- We only log a few variables as the rest is already logged within the cpp
-      logger.write('THST','ThO,Thst,Torq,TRaw,QRaw','fffff','-----','-----',_current_thr, thrust, torque, _thrust_raw, _torque_raw)
+      logger.write('THST','ThO,Thst,Torq,TRaw,QRaw,ExTh','ffffff','------','------',_current_thr, thrust, torque, _thrust_raw, _torque_raw, pwm_in:get_pwm_us())
   end
 
   -- send telem values of thrust and torque to GCS at 2 hz
