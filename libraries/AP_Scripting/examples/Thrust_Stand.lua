@@ -631,9 +631,8 @@ function update()
 
   -- If system is armed update the throttle
   if _sys_state == ARMED and safe_button_state then
-    -- Current protection
     if (CURRENT_LIMIT:get() <= 0) or (_current < CURRENT_LIMIT:get()) then
-      -- Update the output throttle
+      -- Update the output throttle if we are within the current limits
       if _throttle_mode == THROTTLE_MODE_STEP then
         update_throttle_transient(now)
 
