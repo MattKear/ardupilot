@@ -682,20 +682,16 @@ function update()
       logger.write('THST','ThO,Thst,Torq,TRaw,QRaw','fffff','-----','-----',_current_thr, thrust, torque, _thrust_raw, _torque_raw)
   end
 
-  -- send telem values of thrust and torque to GCS at 10 hz
+  -- send telem values of thrust and torque to GCS at 2 hz
   if (now - _last_telem_sent) > 500 or (_last_telem_sent <= 0) then
     _last_telem_sent = now
 
     gcs:send_named_float('thrust', thrust)
     gcs:send_named_float('torque', torque)
 
-    -- gcs:send_text(6, 'q_enable: ' .. tostring(torque_enabled()))
-
     -- send info via send named text to allow for calibration
-    if button:get_button_state(AUX1_BUTTON) then
-      gcs:send_named_float('thst_raw', _thrust_raw)
-      gcs:send_named_float('torq_raw', _torque_raw)
-    end
+    gcs:send_named_float('thst_raw', _thrust_raw)
+    gcs:send_named_float('torq_raw', _torque_raw)
 
   end
 
