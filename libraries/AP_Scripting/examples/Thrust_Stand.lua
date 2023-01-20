@@ -64,7 +64,7 @@ _motor_channel = SRV_Channels:find_channel(33)
 local MOTOR_TIMEOUT = 1000 --(ms)
 
 -- Variables needed for setup and init of NAU7802
-local _nau7802_setup_started = false
+local _nau7802_setup_started_ms = 0
 local _nau7802_i2c_dev
 local FAST_SAMPLE = 3
 local SLOW_SAMPLE = 0
@@ -505,10 +505,11 @@ end
 -- set_device(i2c_dev, index) must be called before this function
 init_nau7802 = function()
 
-  if not _nau7802_setup_started then
+  if (_nau7802_setup_started_ms == 0) or (millis() - _nau7802_setup_started_ms >= 5000) then
     if begin(_nau7802_i2c_dev) then
       gcs:send_text(0,"Setup done: " .. _dev_name[_nau7802_index])
-      _nau7802_setup_started = true
+      _nau7802_setup_started_ms = millis()
+
     else
       error("Setup failed: " .. _dev_name[_nau7802_index], 1)
       return
@@ -521,7 +522,7 @@ init_nau7802 = function()
       _dev_initialised[_nau7802_index] = true
 
       -- Reset _nau7802 calibration variable
-      _nau7802_setup_started = false
+      _nau7802_setup_started_ms = 0
 
       -- Device initalised, return to main code
       return init, 100
