@@ -8,7 +8,7 @@ local TORQUE = 2 -- Index for calibration values relating to torque sensor
 -- key must be a number between 0 and 200. The key is persistent in storage
 local PARAM_TABLE_KEY = 73
 -- generate table
-assert(param:add_table(PARAM_TABLE_KEY, "THST_", 8), 'could not add param table')
+assert(param:add_table(PARAM_TABLE_KEY, "THST_", 9), 'could not add param table')
 
 ------------------------------------------------------------------------
 -- bind a parameter to a variable
@@ -28,6 +28,7 @@ assert(param:add_param(PARAM_TABLE_KEY, 5, 'CUR_LIM', 20.0), 'could not add para
 assert(param:add_param(PARAM_TABLE_KEY, 6, 'MAX_THR', 100.0), 'could not add param MAX_THR') -- (%) constrained to 0 to 100
 assert(param:add_param(PARAM_TABLE_KEY, 7, 'HOLD_S', 3), 'could not add param HOLD_S')
 assert(param:add_param(PARAM_TABLE_KEY, 8, 'ENBL_TORQ', 1), 'could not add param ENBL_TORQ')
+assert(param:add_param(PARAM_TABLE_KEY, 9, 'ENBL_TEST', 0), 'could not add param ENBL_TEST')
 
 -- setup param bindings
 local ZERO_OFFSET_PARAM = {0,0}
@@ -40,6 +41,7 @@ local CURRENT_LIMIT = bind_param("THST_CUR_LIM")
 local MAX_THR_PARAM = bind_param("THST_MAX_THR")
 local THROTTLE_HOLD_TIME_PARAM = bind_param("THST_HOLD_S")
 local USE_TORQUE = bind_param("THST_ENBL_TORQ")
+local ENABLE_MOTOR_TEST = bind_param("THST_ENBL_TEST")
 
 ------------------------------------------------------------------------
 local function torque_enabled()
@@ -627,6 +629,11 @@ function update()
   -- If the sys state is disarmed then run non-critical updates
   if _sys_state == DISARMED then
     update_while_disarmed()
+
+    -- The only time we do not want to maintain throttle override is when we allow motor test
+    if not ENABLE_MOTOR_TEST:get() then
+      zero_throttle()
+    end
   end
 
   -- If system is armed update the throttle
