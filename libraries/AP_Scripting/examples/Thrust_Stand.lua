@@ -651,6 +651,11 @@ function update()
 
   -- If system is armed update the throttle
   if _sys_state == ARMED and safe_button_state then
+    -- If we ever begin to run a test we reset motor test enabled just to make sure it doesn't trip us up
+    if ENABLE_MOTOR_TEST:get() then
+      ENABLE_MOTOR_TEST:set_and_save(0)
+    end
+
     if (CURRENT_LIMIT:get() <= 0) or (_current < CURRENT_LIMIT:get()) then
       -- Update the output throttle if we are within the current limits
       if _throttle_mode == THROTTLE_MODE_STEP then
