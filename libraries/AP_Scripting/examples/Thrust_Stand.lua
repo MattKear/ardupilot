@@ -108,6 +108,18 @@ assert(mot_pwm_max_param:init('MOT_PWM_MAX'), 'failed get MOT_PWM_MAX')
 -- init the local variable from the param value
 local mot_pwm_max = mot_pwm_max_param:get()
 
+-- setup the fast access pwm_max parameter
+local mot_spin_min_param = Parameter()
+assert(mot_spin_min_param:init('MOT_SPIN_MIN'), 'failed get MOT_SPIN_MIN')
+-- init the local variable from the param value
+local mot_spin_min = mot_spin_min_param:get()
+
+-- setup the fast access pwm_max parameter
+local mot_spin_max_param = Parameter()
+assert(mot_spin_max_param:init('MOT_SPIN_MAX'), 'failed get MOT_SPIN_MAX')
+-- init the local variable from the param value
+local mot_spin_max = mot_spin_max_param:get()
+
 -- Sys state - The current state of the system
 local DISARMED = 1                      -- Ready to go, not running
 local ARMED = 2                         -- Armed and motor running
@@ -750,7 +762,7 @@ function update_while_disarmed()
     _last_mode = mode
   end
 
-  -- update mot pwm min and max
+  -- update mot pwm min, max and spin, min max, ensuring valid values are obtained
   local min_pwm = mot_pwm_min_param:get()
   if min_pwm then
     mot_pwm_min = min_pwm
@@ -759,6 +771,16 @@ function update_while_disarmed()
   local max_pwm = mot_pwm_max_param:get()
   if max_pwm then
     mot_pwm_max = max_pwm
+  end
+
+  local spin_min = mot_spin_min_param:get()
+  if spin_min then
+    mot_spin_min = spin_min
+  end
+
+  local spin_max = mot_spin_max_param:get()
+  if spin_max then
+    mot_spin_max = spin_max
   end
 
   -- always reset the throttle step
@@ -799,7 +821,7 @@ function update_throttle_ramp(time)
   end
 
   -- update throttle overide
-  SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_pwm(_current_thr), MOTOR_TIMEOUT)
+  SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_linear_throttle_pwm(_current_thr), MOTOR_TIMEOUT)
   _last_thr_update = time
 end
 ------------------------------------------------------------------------
@@ -822,7 +844,7 @@ function update_throttle_transient(time)
     if not _hover_point_achieved then
       _current_thr = constrain((_current_thr + _ramp_rate * (time - _last_thr_update) * 0.001 * _thr_inc_dec), 0, _max_throttle)
       _last_thr_update = time
-      SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_pwm(_current_thr), MOTOR_TIMEOUT)
+      SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_linear_throttle_pwm(_current_thr), MOTOR_TIMEOUT)
     else
       -- Step change throttle
       _current_thr = constrain((hover_throttle + throttle_steps[_throttle_step_index]), 0, _max_throttle)
@@ -832,7 +854,7 @@ function update_throttle_transient(time)
       _flag_hold_throttle = true
 
       -- Output to motor
-      SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_pwm(_current_thr), MOTOR_TIMEOUT)
+      SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_linear_throttle_pwm(_current_thr), MOTOR_TIMEOUT)
 
       -- Increment index for next throttle step
       _throttle_step_index = _throttle_step_index + 1
@@ -888,12 +910,20 @@ end
 
 
 ------------------------------------------------------------------------
-function calc_pwm(throttle_pct)
-  -- Calc pwm from throttle as a % (0-1)
-  return math.floor((throttle_pct * (mot_pwm_max - mot_pwm_min)) + mot_pwm_min)
+-- Calculate linear throttle
+function calc_linear_throttle_pwm(throttle_pct)
+  local thr = throttle_pct * (mot_spin_max - mot_spin_min) + mot_spin_min
+  thr = constrain(thr, mot_spin_min, mot_spin_max)
+  return calc_pwm(thr)
 end
 ------------------------------------------------------------------------
 
+------------------------------------------------------------------------
+-- Calculate linear throttle
+function calc_pwm(thr)
+  return math.floor((thr *  (mot_pwm_max - mot_pwm_min)) + mot_pwm_min)
+end
+------------------------------------------------------------------------
 
 ------------------------------------------------------------------------
 function set_next_thr_step()
