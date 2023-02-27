@@ -410,6 +410,9 @@ public:
     void set_vehicle_armed(bool armed_state);
     bool vehicle_is_armed() const { return _armed; }
 
+    void set_motor_test_active(bool motor_test_active);
+    bool motor_test_is_active() const { return _motor_test_active; };
+
     void handle_log_send();
     bool in_log_download() const;
 
@@ -498,6 +501,8 @@ private:
     bool fill_log_write_logstructure(struct LogStructure &logstruct, const uint8_t msg_type) const;
 
     bool _armed;
+    bool _motor_test_active;
+    uint32_t _last_motor_test_end;
 
     // state to help us not log unneccesary RCIN values:
     bool should_log_rcin2;
