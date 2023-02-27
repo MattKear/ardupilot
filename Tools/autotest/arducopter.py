@@ -3315,7 +3315,6 @@ class AutoTestCopter(AutoTest):
         self.set_rc(3, 1000)
         self.reboot_sitl()
 
-
     def test_parachute(self):
 
         # Initial setup
@@ -3766,7 +3765,9 @@ class AutoTestCopter(AutoTest):
                      timeout=timeout)
         self.wait_statustext("finished motor test")
         new_list = self.log_list()
-        if len(new_list) != len(original_list) or self.current_onboard_log_contains_msg("starting motor test") or self.current_onboard_log_contains_msg("finished motor test"):
+        if (len(new_list) != len(original_list) or
+                self.current_onboard_log_contains_msg("starting motor test") or
+                self.current_onboard_log_contains_msg("finished motor test")):
             raise NotAchievedException("Logfile generated during motor test while disarm logging is off")
         self.end_subtest("Testing motor test logging - dissarm logging off")
 
@@ -3783,7 +3784,8 @@ class AutoTestCopter(AutoTest):
                      0,
                      timeout=timeout)
         self.wait_statustext("finished motor test")
-        if not self.current_onboard_log_contains_msg("starting motor test") or not self.current_onboard_log_contains_msg("finished motor test"):
+        if (not self.current_onboard_log_contains_msg("starting motor test") or not
+                self.current_onboard_log_contains_msg("finished motor test")):
             raise NotAchievedException("Logfile does not contain a motor test while disarm logging is on")
         self.end_subtest("Testing motor test logging - dissarm logging on")
 
