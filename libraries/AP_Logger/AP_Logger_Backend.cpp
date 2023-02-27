@@ -597,7 +597,7 @@ void AP_Logger_Backend::vehicle_was_disarmed()
 // this sensor is enabled if we should be logging at the moment
 bool AP_Logger_Backend::logging_enabled() const
 {
-    if (hal.util->get_soft_armed() ||
+    if ((hal.util->get_soft_armed() && !_front.motor_test_is_active()) ||
         _front.log_while_disarmed()) {
         return true;
     }
