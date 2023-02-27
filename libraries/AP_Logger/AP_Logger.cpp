@@ -670,7 +670,7 @@ void AP_Logger::set_vehicle_armed(const bool armed_state)
 void AP_Logger::set_motor_test_active(const bool motor_test_active)
 {
     if (_motor_test_active && !motor_test_active) {
-        _last_motor_test_end = AP_HAL::millis();
+        _last_motor_test_end_ms = AP_HAL::millis();
     }
     _motor_test_active = motor_test_active;
 }
@@ -1441,7 +1441,7 @@ bool AP_Logger::log_while_disarmed(void) const
 
     // keep logging for HAL_LOGGER_ARM_PERSIST seconds after disarming
     const uint32_t arm_change_ms = hal.util->get_last_armed_change();
-    if (!hal.util->get_soft_armed() && (arm_change_ms != 0) && (now - arm_change_ms < persist_ms) && (_last_motor_test_end < arm_change_ms)) {
+    if (!hal.util->get_soft_armed() && (arm_change_ms != 0) && (now - arm_change_ms < persist_ms) && (_last_motor_test_end_ms < arm_change_ms)) {
         return true;
     }
 

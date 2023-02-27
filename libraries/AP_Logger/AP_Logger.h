@@ -502,7 +502,7 @@ private:
 
     bool _armed;
     bool _motor_test_active;
-    uint32_t _last_motor_test_end;
+    uint32_t _last_motor_test_end_ms;
 
     // state to help us not log unneccesary RCIN values:
     bool should_log_rcin2;
