@@ -9569,6 +9569,19 @@ switch value'''
         m = dfreader.recv_match(type=messagetype)
         print("m=%s" % str(m))
         return m is not None
+    
+    def current_onboard_log_contains_msg(self, message):
+        self.progress("Checking (%s) for (%s) with message (%s)" %
+                      (self.current_onboard_log_filepath(), "MSG", message))
+        dfreader = self.dfreader_for_current_onboard_log()
+
+        while True:
+            m = dfreader.recv_match(type="MSG")
+            if m is None:
+                break
+            if re.match(message, m.Message):
+                return True
+        return False
 
     def run_tests(self, tests):
         """Autotest vehicle in SITL."""
