@@ -598,6 +598,10 @@ bool AP_Logger::should_log(const uint32_t mask) const
     if (!armed && !log_while_disarmed()) {
         return false;
     }
+    if (motor_test_is_active() && !_params.log_disarmed) {
+        // if motor test is active, and disarm logging is off dont log
+        return false;
+    }
     if (in_log_download()) {
         return false;
     }

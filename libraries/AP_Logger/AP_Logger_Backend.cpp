@@ -458,6 +458,11 @@ bool AP_Logger_Backend::ShouldLog(bool is_critical)
         // logs show the wrong flight mode if you disarm then arm again
         return true;
     }
+
+    if (_front.motor_test_is_active() && !_front._params.log_disarmed) {
+        // if motor test is active, and disarm logging is off dont log
+        return false;
+    }
     
     if (!_front.vehicle_is_armed() && !_front.log_while_disarmed()) {
         return false;
