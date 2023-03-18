@@ -839,7 +839,6 @@ function update_throttle_transient(time)
   local throttle_steps = {-0.05, 0, 0.05, -0.05, 0, 0.05, 0, -0.1, 0, 0.1}
 
   local hover_throttle = param:get('MOT_THST_HOVER')
-  local step_hold_time = 1 -- (s)
 
   -- set update time when starting the throttle ramp
   if _last_thr_update <= 0 then
@@ -867,7 +866,7 @@ function update_throttle_transient(time)
 
   -- Control step changes
   -- Check whether to switch throttle hold off
-  if (time - _hold_thr_last_time) > (step_hold_time * 1000) and (_flag_hold_throttle == true) then
+  if (time - _hold_thr_last_time) > (THROTTLE_HOLD_TIME_PARAM:get() * 1000) and (_flag_hold_throttle == true) then
       _flag_hold_throttle = false
   end
 
