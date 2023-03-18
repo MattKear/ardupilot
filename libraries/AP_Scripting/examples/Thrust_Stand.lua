@@ -841,52 +841,62 @@ function update_throttle_transient(time)
   local hover_throttle = param:get('MOT_THST_HOVER')
   local step_hold_time = 1 -- (s)
 
+  -- set update time when starting the throttle ramp
+  if _last_thr_update <= 0 then
+    _last_thr_update = time
+    _hold_thr_last_time = time
+  end
+
+  -- Control initial and final ramp to/from hover throttle
+  if (not _hover_point_achieved) then
+  -- Check wheather initial throttle ramp is complete
+    if (_current_thr >= hover_throttle) then
+      _hover_point_achieved = true
+      _hold_thr_last_time = time
+      _flag_hold_throttle = true
+
+    else
+      -- Gradually ramp throttle to hover throttle
+      _current_thr = constrain((_current_thr + _ramp_rate * (time - _last_thr_update) * 0.001 * _thr_inc_dec), 0, _max_throttle)
+      _last_thr_update = time
+      SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_linear_throttle_pwm(_current_thr), MOTOR_TIMEOUT)
+      return
+    end
+  end
+
+
+  -- Control step changes
   -- Check whether to switch throttle hold off
   if (time - _hold_thr_last_time) > (step_hold_time * 1000) and (_flag_hold_throttle == true) then
       _flag_hold_throttle = false
   end
 
-  if not(_flag_hold_throttle) and (_last_thr_update > 0) then
-    -- Gradually ramp throttle to hover throttle
-    if not _hover_point_achieved then
-      _current_thr = constrain((_current_thr + _ramp_rate * (time - _last_thr_update) * 0.001 * _thr_inc_dec), 0, _max_throttle)
-      _last_thr_update = time
-      SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_linear_throttle_pwm(_current_thr), MOTOR_TIMEOUT)
-    else
-      -- Step change throttle
-      _current_thr = constrain((hover_throttle + throttle_steps[_throttle_step_index]), 0, _max_throttle)
+  if not(_flag_hold_throttle) then
 
-      -- Set throttle hold
-      _hold_thr_last_time = time
-      _flag_hold_throttle = true
+    -- Step change throttle
+    _current_thr = constrain((hover_throttle + throttle_steps[_throttle_step_index]), 0, _max_throttle)
 
-      -- Output to motor
-      SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_linear_throttle_pwm(_current_thr), MOTOR_TIMEOUT)
+    -- Set throttle hold
+    _hold_thr_last_time = time
+    _flag_hold_throttle = true
 
-      -- Increment index for next throttle step
-      _throttle_step_index = _throttle_step_index + 1
+    -- Increment index for next throttle step
+    _throttle_step_index = _throttle_step_index + 1
 
-      -- Check if we have reached the end of our planned steps
-      if _throttle_step_index > #throttle_steps then
-        -- Ramp the throttle back down
-        _throttle_step_index = 1
-        _thr_inc_dec = -1
-        _hover_point_achieved = false
-        -- Ensure current throttle is below hover throttle to ensure throttle rampsback down
-        _current_thr = hover_throttle*0.95
-      end
+    -- Check if we have reached the end of our planned steps
+    if _throttle_step_index > #throttle_steps then
+      -- Ramp the throttle back down
+      _thr_inc_dec = -1
+      _hover_point_achieved = false
+      -- This is a hack to ensure current throttle is below hover throttle to get past the (_current_thr >= hover_throttle) check
+      _current_thr = hover_throttle*0.95
     end
-
-    -- Check if initial ramp is complete
-    if _current_thr >= hover_throttle then
-      _hover_point_achieved = true
-      _hold_thr_last_time = time
-      _flag_hold_throttle = true
-    end
-
-  else
-    _last_thr_update = time
   end
+
+  -- Update motor output during step changes
+  SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_linear_throttle_pwm(_current_thr), MOTOR_TIMEOUT)
+  _last_thr_update = time
+
 end
 ------------------------------------------------------------------------
 
