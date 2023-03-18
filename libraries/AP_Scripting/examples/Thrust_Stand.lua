@@ -644,7 +644,7 @@ function update()
     update_while_disarmed()
 
     -- The only time we do not want to maintain throttle override is when we allow motor test
-    if not ENABLE_MOTOR_TEST:get() then
+    if (ENABLE_MOTOR_TEST:get() < 1.0) then
       zero_throttle()
     end
   end
@@ -652,7 +652,7 @@ function update()
   -- If system is armed update the throttle
   if _sys_state == ARMED and safe_button_state then
     -- If we ever begin to run a test we reset motor test enabled just to make sure it doesn't trip us up
-    if ENABLE_MOTOR_TEST:get() then
+    if (ENABLE_MOTOR_TEST:get() > 0) then
       ENABLE_MOTOR_TEST:set_and_save(0)
     end
 
