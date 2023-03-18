@@ -800,6 +800,7 @@ function update_throttle_ramp(time)
   -- set update time when starting the throttle ramp
   if _last_thr_update <= 0 then
     _last_thr_update = time
+    _hold_thr_last_time = time
   end
 
   -- Check whether to throttle hold or advance throttle
