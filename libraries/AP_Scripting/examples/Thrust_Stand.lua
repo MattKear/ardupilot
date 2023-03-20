@@ -161,6 +161,7 @@ local _thrust_raw = 0.0
 local _torque_raw = 0.0
 local _thrust_time_ms = 0.0
 local _torque_time_ms = 0.0
+local _flag_ontest = false -- Flag to signify that the test is running
 
 -- telemetry rate
 local _last_telem_sent = 0.0
@@ -519,6 +520,9 @@ function constrain(v, vmin, vmax)
 end
 ------------------------------------------------------------------------
 
+------------------------------------------------------------------------
+local bool_to_number = {[true]=1.0, [false]=0.0}
+------------------------------------------------------------------------
 
 ------------------------------------------------------------------------
 -- set_device(i2c_dev, index) must be called before this function
@@ -722,7 +726,7 @@ function update()
   if _sys_state == ARMED then
       -- Log to data flash logs
       -- We only log a few variables as the rest is already logged within the cpp
-      logger.write('THST','ThO,Thst,Torq,TRaw,QRaw,ExTh','ffffff','------','------',_current_thr, thrust, torque, _thrust_raw, _torque_raw, pwm_in:get_pwm_us())
+      logger.write('THST','ThO,Thst,Torq,TRaw,QRaw,ExTh,Test', 'fffffff', '-------', '-------', _current_thr, thrust, torque, _thrust_raw, _torque_raw, pwm_in:get_pwm_us(), bool_to_number[_flag_ontest])
   end
 
   -- send telem values of thrust and torque to GCS at 2 hz
@@ -888,6 +892,7 @@ function update_throttle_transient(time)
       _hover_point_achieved = true
       _hold_thr_last_time = time
       _flag_hold_throttle = true
+      _flag_ontest = true
 
     else
       -- Gradually ramp throttle to hover throttle
@@ -909,6 +914,7 @@ function update_throttle_transient(time)
     -- Ramp the throttle back down
     _thr_inc_dec = -1
     _hover_point_achieved = false
+    _flag_ontest = false
 
     -- This is a hack to ensure current throttle is below hover throttle to get past the (_current_thr >= _hover_throttle) check
     _current_thr = _hover_throttle*0.95
@@ -956,6 +962,7 @@ function update_throttle_chirp(time)
       _hover_point_achieved = true
       _hold_thr_last_time = time
       _flag_hold_throttle = true
+      _flag_ontest = true
 
     else
       -- Gradually ramp throttle to hover throttle
@@ -977,6 +984,9 @@ function update_throttle_chirp(time)
           _hover_point_achieved = false
           _thr_inc_dec = -1
           _current_thr = _hover_throttle*0.95
+
+          -- Log test complete
+          _flag_ontest = false
 
         else
           _low_period_start = time
@@ -1098,6 +1108,7 @@ end
 function zero_throttle()
   _current_thr = 0
   reset_thr_step()
+  _flag_ontest = false
   _flag_hold_throttle = false
   _last_thr_update = 0
   _hover_point_achieved = false
