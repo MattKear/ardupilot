@@ -8,7 +8,7 @@ local TORQUE = 2 -- Index for calibration values relating to torque sensor
 -- key must be a number between 0 and 200. The key is persistent in storage
 local PARAM_TABLE_KEY = 73
 -- generate table
-assert(param:add_table(PARAM_TABLE_KEY, "THST_", 12), 'could not add param table')
+assert(param:add_table(PARAM_TABLE_KEY, "THST_", 13), 'could not add param table')
 
 ------------------------------------------------------------------------
 -- bind a parameter to a variable
@@ -32,6 +32,7 @@ assert(param:add_param(PARAM_TABLE_KEY, 9, 'ENBL_TEST', 0), 'could not add param
 assert(param:add_param(PARAM_TABLE_KEY, 10, 'OMEGA_MIN', 0.3), 'could not add param OMEGA_MIN')
 assert(param:add_param(PARAM_TABLE_KEY, 11, 'OMEGA_MAX', 12.0), 'could not add param OMEGA_MAX')
 assert(param:add_param(PARAM_TABLE_KEY, 12, 'NSE_RAT', 0.1), 'could not add param NSE_RAT')
+assert(param:add_param(PARAM_TABLE_KEY, 13, 'RAMP_STEP', 0.1), 'could not add param RAMP_STEP')
 
 -- setup param bindings
 local ZERO_OFFSET_PARAM = {0,0}
@@ -48,6 +49,7 @@ local ENABLE_MOTOR_TEST = bind_param("THST_ENBL_TEST")
 local OMEGA_MIN = bind_param("THST_OMEGA_MIN")
 local OMEGA_MAX = bind_param("THST_OMEGA_MAX")
 local NOISE_RATIO = bind_param("THST_NSE_RAT")
+local RAMP_STEP = bind_param("THST_RAMP_STEP")
 
 ------------------------------------------------------------------------
 local function torque_enabled()
@@ -88,13 +90,13 @@ local AUX1_BUTTON = 4 -- Button number for Aux 1
 -- Update throttle
 local _flag_hold_throttle = false
 local _ramp_rate = 0.03 -- (%/s) How quickly throttle is advanced
-local _hold_time = 3 --(s) How long the thottle is held at each discreate step
 local _last_thr_update = 0 -- (ms) The last time the throttle was updated
 local _current_thr = 0 --(%)
 local _hold_thr_last_time = 0
 local _next_thr_step = 0 --(%)
 local _max_throttle = 1 --(%)
 local _thr_inc_dec = 1 --(-) Used to switch the motor from increment to decrement
+local _load_next_throttle = false
 -- Transient step response modes
 local _hover_point_achieved = false -- Has the controller achieved the hover throttle
 local _throttle_step_index = 1 -- Index in the table of throttle steps to work through
@@ -719,7 +721,7 @@ function update()
   if _sys_state == ARMED then
       -- Log to data flash logs
       -- We only log a few variables as the rest is already logged within the cpp
-      logger.write('THST','ThO,Thst,Torq,TRaw,QRaw,Test', 'ffffff', '------', '------', _current_thr, thrust, torque, _thrust_raw, _torque_raw, bool_to_number[_flag_ontest])
+      logger.write('THST','ThO,Thst,Torq,TRaw,QRaw,Test,ThrT, ThrH', 'ffffffff', '--------', '--------', _current_thr, thrust, torque, _thrust_raw, _torque_raw, bool_to_number[_flag_ontest], _next_thr_step, bool_to_number[_flag_hold_throttle])
   end
 
   -- send telem values of thrust and torque to GCS at 2 hz
@@ -823,6 +825,16 @@ function update_while_disarmed()
     gcs:send_text(1, "THST_OMEGA_MAX must be above THST_OMEGA_MIN. Reset to " .. tostring(OMEGA_MAX:get()))
   end
 
+  if (RAMP_STEP:get() < 0.01) then
+    RAMP_STEP:set_and_save(0.1)
+    gcs:send_text(1, "THST_RAMP_STEP must be >= 0.01. Reset to 0.1")
+  end
+
+  if (RAMP_STEP:get() > 1) then
+    RAMP_STEP:set_and_save(1.0)
+    gcs:send_text(1, "THST_RAMP_STEP must be <= 1. Reset to 1")
+  end
+
   -- always reset the throttle step
   reset_thr_step()
 
@@ -837,28 +849,33 @@ function update_throttle_ramp(time)
     _hold_thr_last_time = time
   end
 
-  -- Check whether to throttle hold or advance throttle
-  if (time - _hold_thr_last_time) > (THROTTLE_HOLD_TIME_PARAM:get() * 1000) then
-    -- timer has passed, advance throttle
-    _current_thr = (_current_thr + _ramp_rate * (time - _last_thr_update) * 0.001 * _thr_inc_dec)
 
-    -- constrain the current throttle
-    if _thr_inc_dec > 0 then
-      -- ramp up
-      _current_thr = constrain(_current_thr, 0, _next_thr_step)
-    else
-      -- ramp down
-      _current_thr = constrain(_current_thr, _next_thr_step, _max_throttle)
+  -- Check whether out of throttle hold and need to advance throttle
+  if (time - _hold_thr_last_time) >= (THROTTLE_HOLD_TIME_PARAM:get() * 1000) then
+    -- As soon as we have finished the throttle hold we need to set the next throttle step
+    if _load_next_throttle then
+      set_next_thr_step()
+      _load_next_throttle = false
     end
+
+    -- advance throttle ramp
+    _current_thr = (_current_thr + _ramp_rate * (time - _last_thr_update) * 0.001 * _thr_inc_dec)
   end
 
   -- See if we are at a throttle hold point
-  -- now check if we are pausing at increments up the throttle ramp
-  if ((_current_thr >= _next_thr_step) and (_thr_inc_dec > 0)) or ((_current_thr <= _next_thr_step) and (_thr_inc_dec < 0)) then
+  _flag_hold_throttle = ((_current_thr >= _next_thr_step) and (_thr_inc_dec > 0)) or ((_current_thr <= _next_thr_step) and (_thr_inc_dec < 0))
+  if _flag_hold_throttle and not _load_next_throttle then
     _hold_thr_last_time = time
+    _load_next_throttle = true
+  end
 
-    -- Calculate new throttle step
-    set_next_thr_step()
+  -- constrain the current throttle
+  if _thr_inc_dec > 0 then
+    -- ramp up
+    _current_thr = constrain(_current_thr, 0, _next_thr_step)
+  else
+    -- ramp down
+    _current_thr = constrain(_current_thr, _next_thr_step, _max_throttle)
   end
 
   -- update throttle overide
@@ -867,6 +884,40 @@ function update_throttle_ramp(time)
 end
 ------------------------------------------------------------------------
 
+------------------------------------------------------------------------
+function set_next_thr_step()
+  -- check if we need to start stepping down through the throttle
+  if _current_thr >= _max_throttle then
+    _thr_inc_dec = -1
+  end
+
+  -- Update next throttle step
+  if _throttle_mode == THROTTLE_MODE_HOLD then
+    -- this could set a negative throttle but it just gets contstained to 0 below
+    _next_thr_step = _max_throttle*_thr_inc_dec
+
+  else
+    _next_thr_step = _next_thr_step + (RAMP_STEP:get()*_thr_inc_dec)
+
+  end
+  _next_thr_step = constrain(_next_thr_step, 0.0, _max_throttle)
+end
+------------------------------------------------------------------------
+
+------------------------------------------------------------------------
+function reset_thr_step()
+  -- set ramp direction
+    _thr_inc_dec = 1
+
+  -- Update next throttle step
+  if _throttle_mode == THROTTLE_MODE_HOLD then
+    _next_thr_step = _max_throttle
+  else
+    _next_thr_step = 0.0
+  end
+  _next_thr_step = constrain(_next_thr_step, 0.0, _max_throttle)
+end
+------------------------------------------------------------------------
 
 ------------------------------------------------------------------------
 function update_throttle_transient(time)
@@ -1103,6 +1154,7 @@ function zero_throttle()
   reset_thr_step()
   _flag_ontest = false
   _flag_hold_throttle = false
+  _load_next_throttle = false
   _last_thr_update = 0
   _hover_point_achieved = false
   _throttle_step_index = 1
@@ -1145,41 +1197,6 @@ function calc_pwm(thr)
   return math.floor((thr *  (mot_pwm_max - mot_pwm_min)) + mot_pwm_min)
 end
 ------------------------------------------------------------------------
-
-------------------------------------------------------------------------
-function set_next_thr_step()
-  -- check if we need to start stepping down through the throttle
-  if _current_thr >= _max_throttle then
-    _thr_inc_dec = -1
-  end
-
-  -- Update next throttle step
-  if _throttle_mode == THROTTLE_MODE_HOLD then
-    -- this could set a negative throttle but it just gets contstained to 0 below
-    _next_thr_step = _max_throttle*_thr_inc_dec
-
-  else
-    _next_thr_step = _next_thr_step + (0.1*_thr_inc_dec)
-
-  end
-  _next_thr_step = constrain(_next_thr_step, 0.0, _max_throttle)
-end
-------------------------------------------------------------------------
-
-------------------------------------------------------------------------
-function reset_thr_step()
-  -- set ramp direction
-    _thr_inc_dec = 1
-
-  -- Update next throttle step
-  if _throttle_mode == THROTTLE_MODE_HOLD then
-    _next_thr_step = _max_throttle
-  else
-    _next_thr_step = 0.1
-  end
-end
-------------------------------------------------------------------------
-
 
 ------------------------------------------------------------------------
 -- Set sample rate appropriate to mode
