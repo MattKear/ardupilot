@@ -8,7 +8,7 @@ local TORQUE = 2 -- Index for calibration values relating to torque sensor
 -- key must be a number between 0 and 200. The key is persistent in storage
 local PARAM_TABLE_KEY = 73
 -- generate table
-assert(param:add_table(PARAM_TABLE_KEY, "THST_", 9), 'could not add param table')
+assert(param:add_table(PARAM_TABLE_KEY, "THST_", 12), 'could not add param table')
 
 ------------------------------------------------------------------------
 -- bind a parameter to a variable
@@ -29,6 +29,9 @@ assert(param:add_param(PARAM_TABLE_KEY, 6, 'MAX_THR', 100.0), 'could not add par
 assert(param:add_param(PARAM_TABLE_KEY, 7, 'HOLD_S', 3), 'could not add param HOLD_S')
 assert(param:add_param(PARAM_TABLE_KEY, 8, 'ENBL_TORQ', 1), 'could not add param ENBL_TORQ')
 assert(param:add_param(PARAM_TABLE_KEY, 9, 'ENBL_TEST', 0), 'could not add param ENBL_TEST')
+assert(param:add_param(PARAM_TABLE_KEY, 10, 'OMEGA_MIN', 0.3), 'could not add param OMEGA_MIN')
+assert(param:add_param(PARAM_TABLE_KEY, 11, 'OMEGA_MAX', 12.0), 'could not add param OMEGA_MAX')
+assert(param:add_param(PARAM_TABLE_KEY, 12, 'NSE_RAT', 0.1), 'could not add param NSE_RAT')
 
 -- setup param bindings
 local ZERO_OFFSET_PARAM = {0,0}
@@ -42,6 +45,9 @@ local MAX_THR_PARAM = bind_param("THST_MAX_THR")
 local THROTTLE_HOLD_TIME_PARAM = bind_param("THST_HOLD_S")
 local USE_TORQUE = bind_param("THST_ENBL_TORQ")
 local ENABLE_MOTOR_TEST = bind_param("THST_ENBL_TEST")
+local OMEGA_MIN = bind_param("THST_OMEGA_MIN")
+local OMEGA_MAX = bind_param("THST_OMEGA_MAX")
+local NOISE_RATIO = bind_param("THST_NSE_RAT")
 
 ------------------------------------------------------------------------
 local function torque_enabled()
@@ -92,6 +98,13 @@ local _thr_inc_dec = 1 --(-) Used to switch the motor from increment to decremen
 -- Transient step response modes
 local _hover_point_achieved = false -- Has the controller achieved the hover throttle
 local _throttle_step_index = 1 -- Index in the table of throttle steps to work through
+-- Chirp throttle mode
+local _theta = 0
+local _low_period_start = 0 -- Time that the initial low frequency 2 periods are started
+local _freq_sweep_start = 0 -- Time that the chirp starts
+local _chirp_complete = false
+local _chirp_finish_time = 0.0
+local _test_complete = false
 
 -- Read in PWM if we are using an external throttle
 local pwm_in = PWMSource()
@@ -132,6 +145,7 @@ local _last_sys_state = -1
 local THROTTLE_MODE_RAMP = 0 -- (copter stabilise) Throttle gradual ramp up and down
 local THROTTLE_MODE_STEP = 1 -- (copter acro) Step inputs around hover throttle
 local THROTTLE_MODE_HOLD = 2 -- (copter mode alt hold) Ramp to max and hold for defined time
+local THROTTLE_MODE_CHIRP = 20 -- (copter mode Guided_NoGPS) apply throttle chirps/Freq sweeps
 local _throttle_mode = THROTTLE_MODE_RAMP
 local _last_mode
 
@@ -149,6 +163,10 @@ local _torque_time_ms = 0.0
 
 -- telemetry rate
 local _last_telem_sent = 0.0
+
+-- lowpass filter
+_lpf_initialised = false
+_lpf_output = 0.0
 
 -- Forward declare functions
 local init_nau7802
@@ -661,6 +679,9 @@ function update()
       if _throttle_mode == THROTTLE_MODE_STEP then
         update_throttle_transient(now)
 
+      elseif _throttle_mode == THROTTLE_MODE_CHIRP then
+        update_throttle_chirp(now)
+
       else --_throttle_mode == THROTTLE_MODE_RAMP or _throttle_mode == THROTTLE_MODE_HOLD
         update_throttle_ramp(now)
       end
@@ -758,7 +779,7 @@ function update_while_disarmed()
      -- Only allow throttle mode to be changed in Disarmed State
     _throttle_mode = mode
 
-    if _throttle_mode == THROTTLE_MODE_STEP then
+    if (_throttle_mode == THROTTLE_MODE_STEP) or (_throttle_mode == THROTTLE_MODE_CHIRP) then
       update_sample_rate(FAST_SAMPLE)
 
     else --_throttle_mode == THROTTLE_MODE_RAMP or _throttle_mode == THROTTLE_MODE_HOLD
@@ -787,6 +808,16 @@ function update_while_disarmed()
   local spin_max = mot_spin_max_param:get()
   if spin_max then
     mot_spin_max = spin_max
+  end
+
+  if (OMEGA_MIN:get() < 0.1) then
+    OMEGA_MIN:set_and_save(0.1)
+    gcs:send_text(1, "THST_OMEGA_MIN limited to 0.1")
+  end
+
+  if (OMEGA_MAX:get() <= OMEGA_MIN:get()) then
+    OMEGA_MAX:set_and_save(OMEGA_MIN:get()*1.1)
+    gcs:send_text(1, "THST_OMEGA_MAX must be above THST_OMEGA_MIN. Reset to " .. tostring(OMEGA_MAX:get()))
   end
 
   -- always reset the throttle step
@@ -904,6 +935,164 @@ end
 
 
 ------------------------------------------------------------------------
+function update_throttle_chirp(time)
+
+  local hover_throttle = param:get('MOT_THST_HOVER')
+
+  -- set update time when starting the throttle ramp
+  if _last_thr_update <= 0 then
+    _last_thr_update = time
+    _hold_thr_last_time = time
+  end
+
+  local dt = (time - _last_thr_update) * 0.001 -- (s)
+
+  -- Control initial and final ramp to/from hover throttle
+  if (not _hover_point_achieved) then
+  -- Check wheather initial throttle ramp is complete
+    if (_current_thr >= hover_throttle) then
+      _hover_point_achieved = true
+      _hold_thr_last_time = time
+      _flag_hold_throttle = true
+
+    else
+      -- Gradually ramp throttle to hover throttle
+      _current_thr = constrain((_current_thr + _ramp_rate * dt * _thr_inc_dec), 0, _max_throttle)
+      _last_thr_update = time
+      SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_linear_throttle_pwm(_current_thr), MOTOR_TIMEOUT)
+      return
+    end
+  end
+
+  -- Control hold at test start and end
+  if _flag_hold_throttle then
+
+    -- Determine when to switch off throttle hold
+    if (time - _hold_thr_last_time) > (THROTTLE_HOLD_TIME_PARAM:get() * 1000) then
+        _flag_hold_throttle = false
+        if _test_complete then
+          -- return to ramp down
+          _hover_point_achieved = false
+          _thr_inc_dec = -1
+          _current_thr = hover_throttle*0.95
+
+        else
+          _low_period_start = time
+        end
+    end
+
+    SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_linear_throttle_pwm(_current_thr), MOTOR_TIMEOUT)
+    _last_thr_update = time
+    return
+  end
+
+  -- Run throttle chirp
+  local T_max = 2 * math.pi / OMEGA_MIN:get()
+  local delta_sweep = 0.0
+  local A = (_max_throttle - hover_throttle)
+
+  -- run initial low freq 2 cycle
+  if (_freq_sweep_start < 1) then
+    local t_s = (time - _low_period_start)*0.001
+    if t_s < (T_max*2.0) then
+      delta_sweep = hover_throttle + A * math.sin(OMEGA_MIN:get()*t_s)
+      -- gcs:send_text(4,'In low cycle')
+    else
+      _freq_sweep_start = time
+    end
+  end
+
+  -- run the chirp
+  if (_freq_sweep_start > 0) then
+    if (time - _freq_sweep_start) < (T_max*3.0*1000) then
+      -- Run frequency sweep
+      local K = 0.0187 * (math.exp(4.0 * ((time-_freq_sweep_start)*0.001)/(T_max*3.0)) - 1.0) -- C1 = 4.0, C2 = 0.0187, P115, Eq 5.16
+      local omega = OMEGA_MIN:get() + K * (OMEGA_MAX:get() - OMEGA_MIN:get())
+      _theta = _theta + omega * dt
+      delta_sweep = hover_throttle + A * math.sin(_theta)
+      -- gcs:send_text(4,'In chirp cycle')
+
+
+    elseif not _chirp_complete then
+      -- The chirp will have finished at some non-trim value, so we want to smoothly continue the max freq sin curve until we get to zero
+      if _chirp_finish_time < 1 then
+        _chirp_finish_time = time
+      end
+      local t_s = (time - _chirp_finish_time) * 0.001
+      delta_sweep = hover_throttle + A * math.sin(OMEGA_MAX:get()*t_s)
+
+      if ((delta_sweep-hover_throttle)*(_current_thr-hover_throttle)) < 0.0 then
+        -- we have crossed our trim state and can move on from the chirp phase
+        delta_sweep = hover_throttle
+        _chirp_complete = true
+      end
+
+    else
+      -- go back to throttle hold
+      _flag_hold_throttle = true
+      _hold_thr_last_time = time
+      _test_complete = true
+      _current_thr = hover_throttle
+      return
+      -- gcs:send_text(4,'return thr hold')
+    end
+  end
+
+  -- calculate the white noise contribution
+  local noise = norm_dist(0.0, NOISE_RATIO:get()*A)
+  noise = apply_low_pass(noise, OMEGA_MAX:get()*0.5/math.pi, dt)
+
+  -- don't apply noise if we are just trying to smooth out the end of the chirp
+  if _chirp_complete then
+    noise = 0.0
+  end
+
+  -- Update motor output during freq sweep
+  _current_thr = delta_sweep + noise
+  SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_linear_throttle_pwm(_current_thr), MOTOR_TIMEOUT)
+  _last_thr_update = time
+
+end
+------------------------------------------------------------------------
+
+------------------------------------------------------------------------
+function norm_dist(mu, sig)
+  sig = math.max(sig, 1e-12)
+  local z = ((math.random() * 2.0 - 1.0) - mu) / sig
+  z_sign = 1.0
+  if z < 0 then
+    z_sign = -1.0
+  end
+  return z_sign / math.sqrt(2.0*math.pi) * math.exp(-0.5*z*z)
+end
+------------------------------------------------------------------------
+
+------------------------------------------------------------------------
+function apply_low_pass(sample, cutoff_freq, dt)
+  if (cutoff_freq <= 0.0) or (dt <= 0.0) then
+      _lpf_output = sample
+      return _lpf_output
+  end
+
+  local rc = 1.0 / (math.pi*2*cutoff_freq)
+  local alpha = constrain(dt/(dt+rc), 0.0, 1.0)
+  _lpf_output = _lpf_output + (sample - _lpf_output) * alpha
+  if (not _lpf_initialised) then
+    _lpf_initialised = true
+    _lpf_output = sample
+  end
+  return _lpf_output
+end
+------------------------------------------------------------------------
+
+------------------------------------------------------------------------
+function reset_low_pass(sample)
+  apply_low_pass(sample, -1.0, -1.0)
+  _lpf_initialised = false
+end
+------------------------------------------------------------------------
+
+------------------------------------------------------------------------
 function zero_throttle()
   _current_thr = 0
   reset_thr_step()
@@ -911,6 +1100,13 @@ function zero_throttle()
   _last_thr_update = 0
   _hover_point_achieved = false
   _throttle_step_index = 1
+  _theta = 0
+  _low_period_start = 0
+  _freq_sweep_start = 0
+  _chirp_complete = false
+  _chirp_finish_time = 0
+  _test_complete = false
+  reset_low_pass(0.0)
   SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_pwm(_current_thr), MOTOR_TIMEOUT)
 end
 ------------------------------------------------------------------------
@@ -1007,9 +1203,12 @@ function update_lights(now_ms)
   if _throttle_mode == THROTTLE_MODE_STEP then
     colour['max'] = {0.15,0,0.2} -- colour assigned to throttle range
     colour['disarm'] = {0.2,0.4,0.1} -- colour assigned to throttle range when disarmed
+  elseif _throttle_mode == THROTTLE_MODE_CHIRP then
+    colour['max'] = {1,0.4,0}
+    colour['disarm'] = {0.2,0.2,1}
   else
-    colour['max'] = {0,0,0.3} -- colour assigned to throttle range
-    colour['disarm'] = {0.2,0.2,0} -- colour assigned to throttle range when disarmed
+    colour['max'] = {0,0,0.3}
+    colour['disarm'] = {0.2,0.2,0}
   end
 
   -- Array to keep track of state of each led
