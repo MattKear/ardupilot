@@ -98,6 +98,7 @@ local _thr_inc_dec = 1 --(-) Used to switch the motor from increment to decremen
 -- Transient step response modes
 local _hover_point_achieved = false -- Has the controller achieved the hover throttle
 local _throttle_step_index = 1 -- Index in the table of throttle steps to work through
+local _hover_throttle = 0
 -- Chirp throttle mode
 local _theta = 0
 local _low_period_start = 0 -- Time that the initial low frequency 2 periods are started
@@ -810,6 +811,11 @@ function update_while_disarmed()
     mot_spin_max = spin_max
   end
 
+  local hvr_thr = param:get('MOT_THST_HOVER')
+  if hvr_thr then
+    _hover_throttle = hvr_thr
+  end
+
   if (OMEGA_MIN:get() < 0.1) then
     OMEGA_MIN:set_and_save(0.1)
     gcs:send_text(1, "THST_OMEGA_MIN limited to 0.1")
@@ -869,8 +875,6 @@ end
 function update_throttle_transient(time)
   local throttle_steps = {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0}
 
-  local hover_throttle = param:get('MOT_THST_HOVER')
-
   -- set update time when starting the throttle ramp
   if _last_thr_update <= 0 then
     _last_thr_update = time
@@ -880,7 +884,7 @@ function update_throttle_transient(time)
   -- Control initial and final ramp to/from hover throttle
   if (not _hover_point_achieved) then
   -- Check wheather initial throttle ramp is complete
-    if (_current_thr >= hover_throttle) then
+    if (_current_thr >= _hover_throttle) then
       _hover_point_achieved = true
       _hold_thr_last_time = time
       _flag_hold_throttle = true
@@ -906,8 +910,8 @@ function update_throttle_transient(time)
     _thr_inc_dec = -1
     _hover_point_achieved = false
 
-    -- This is a hack to ensure current throttle is below hover throttle to get past the (_current_thr >= hover_throttle) check
-    _current_thr = hover_throttle*0.95
+    -- This is a hack to ensure current throttle is below hover throttle to get past the (_current_thr >= _hover_throttle) check
+    _current_thr = _hover_throttle*0.95
 
     -- Don't bother updating the throttle on this loop
     return
@@ -916,7 +920,7 @@ function update_throttle_transient(time)
   if not(_flag_hold_throttle) then
     -- Step change throttle
     _throttle_step_index = math.min(_throttle_step_index, #throttle_steps)
-    _current_thr = constrain((hover_throttle + (throttle_steps[_throttle_step_index] * (_max_throttle - hover_throttle))), 0, _max_throttle)
+    _current_thr = constrain((_hover_throttle + (throttle_steps[_throttle_step_index] * (_max_throttle - _hover_throttle))), 0, _max_throttle)
 
     -- Set throttle hold
     _hold_thr_last_time = time
@@ -937,8 +941,6 @@ end
 ------------------------------------------------------------------------
 function update_throttle_chirp(time)
 
-  local hover_throttle = param:get('MOT_THST_HOVER')
-
   -- set update time when starting the throttle ramp
   if _last_thr_update <= 0 then
     _last_thr_update = time
@@ -950,7 +952,7 @@ function update_throttle_chirp(time)
   -- Control initial and final ramp to/from hover throttle
   if (not _hover_point_achieved) then
   -- Check wheather initial throttle ramp is complete
-    if (_current_thr >= hover_throttle) then
+    if (_current_thr >= _hover_throttle) then
       _hover_point_achieved = true
       _hold_thr_last_time = time
       _flag_hold_throttle = true
@@ -974,7 +976,7 @@ function update_throttle_chirp(time)
           -- return to ramp down
           _hover_point_achieved = false
           _thr_inc_dec = -1
-          _current_thr = hover_throttle*0.95
+          _current_thr = _hover_throttle*0.95
 
         else
           _low_period_start = time
@@ -989,13 +991,13 @@ function update_throttle_chirp(time)
   -- Run throttle chirp
   local T_max = 2 * math.pi / OMEGA_MIN:get()
   local delta_sweep = 0.0
-  local A = (_max_throttle - hover_throttle)
+  local A = (_max_throttle - _hover_throttle)
 
   -- run initial low freq 2 cycle
   if (_freq_sweep_start < 1) then
     local t_s = (time - _low_period_start)*0.001
     if t_s < (T_max*2.0) then
-      delta_sweep = hover_throttle + A * math.sin(OMEGA_MIN:get()*t_s)
+      delta_sweep = _hover_throttle + A * math.sin(OMEGA_MIN:get()*t_s)
       -- gcs:send_text(4,'In low cycle')
     else
       _freq_sweep_start = time
@@ -1009,7 +1011,7 @@ function update_throttle_chirp(time)
       local K = 0.0187 * (math.exp(4.0 * ((time-_freq_sweep_start)*0.001)/(T_max*3.0)) - 1.0) -- C1 = 4.0, C2 = 0.0187, P115, Eq 5.16
       local omega = OMEGA_MIN:get() + K * (OMEGA_MAX:get() - OMEGA_MIN:get())
       _theta = _theta + omega * dt
-      delta_sweep = hover_throttle + A * math.sin(_theta)
+      delta_sweep = _hover_throttle + A * math.sin(_theta)
       -- gcs:send_text(4,'In chirp cycle')
 
 
@@ -1019,11 +1021,11 @@ function update_throttle_chirp(time)
         _chirp_finish_time = time
       end
       local t_s = (time - _chirp_finish_time) * 0.001
-      delta_sweep = hover_throttle + A * math.sin(OMEGA_MAX:get()*t_s)
+      delta_sweep = _hover_throttle + A * math.sin(OMEGA_MAX:get()*t_s)
 
-      if ((delta_sweep-hover_throttle)*(_current_thr-hover_throttle)) < 0.0 then
+      if ((delta_sweep-_hover_throttle)*(_current_thr-_hover_throttle)) < 0.0 then
         -- we have crossed our trim state and can move on from the chirp phase
-        delta_sweep = hover_throttle
+        delta_sweep = _hover_throttle
         _chirp_complete = true
       end
 
@@ -1032,7 +1034,7 @@ function update_throttle_chirp(time)
       _flag_hold_throttle = true
       _hold_thr_last_time = time
       _test_complete = true
-      _current_thr = hover_throttle
+      _current_thr = _hover_throttle
       return
       -- gcs:send_text(4,'return thr hold')
     end
