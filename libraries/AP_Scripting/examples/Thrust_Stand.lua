@@ -107,9 +107,6 @@ local _chirp_complete = false
 local _chirp_finish_time = 0.0
 local _test_complete = false
 
--- Read in PWM if we are using an external throttle
-local pwm_in = PWMSource()
-
 -- setup the fast access pwm_min parameter
 local mot_pwm_min_param = Parameter()
 assert(mot_pwm_min_param:init('MOT_PWM_MIN'), 'failed get MOT_PWM_MIN')
@@ -600,10 +597,6 @@ function init()
     gcs:send_text(6, "LEDs: neopixle not set")
   end
 
-  -- init PWM in
-  -- F765 Wing PIN 52 is PWM 3
-  assert(pwm_in:set_pin(52), "Failed to setup PWM in (52)")
-
   -- Now main loop can be started
   return protected_update, 100
 
@@ -726,7 +719,7 @@ function update()
   if _sys_state == ARMED then
       -- Log to data flash logs
       -- We only log a few variables as the rest is already logged within the cpp
-      logger.write('THST','ThO,Thst,Torq,TRaw,QRaw,ExTh,Test', 'fffffff', '-------', '-------', _current_thr, thrust, torque, _thrust_raw, _torque_raw, pwm_in:get_pwm_us(), bool_to_number[_flag_ontest])
+      logger.write('THST','ThO,Thst,Torq,TRaw,QRaw,Test', 'ffffff', '------', '------', _current_thr, thrust, torque, _thrust_raw, _torque_raw, bool_to_number[_flag_ontest])
   end
 
   -- send telem values of thrust and torque to GCS at 2 hz
