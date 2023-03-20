@@ -836,7 +836,7 @@ end
 
 ------------------------------------------------------------------------
 function update_throttle_transient(time)
-  local throttle_steps = {-0.05, 0, 0.05, -0.05, 0, 0.05, 0, -0.1, 0, 0.1}
+  local throttle_steps = {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0}
 
   local hover_throttle = param:get('MOT_THST_HOVER')
 
@@ -863,33 +863,36 @@ function update_throttle_transient(time)
     end
   end
 
-
   -- Control step changes
   -- Check whether to switch throttle hold off
   if (time - _hold_thr_last_time) > (THROTTLE_HOLD_TIME_PARAM:get() * 1000) and (_flag_hold_throttle == true) then
       _flag_hold_throttle = false
   end
 
-  if not(_flag_hold_throttle) then
+  -- Catch if we have reached the end of our planned steps and need to ramp throttle down
+  if (_throttle_step_index > #throttle_steps) and ((time - _hold_thr_last_time) > (THROTTLE_HOLD_TIME_PARAM:get() * 1000)) then
+    -- Ramp the throttle back down
+    _thr_inc_dec = -1
+    _hover_point_achieved = false
 
+    -- This is a hack to ensure current throttle is below hover throttle to get past the (_current_thr >= hover_throttle) check
+    _current_thr = hover_throttle*0.95
+
+    -- Don't bother updating the throttle on this loop
+    return
+  end
+
+  if not(_flag_hold_throttle) then
     -- Step change throttle
-    _current_thr = constrain((hover_throttle + throttle_steps[_throttle_step_index]), 0, _max_throttle)
+    _throttle_step_index = math.min(_throttle_step_index, #throttle_steps)
+    _current_thr = constrain((hover_throttle + (throttle_steps[_throttle_step_index] * (_max_throttle - hover_throttle))), 0, _max_throttle)
 
     -- Set throttle hold
     _hold_thr_last_time = time
     _flag_hold_throttle = true
 
     -- Increment index for next throttle step
-    _throttle_step_index = _throttle_step_index + 1
-
-    -- Check if we have reached the end of our planned steps
-    if _throttle_step_index > #throttle_steps then
-      -- Ramp the throttle back down
-      _thr_inc_dec = -1
-      _hover_point_achieved = false
-      -- This is a hack to ensure current throttle is below hover throttle to get past the (_current_thr >= hover_throttle) check
-      _current_thr = hover_throttle*0.95
-    end
+      _throttle_step_index = _throttle_step_index + 1
   end
 
   -- Update motor output during step changes
