@@ -10,6 +10,7 @@ import os
 import shutil
 import csv
 from matplotlib import pyplot as plt
+from argparse import ArgumentParser
 
 # ==============================================================================
 class DataPoints:
@@ -73,18 +74,29 @@ class DataPoints:
 
 # ==============================================================================
 
+frame_class_lookup = {6:'Single Heli', 11:'Dual Heli', 13:'Heli Quad'}
 
 
-
-
-
+# ==============================================================================
 if __name__ == '__main__':
 
     BLUE = [0,0,1]
     RED = [1,0,0]
 
     dir_name = 'motors_comparison'
-    compare_file = 'motors_test.csv'
+
+    # Build input parser
+    parser = ArgumentParser(description='Find logs in which the input string is found in messages')
+    parser.add_argument("head", type=int, help='number of commits to roll back the head for comparing the work done')
+    parser.add_argument("-f","--frame-class", dest='frame_class', nargs="+", default=6, help="list of frame classes to run comparison on. Defaults to 6 single heli.")
+    args = parser.parse_args()
+
+    if not args.head:
+        print('Number of commits to roll back HEAD must be provided to run comparison')
+        quit()
+    if args.head <= 0:
+        print('Number of commits to roll back HEAD must be a positive integer value')
+        quit()
 
     # If we have already run this test, delete the old data
     if dir_name in os.listdir('./'):
@@ -97,23 +109,37 @@ if __name__ == '__main__':
     os.system('./waf configure --board linux')
     os.system('./waf build --target examples/AP_Motors_test')
 
+    print('\nRunning motor tests with current changes\n')
+
     # run the test
-    print('\nRunning motor test with current changes\n')
-    os.system('./build/linux/examples/AP_Motors_test s > new_%s' % compare_file)
+    for fc in args.frame_class:
+        filename = 'new_%s_motor_test.csv' % frame_class_lookup[fc]
+        os.system('./build/linux/examples/AP_Motors_test s > %s' % filename)
 
-    # move the csv to the directory for later comparison
-    shutil.move('new_%s' % compare_file, os.path.join(dir_name, 'new_%s' % compare_file))
+        # move the csv to the directory for later comparison
+        shutil.move('new_%s' % filename, os.path.join(dir_name, 'new_%s' % filename))
 
-    print('Run Complete\n')
+        print('Frame class = %s complete\n' % frame_class_lookup[fc])
 
-    print('Rewinding head by x commits\n')
+    print('Rewinding head by %d commits\n', args.head)
 
     # TEMP: just copying to do plotting for now
-    shutil.copy(os.path.join(dir_name, 'new_%s' % compare_file), os.path.join(dir_name, 'original_%s' % compare_file))
+    for fc in args.frame_class:
+        filename = '%s_motor_test.csv' % frame_class_lookup[fc]
+        shutil.copy(os.path.join(dir_name, 'new_%s' % filename), os.path.join(dir_name, 'original_%s' % filename))
 
-    new_points = DataPoints(os.path.join(dir_name, 'new_%s' % compare_file))
+    new_points = {}
+    old_points = {}
 
-    old_points = DataPoints(os.path.join(dir_name, 'original_%s' % compare_file))
+    for fc in args.frame_class:
+        filename = '%s_motor_test.csv' % frame_class_lookup[fc]
+        new_points[frame_class_lookup[fc]] = DataPoints(os.path.join(dir_name, 'new_%s' % filename))
+        old_points[frame_class_lookup[fc]] = DataPoints(os.path.join(dir_name, 'original_%s' % filename))
+
+    # Find the number of data fields that will need to be plotted
+    number_of_plots = len(new_points[frame_class_lookup[args.frame_class[0]]].data.keys())
+
+    #TODO think of a way to get all data plotted
 
     # Plot all of the points for correlation comparison
     # Non-limit cases are plotted with blue o's
