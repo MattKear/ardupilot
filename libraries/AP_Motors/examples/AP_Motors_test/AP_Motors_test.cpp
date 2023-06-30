@@ -107,10 +107,18 @@ void setup()
                         break;
 
                     case AP_Motors::MOTOR_FRAME_HELI:
-                    case AP_Motors::MOTOR_FRAME_HELI_DUAL:
-                    case AP_Motors::MOTOR_FRAME_HELI_QUAD:
                         motors = new AP_MotorsHeli_Single(400);
-                        num_outputs = 8;
+                        num_outputs = 3;
+                        break;
+
+                    case AP_Motors::MOTOR_FRAME_HELI_DUAL:
+                        motors = new AP_MotorsHeli_Dual(400);
+                        num_outputs = 6;
+                        break;
+
+                    case AP_Motors::MOTOR_FRAME_HELI_QUAD:
+                        motors = new AP_MotorsHeli_Quad(400);
+                        num_outputs = 4;
                         break;
 
                     default:
@@ -118,10 +126,16 @@ void setup()
                         exit(1);
                 }
 
-            // Infer number out of outputs
+                // Init motors
+                motors->init(frame_class, AP_Motors::MOTOR_FRAME_TYPE_X);
 
-            motors->init(frame_class, AP_Motors::MOTOR_FRAME_TYPE_X);
-            motors->output_min();
+                // Check that init worked
+                if (!motors->initialised_ok()) {
+                    ::printf("ERROR: frame_class=%d initialisation failed\n", frame_class);
+                    exit(1);
+                }
+
+                motors->output_min();
 
             } else {
                 ::printf("Expected \"frame_class\", \"yaw_headroom\" or \"throttle_avg_max\"\n");
@@ -310,11 +324,12 @@ void stability_test()
     char frame_and_type_string[30];
     motors.get_frame_and_type_string(frame_and_type_string, ARRAY_SIZE(frame_and_type_string));
     hal.console->printf("%s\n", frame_and_type_string);
-#if HELI_TEST == 0
-    hal.console->printf("Throttle average max: %0.4f\n",  motors.get_throttle_avg_max());
-    hal.console->printf("Yaw headroom: %i\n", motors.get_yaw_headroom());
-    hal.console->printf("Thrust boost: %s\n", thrust_boost?"True":"False");
-#endif
+
+    if (motors_matrix != nullptr) {
+        hal.console->printf("Throttle average max: %0.4f\n",  motors_matrix->get_throttle_avg_max());
+        hal.console->printf("Yaw headroom: %i\n", motors_matrix->get_yaw_headroom());
+        hal.console->printf("Thrust boost: %s\n", thrust_boost?"True":"False");
+    }
 
     const float throttle_tests[] = {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0};
     const uint8_t throttle_tests_num = ARRAY_SIZE(throttle_tests);
