@@ -159,10 +159,12 @@ void setup()
         } else if (strcmp(argv[1],"s") == 0) {
             stability_test();
 
-#if HELI_TEST == 0
         } else if (strcmp(argv[1],"p") == 0) {
+            if (motors_matrix == nullptr) {
+                ::printf("Print only supports motors matrix\n");
+            }
             print_all_motor_matrix();
-#endif
+
         } else {
             ::printf("Expected first argument: 't', 's' or 'p'\n");
 
@@ -241,8 +243,8 @@ void print_all_motor_matrix()
                 // Skip the none planar motors types
                 continue;
             }
-            motors.init((AP_Motors::motor_frame_class)frame_class, (AP_Motors::motor_frame_type)frame_type);
-            if (motors.initialised_ok()) {
+            motors_matrix->init((AP_Motors::motor_frame_class)frame_class, (AP_Motors::motor_frame_type)frame_type);
+            if (motors_matrix->initialised_ok()) {
                 if (!first_layout) {
                     hal.console->printf(",\n");
                 }
@@ -250,7 +252,7 @@ void print_all_motor_matrix()
 
                 // Grab full frame string and strip "Frame: " and split
                 // This is the long way round, motors does have direct getters, but there protected
-                motors.get_frame_and_type_string(frame_and_type_string, ARRAY_SIZE(frame_and_type_string));
+                motors_matrix->get_frame_and_type_string(frame_and_type_string, ARRAY_SIZE(frame_and_type_string));
                 char *frame_string = strchr(frame_and_type_string, ':');
                 char *type_string = strchr(frame_and_type_string, '/');
                 if (type_string != nullptr) {
@@ -267,7 +269,7 @@ void print_all_motor_matrix()
                 for (uint8_t i = 0; i < AP_MOTORS_MAX_NUM_MOTORS; i++) {
                     float roll, pitch, yaw, throttle;
                     uint8_t testing_order;
-                    if (motors.get_factors(i, roll, pitch, yaw, throttle, testing_order)) {
+                    if (motors_matrix->get_factors(i, roll, pitch, yaw, throttle, testing_order)) {
                         if (!first_motor) {
                             hal.console->printf(",\n");
                         }
@@ -322,7 +324,7 @@ void stability_test()
 {
     hal.console->printf("%s\n", VERSION);
     char frame_and_type_string[30];
-    motors.get_frame_and_type_string(frame_and_type_string, ARRAY_SIZE(frame_and_type_string));
+    motors->get_frame_and_type_string(frame_and_type_string, ARRAY_SIZE(frame_and_type_string));
     hal.console->printf("%s\n", frame_and_type_string);
 
     if (motors_matrix != nullptr) {
