@@ -15,9 +15,11 @@ from argparse import ArgumentParser
 # ==============================================================================
 class DataPoints:
 
-    HEADER_LINE = 6
+    HEADER_LINE = 2
 
     # --------------------------------------------------------------------------
+    # Instantiate the object and parse the data from the provided file
+    # file: path to the csv file to be parsed
     def __init__(self, file):
         self.data = {}
         self.limit_case = []
@@ -56,6 +58,9 @@ class DataPoints:
     # --------------------------------------------------------------------------
 
     # --------------------------------------------------------------------------
+    # get the data from a given field
+    # field: dict index, name of field data to be returned
+    # lim_tf: limit bool, return limit cases or not
     def get_data(self, field, lim_tf):
         if field not in self.data.keys():
             raise Exception('%s is not a valid data field' % field)
@@ -74,7 +79,7 @@ class DataPoints:
 
 # ==============================================================================
 
-frame_class_lookup = {6:'Single Heli', 11:'Dual Heli', 13:'Heli Quad'}
+frame_class_lookup = {6:'Single_Heli', 11:'Dual_Heli', 13:'Heli_Quad'}
 
 
 # ==============================================================================
@@ -88,7 +93,7 @@ if __name__ == '__main__':
     # Build input parser
     parser = ArgumentParser(description='Find logs in which the input string is found in messages')
     parser.add_argument("head", type=int, help='number of commits to roll back the head for comparing the work done')
-    parser.add_argument("-f","--frame-class", dest='frame_class', nargs="+", default=6, help="list of frame classes to run comparison on. Defaults to 6 single heli.")
+    parser.add_argument("-f","--frame-class", dest='frame_class', nargs="+", default=(6,11,13), help="list of frame classes to run comparison on. Defaults to 6 single heli.")
     args = parser.parse_args()
 
     if not args.head:
@@ -114,10 +119,10 @@ if __name__ == '__main__':
     # run the test
     for fc in args.frame_class:
         filename = 'new_%s_motor_test.csv' % frame_class_lookup[fc]
-        os.system('./build/linux/examples/AP_Motors_test s > %s' % filename)
+        os.system('./build/linux/examples/AP_Motors_test s > %s frame_class=%d' % (filename,fc))
 
         # move the csv to the directory for later comparison
-        shutil.move('new_%s' % filename, os.path.join(dir_name, 'new_%s' % filename))
+        shutil.move(filename, os.path.join(dir_name, filename))
 
         print('Frame class = %s complete\n' % frame_class_lookup[fc])
 
@@ -136,41 +141,46 @@ if __name__ == '__main__':
         new_points[frame_class_lookup[fc]] = DataPoints(os.path.join(dir_name, 'new_%s' % filename))
         old_points[frame_class_lookup[fc]] = DataPoints(os.path.join(dir_name, 'original_%s' % filename))
 
-    # Find the number of data fields that will need to be plotted
-    number_of_plots = len(new_points[frame_class_lookup[args.frame_class[0]]].data.keys())
-
-    #TODO think of a way to get all data plotted
-
     # Plot all of the points for correlation comparison
     # Non-limit cases are plotted with blue o's
     # Limited flag cases are plotted with red x's
-    index = [0, 0]
-    fig, ax = plt.subplots(3, 3, figsize=(13, 13))
-    for field in new_points.get_fields():
-        max_val = max(max(new_points.data[field]), max(old_points.data[field]))
-        min_val = min(min(new_points.data[field]), min(old_points.data[field]))
+    n_fields = new_points[frame_class_lookup[args.frame_class[0]]].get_fields() # Assuming that the fields are the same in all frame classes and between old and new
+    for fc in args.frame_class:
+        # Always start a new plot for a new frame class
+        fig, ax = plt.subplots(3, 3, figsize=(13, 13))
+        index = [0, 0]
+        frame = frame_class_lookup[fc]
 
-        ax[index[0],index[1]].plot([min_val, max_val], [min_val, max_val], label='Desired', linestyle='-', marker='')
-        ax[index[0],index[1]].plot(new_points.get_data(field, False), old_points.get_data(field, False), label='Not Limited Pts', linestyle='', marker='x', color=BLUE)
-        # ax[index[0],index[1]].plot(new_points.get_data(field, True), old_points.get_data(field, True), label='Limited Pts', linestyle='', marker='o', color=RED)
-        if index[0] == 2:
-            ax[index[0],index[1]].set_xlabel('New Points')
-        if index[1] == 0:
-            ax[index[0],index[1]].set_ylabel('Original Points')
-        ax[index[0],index[1]].set_title(field)
+        for field in n_fields:
 
-        # Move through plot tiles
-        index[1] += 1
+            max_val = max(max(new_points[frame].data[field]), max(old_points[frame].data[field]))
+            min_val = min(min(new_points[frame].data[field]), min(old_points[frame].data[field]))
 
-        if index[1] >= 3:
-            index[0] += 1
-            index[1] = 0
+            ax[index[0],index[1]].plot([min_val, max_val], [min_val, max_val], label='Desired', linestyle='-', marker='')
+            ax[index[0],index[1]].plot(new_points[frame].get_data(field, False), old_points[frame].get_data(field, False), label='Not Limited Pts', linestyle='', marker='x', color=BLUE)
+            ax[index[0],index[1]].scatter(new_points[frame].get_data(field, True), old_points[frame].get_data(field, True), label='Limited Pts', marker='o', c='None', edgecolors=RED)
 
-        if index[0] >= 3:
-            index[0] = 0
-            index[1] = 0
-            # Reached nine tiles so generate new figure
-            fig, ax = plt.subplots(3, 3, figsize=(13, 13))
+            # Set the axis labels on the outter most axes only
+            if index[0] == 2:
+                ax[index[0],index[1]].set_xlabel('New Points')
+            if index[1] == 0:
+                ax[index[0],index[1]].set_ylabel('Original Points')
+
+            # Set the title on each subplot
+            ax[index[0],index[1]].set_title(field)
+
+            # Move through plot tiles
+            index[1] += 1
+
+            if index[1] >= 3:
+                index[0] += 1
+                index[1] = 0
+
+            if index[0] >= 3:
+                index[0] = 0
+                index[1] = 0
+                # Reached nine tiles so generate new figure
+                fig, ax = plt.subplots(3, 3, figsize=(13, 13))
 
 
     plt.show()
