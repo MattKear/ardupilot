@@ -108,17 +108,17 @@ void setup()
 
                     case AP_Motors::MOTOR_FRAME_HELI:
                         motors = new AP_MotorsHeli_Single(400);
-                        num_outputs = 3;
+                        num_outputs = 6; // Mot 1-3 swashplate, mot 4 tail rotor pitch, mot 6 for 4th servo in H4-90 swash
                         break;
 
                     case AP_Motors::MOTOR_FRAME_HELI_DUAL:
                         motors = new AP_MotorsHeli_Dual(400);
-                        num_outputs = 6;
+                        num_outputs = 8; // Mot 1-3 swashplate 1, mot 4-5 swashplate 2, mot 6 and 7 for 4th servos on H4-90 swash plates front and back, respectively
                         break;
 
                     case AP_Motors::MOTOR_FRAME_HELI_QUAD:
                         motors = new AP_MotorsHeli_Quad(400);
-                        num_outputs = 4;
+                        num_outputs = 4; // only 4 collective servos
                         break;
 
                     default:
