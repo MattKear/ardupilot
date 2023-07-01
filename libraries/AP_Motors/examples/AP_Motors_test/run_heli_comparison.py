@@ -1,9 +1,17 @@
 # Script that automatically runs multipoint output comparison for all AP_Motors_Heli frames
 # To prove equivalence when doing restructuring PR's
-
+#
 # Run from "ardupilot" directory
-# python3 libraries/AP_Motors/examples/AP_Motors_test/run_heli_comparison.py 
-
+# Run the command below. The first argument is the number of commits to rewind the HEAD to get the "old" 
+# comparison point.  This should rewind back past all of the commits you have added
+#
+# If you just want to run a specific frame class, (e.g. dual heli = 11) then add the -f argument giving the 
+# frame class number (e.g. -f 11) to only run that frame class.  Default is to run all heli frame classes
+#
+# command to run:
+# ---------------
+# python3 libraries/AP_Motors/examples/AP_Motors_test/run_heli_comparison.py <INESRT No COMMITS TO REWIND>
+#
 # You may have to run "./waf distclean" if failing to build
 
 import os
@@ -15,7 +23,7 @@ from argparse import ArgumentParser
 # ==============================================================================
 class DataPoints:
 
-    HEADER_LINE = 2
+    HEADER_LINE = 3
 
     # --------------------------------------------------------------------------
     # Instantiate the object and parse the data from the provided file
@@ -93,7 +101,7 @@ if __name__ == '__main__':
     # Build input parser
     parser = ArgumentParser(description='Find logs in which the input string is found in messages')
     parser.add_argument("head", type=int, help='number of commits to roll back the head for comparing the work done')
-    parser.add_argument("-f","--frame-class", dest='frame_class', nargs="+", default=(6,11,13), help="list of frame classes to run comparison on. Defaults to 6 single heli.")
+    parser.add_argument("-f","--frame-class", type=int, dest='frame_class', nargs="+", default=(6,11,13), help="list of frame classes to run comparison on. Defaults to 6 single heli.")
     args = parser.parse_args()
 
     if not args.head:
@@ -126,7 +134,7 @@ if __name__ == '__main__':
 
         print('Frame class = %s complete\n' % frame_class_lookup[fc])
 
-    print('Rewinding head by %d commits\n', args.head)
+    print('Rewinding head by %d commits\n' % args.head)
 
     # TEMP: just copying to do plotting for now
     for fc in args.frame_class:
@@ -144,14 +152,15 @@ if __name__ == '__main__':
     # Plot all of the points for correlation comparison
     # Non-limit cases are plotted with blue o's
     # Limited flag cases are plotted with red x's
-    n_fields = new_points[frame_class_lookup[args.frame_class[0]]].get_fields() # Assuming that the fields are the same in all frame classes and between old and new
     for fc in args.frame_class:
+        fields = new_points[frame_class_lookup[fc]].get_fields() # Assuming that the fields are the same in all frame classes and between old and new
+
         # Always start a new plot for a new frame class
         fig, ax = plt.subplots(3, 3, figsize=(13, 13))
         index = [0, 0]
         frame = frame_class_lookup[fc]
 
-        for field in n_fields:
+        for field in fields:
 
             max_val = max(max(new_points[frame].data[field]), max(old_points[frame].data[field]))
             min_val = min(min(new_points[frame].data[field]), min(old_points[frame].data[field]))
@@ -184,12 +193,3 @@ if __name__ == '__main__':
 
 
     plt.show()
-
-
-
-
-
-
-
-
-
