@@ -581,8 +581,8 @@ function init()
       return init_nau7802, 100
   end
 
-  -- Set first throttle step.  This is appropriate for the throttle mode we boot into
-  _next_thr_step = 0.1
+  -- Set first throttle step.
+  _next_thr_step = 0.0
 
   -- Init neopixles
   _led_chan = SRV_Channels:find_channel(98)
