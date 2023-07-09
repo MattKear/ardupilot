@@ -609,8 +609,7 @@ end
 ------------------------------------------------------------------------
 function update()
 
-  -- Bodgy conversion from userdata to number
-  local now = tonumber(tostring(millis()))
+  local now = millis():tofloat()
 
   -- Get state of inputs
   local safe_button_state = button:get_button_state(SAFE_BUTTON)
