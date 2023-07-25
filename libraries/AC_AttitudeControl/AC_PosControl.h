@@ -392,7 +392,8 @@ public:
     // Checker make sure there is sufficient headroom between target and hard limit
     bool target_speed_up_within_limit(const float target_speed) const;
     bool target_speed_down_within_limit(const float target_speed) const;
-    bool target_accel_z_within_limit(const float target_accel) const;
+    bool target_accel_z_up_within_limit(const float target_accel) const;
+    bool target_accel_z_dn_within_limit(const float target_accel) const;
 
     static const struct AP_Param::GroupInfo var_info[];
 
@@ -439,7 +440,8 @@ protected:
     AC_PID          _pid_accel_z;       // Z axis acceleration controller to convert desired acceleration to throttle output
     AP_Float        _speed_up_max;      // Hard climb rate limit
     AP_Float        _speed_down_max;    // Hard climb rate limit
-    AP_Float        _accel_z_max;       // Hard vertical acceleration limit
+    AP_Float        _accel_z_up_max;    // Hard vertical acceleration limit
+    AP_Float        _accel_z_dn_max;    // Hard vertical acceleration limit
 
     // internal variables
     float       _dt;                    // time difference (in seconds) between calls from the main program

@@ -170,8 +170,12 @@ bool AP_Arming_Copter::parameter_checks(bool display_failure)
             check_failed(ARMING_CHECK_PARAMETERS, display_failure, "PILOT_SPEED_DN too close to PSC_SPEED_DN_MAX");
             return false;
         }
-        if (!copter.pos_control->target_speed_up_within_limit(copter.g.pilot_accel_z*0.01)) {
-            check_failed(ARMING_CHECK_PARAMETERS, display_failure, "PILOT_ACCEL_Z too close to PSC_ACCEL_Z_MAX");
+        if (!copter.pos_control->target_accel_z_up_within_limit(copter.g.pilot_accel_z*0.01)) {
+            check_failed(ARMING_CHECK_PARAMETERS, display_failure, "PILOT_ACCEL_Z too close to PSC_ACCEL_UP_MAX");
+            return false;
+        }
+        if (!copter.pos_control->target_accel_z_dn_within_limit(copter.g.pilot_accel_z*0.01)) {
+            check_failed(ARMING_CHECK_PARAMETERS, display_failure, "PILOT_ACCEL_Z too close to PSC_ACCEL_DN_MAX");
             return false;
         }
 
@@ -184,8 +188,12 @@ bool AP_Arming_Copter::parameter_checks(bool display_failure)
             check_failed(ARMING_CHECK_PARAMETERS, display_failure, "WPNAV_SPEED_DN too close to PSC_SPEED_DN_MAX");
             return false;
         }
-        if (!copter.pos_control->target_accel_z_within_limit(copter.wp_nav->get_accel_z()*0.01)) {
-            check_failed(ARMING_CHECK_PARAMETERS, display_failure, "WPNAV_ACCEL_Z too close to PSC_ACCEL_Z_MAX");
+        if (!copter.pos_control->target_accel_z_up_within_limit(copter.wp_nav->get_accel_z()*0.01)) {
+            check_failed(ARMING_CHECK_PARAMETERS, display_failure, "WPNAV_ACCEL_Z too close to PSC_ACCEL_UP_MAX");
+            return false;
+        }
+        if (!copter.pos_control->target_accel_z_dn_within_limit(copter.wp_nav->get_accel_z()*0.01)) {
+            check_failed(ARMING_CHECK_PARAMETERS, display_failure, "WPNAV_ACCEL_Z too close to PSC_ACCEL_DN_MAX");
             return false;
         }
 

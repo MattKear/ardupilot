@@ -312,14 +312,23 @@ const AP_Param::GroupInfo AC_PosControl::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_SPEED_DN_MAX", 13, AC_PosControl, _speed_down_max, 0),
 
-    // @Param: _ACCEL_Z_MAX
-    // @DisplayName: Maximin vertical acceleration
-    // @Description: Hard vertical acceleration limit, must be larger than waypoint and pilot targets, 0 disables
+    // @Param: _ACCEL_UP_MAX
+    // @DisplayName: Maximin vertical climb acceleration
+    // @Description: Hard vertical climb acceleration limit, must be larger than waypoint and pilot targets, 0 disables
     // @Units: m/s/s
     // @Range: 0.5 5
     // @Increment: 0.1
     // @User: Advanced
-    AP_GROUPINFO("_ACCEL_Z_MAX", 14, AC_PosControl, _accel_z_max, 0),
+    AP_GROUPINFO("_ACCEL_UP_MAX", 14, AC_PosControl, _accel_z_up_max, 0),
+
+    // @Param: _ACCEL_DN_MAX
+    // @DisplayName: Maximin vertical descent acceleration
+    // @Description: Hard vertical descent acceleration limit, must be larger than waypoint and pilot targets, 0 disables
+    // @Units: m/s/s
+    // @Range: 0.5 5
+    // @Increment: 0.1
+    // @User: Advanced
+    AP_GROUPINFO("_ACCEL_DN_MAX", 15, AC_PosControl, _accel_z_dn_max, 0),
 
     AP_GROUPEND
 };
@@ -988,14 +997,17 @@ void AC_PosControl::update_z_controller()
     // Constrain to hard Z acceleration limit and set flags for anti windup
     _accel_max_limit = false;
     _accel_min_limit = false;
-    if (is_positive(_accel_z_max)) {
-        const float accel_z_max_cmss = _accel_z_max * 100.0;
-        if (_accel_target.z > accel_z_max_cmss) {
-            _accel_target.z = accel_z_max_cmss;
+    if (is_positive(_accel_z_up_max)) {
+        const float accel_z_up_max_cmss = _accel_z_up_max * 100.0;
+        if (_accel_target.z > accel_z_up_max_cmss) {
+            _accel_target.z = accel_z_up_max_cmss;
             _accel_max_limit = true;
         }
-        if (_accel_target.z < -accel_z_max_cmss) {
-            _accel_target.z = -accel_z_max_cmss;
+    }
+    if (is_positive(_accel_z_dn_max)) {
+        const float accel_z_dn_max_cmss = _accel_z_dn_max * 100.0;
+        if (_accel_target.z < -accel_z_dn_max_cmss) {
+            _accel_target.z = -accel_z_dn_max_cmss;
             _accel_min_limit = true;
         }
     }
@@ -1390,12 +1402,22 @@ bool AC_PosControl::target_speed_down_within_limit(const float target_speed) con
     return target_speed * POSCONTROL_TARGET_HEADROOM < _speed_down_max;
 }
 
-// Checker make sure there is sufficient headroom between target accel Z and hard limit
-bool AC_PosControl::target_accel_z_within_limit(const float target_accel) const
+// Checker make sure there is sufficient headroom between target accel Z up and hard limit
+bool AC_PosControl::target_accel_z_up_within_limit(const float target_accel) const
 {
-    if (!is_positive(_accel_z_max)) {
+    if (!is_positive(_accel_z_up_max)) {
         // limit not enabled
         return true;
     }
-    return target_accel * POSCONTROL_TARGET_HEADROOM < _accel_z_max;
+    return target_accel * POSCONTROL_TARGET_HEADROOM < _accel_z_up_max;
+}
+
+// Checker make sure there is sufficient headroom between target accel Z down and hard limit
+bool AC_PosControl::target_accel_z_dn_within_limit(const float target_accel) const
+{
+    if (!is_positive(_accel_z_dn_max)) {
+        // limit not enabled
+        return true;
+    }
+    return target_accel * POSCONTROL_TARGET_HEADROOM < _accel_z_dn_max;
 }
