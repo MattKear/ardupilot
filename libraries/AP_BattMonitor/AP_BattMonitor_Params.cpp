@@ -28,7 +28,6 @@ const AP_Param::GroupInfo AP_BattMonitor_Params::var_info[] = {
 
     // 6 was AMP_OFFSET
 
-#ifndef HAL_BUILD_AP_PERIPH
     // @Param: CAPACITY
     // @DisplayName: Battery capacity
     // @Description: Capacity of the battery in mAh when full
@@ -36,6 +35,8 @@ const AP_Param::GroupInfo AP_BattMonitor_Params::var_info[] = {
     // @Increment: 50
     // @User: Standard
     AP_GROUPINFO("CAPACITY", 7, AP_BattMonitor_Params, _pack_capacity, 3300),
+
+#ifndef HAL_BUILD_AP_PERIPH
 
     // @Param{Plane}: WATT_MAX
     // @DisplayName: Maximum allowed power (Watts)
