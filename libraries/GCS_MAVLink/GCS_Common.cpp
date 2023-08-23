@@ -80,6 +80,7 @@
 #include <AP_BattMonitor/AP_BattMonitor.h>
 #endif
 #include <AP_GPS/AP_GPS.h>
+#include <AP_ExternalAHRS/AP_ExternalAHRS.h>
 
 #include <ctype.h>
 
@@ -94,22 +95,28 @@ uint32_t GCS_MAVLINK::reserve_param_space_start_ms;
 // don't get broadcasts or fwded packets
 uint8_t GCS_MAVLINK::mavlink_private = 0;
 
+// then call the function to initialize array
+std::array<GCS_MAVLINK::ccdl_routing_table, 3> GCS_MAVLINK::ccdl_routing_tables = {
+        GCS_MAVLINK::init_ccdl_routing_table(2, 3),
+        GCS_MAVLINK::init_ccdl_routing_table(1, 3),
+        GCS_MAVLINK::init_ccdl_routing_table(1, 2)
+};
+
 GCS *GCS::_singleton = nullptr;
 
 GCS_MAVLINK::GCS_MAVLINK(GCS_MAVLINK_Parameters &parameters,
                          AP_HAL::UARTDriver &uart)
 {
     _port = &uart;
-
     streamRates = parameters.streamRates;
 }
 
-bool GCS_MAVLINK::init(uint8_t instance)
+bool GCS_MAVLINK::init(uint8_t instance, bool eahrs, uint8_t eahrs_instance)
 {
     // search for serial port
     const AP_SerialManager& serial_manager = AP::serialmanager();
 
-    const AP_SerialManager::SerialProtocol protocol = AP_SerialManager::SerialProtocol_MAVLink;
+    const AP_SerialManager::SerialProtocol protocol = eahrs ? AP_SerialManager::SerialProtocol_AHRSMAVLINK : AP_SerialManager::SerialProtocol_MAVLink;
 
     // get associated mavlink channel
     if (!serial_manager.get_mavlink_channel(protocol, instance, chan)) {
@@ -121,7 +128,7 @@ bool GCS_MAVLINK::init(uint8_t instance)
         return false;
     }
 
-    if (!serial_manager.should_forward_mavlink_telemetry(protocol, instance)) {
+    if (!serial_manager.should_forward_mavlink_telemetry(protocol, eahrs ? eahrs_instance : instance)) {
         set_channel_private(chan);
     }
 
@@ -147,7 +154,7 @@ bool GCS_MAVLINK::init(uint8_t instance)
     _port->set_flow_control(old_flow_control);
 
     // now change back to desired baudrate
-    _port->begin(serial_manager.find_baudrate(protocol, instance));
+    _port->begin(serial_manager.find_baudrate(protocol, eahrs ? eahrs_instance : instance));
 
     mavlink_comm_port[chan] = _port;
 
@@ -164,7 +171,12 @@ bool GCS_MAVLINK::init(uint8_t instance)
         // user has asked to only send MAVLink1
         status->flags |= MAVLINK_STATUS_FLAG_OUT_MAVLINK1;
     }
-    
+    if (eahrs) {
+        for (auto & ccdl_routing_tablei : ccdl_routing_tables) {
+            ccdl_routing_tablei.ccdl[eahrs_instance].mavlink_channel = chan;
+        }
+    }
+
     return true;
 }
 
@@ -1127,6 +1139,114 @@ int8_t GCS_MAVLINK::deferred_message_to_send_index(uint16_t now16_ms)
     return next_deferred_message_to_send_cache;
 }
 
+void GCS_MAVLINK::update_send2()
+{
+    send_ftp_replies();
+
+    const uint32_t start = AP_HAL::millis();
+    const uint16_t start16 = start & 0xFFFF;
+    while (AP_HAL::millis() - start < 5) { // spend a max of 5ms sending messages.  This should never trigger - out_of_time() should become true
+#if GCS_DEBUG_SEND_MESSAGE_TIMINGS
+        retry_deferred_body_start = AP_HAL::micros();
+#endif
+
+        // check if any "specially handled" messages should be sent out
+        {
+            const int8_t next = deferred_message_to_send_index(start16);
+            if (next != -1) {
+                if (!do_try_send_message(deferred_message[next].id)) {
+                    break;
+                }
+                // we try to keep output on a regular clock to avoid
+                // user support questions:
+                const uint16_t interval_ms = deferred_message[next].interval_ms;
+                deferred_message[next].last_sent_ms += interval_ms;
+                // but we do not want to try to catch up too much:
+                if (uint16_t(start16 - deferred_message[next].last_sent_ms) > interval_ms) {
+                    deferred_message[next].last_sent_ms = start16;
+                }
+
+                next_deferred_message_to_send_cache = -1; // deferred_message_to_send will recalculate
+#if GCS_DEBUG_SEND_MESSAGE_TIMINGS
+                const uint32_t stop = AP_HAL::micros();
+                const uint32_t delta = stop - retry_deferred_body_start;
+                if (delta > try_send_message_stats.max_retry_deferred_body_us) {
+                    try_send_message_stats.max_retry_deferred_body_us = delta;
+                    try_send_message_stats.max_retry_deferred_body_type = 1;
+                }
+#endif
+                continue;
+            }
+        }
+
+        // check for any messages that the code has explicitly sent
+        const int16_t fs = pushed_ap_message_ids.first_set();
+        if (fs != -1) {
+            ap_message next = (ap_message)fs;
+            if (!do_try_send_message(next)) {
+                break;
+            }
+            pushed_ap_message_ids.clear(next);
+#if GCS_DEBUG_SEND_MESSAGE_TIMINGS
+            const uint32_t stop = AP_HAL::micros();
+            const uint32_t delta = stop - retry_deferred_body_start;
+            if (delta > try_send_message_stats.max_retry_deferred_body_us) {
+                try_send_message_stats.max_retry_deferred_body_us = delta;
+                try_send_message_stats.max_retry_deferred_body_type = 2;
+            }
+#endif
+            continue;
+        }
+
+        ap_message next = next_deferred_bucket_message_to_send(start16);
+        if (next != no_message_to_send) {
+            if (!do_try_send_message(next)) {
+                break;
+            }
+            bucket_message_ids_to_send.clear(next);
+            if (bucket_message_ids_to_send.count() == 0) {
+                // we sent everything in the bucket.  Reschedule it.
+                // we try to keep output on a regular clock to avoid
+                // user support questions:
+                const uint16_t interval_ms = get_reschedule_interval_ms(deferred_message_bucket[sending_bucket_id]);
+                deferred_message_bucket[sending_bucket_id].last_sent_ms += interval_ms;
+                // but we do not want to try to catch up too much:
+                if (uint16_t(start16 - deferred_message_bucket[sending_bucket_id].last_sent_ms) > interval_ms) {
+                    deferred_message_bucket[sending_bucket_id].last_sent_ms = start16;
+                }
+                find_next_bucket_to_send(start16);
+            }
+#if GCS_DEBUG_SEND_MESSAGE_TIMINGS
+            const uint32_t stop = AP_HAL::micros();
+                const uint32_t delta = stop - retry_deferred_body_start;
+                if (delta > try_send_message_stats.max_retry_deferred_body_us) {
+                    try_send_message_stats.max_retry_deferred_body_us = delta;
+                    try_send_message_stats.max_retry_deferred_body_type = 3;
+                }
+#endif
+            continue;
+        }
+        break;
+    }
+#if GCS_DEBUG_SEND_MESSAGE_TIMINGS
+    const uint32_t stop = AP_HAL::micros();
+    const uint32_t delta = stop - retry_deferred_body_start;
+    if (delta > try_send_message_stats.max_retry_deferred_body_us) {
+        try_send_message_stats.max_retry_deferred_body_us = delta;
+        try_send_message_stats.max_retry_deferred_body_type = 4;
+    }
+#endif
+
+    // update the number of packets transmitted base on seqno, making
+    // the assumption that we don't send more than 256 messages
+    // between the last pass through here
+    mavlink_status_t *status = mavlink_get_channel_status(chan);
+    if (status != nullptr) {
+        send_packet_count += uint8_t(status->current_tx_seq - last_tx_seq);
+        last_tx_seq = status->current_tx_seq;
+    }
+}
+
 void GCS_MAVLINK::update_send()
 {
 #if !defined(HAL_BUILD_AP_PERIPH) || HAL_LOGGING_ENABLED
@@ -1445,7 +1565,7 @@ void GCS_MAVLINK::packetReceived(const mavlink_status_t &status,
 }
 
 void
-GCS_MAVLINK::update_receive(uint32_t max_time_us)
+GCS_MAVLINK::update_receive(uint32_t max_time_us, bool timesync)
 {
     // do absolutely nothing if we are locked
     if (locked()) {
@@ -1477,7 +1597,7 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
                 alternative.last_alternate_ms = now_ms;
                 gcs_alternative_active[chan] = true;
             }
-            
+
             /*
               we may also try parsing as MAVLink if we haven't had a
               successful parse on the alternative protocol for 4s
@@ -1511,10 +1631,12 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
 
     // send a timesync message every 10 seconds; this is for data
     // collection purposes
-    if (tnow - _timesync_request.last_sent_ms > _timesync_request.interval_ms && !is_private()) {
-        if (HAVE_PAYLOAD_SPACE(chan, TIMESYNC)) {
-            send_timesync();
-            _timesync_request.last_sent_ms = tnow;
+    if (timesync) {
+        if (tnow - _timesync_request.last_sent_ms > _timesync_request.interval_ms && !is_private()) {
+            if (HAVE_PAYLOAD_SPACE(chan, TIMESYNC)) {
+                send_timesync();
+                _timesync_request.last_sent_ms = tnow;
+            }
         }
     }
 
@@ -2177,7 +2299,7 @@ void GCS::setup_console()
     if (ARRAY_SIZE(chan_parameters) == 0) {
         return;
     }
-    create_gcs_mavlink_backend(chan_parameters[0], *uart);
+    create_gcs_mavlink_backend(chan_parameters[0], *uart, false);
 }
 
 
@@ -2186,7 +2308,7 @@ GCS_MAVLINK_Parameters::GCS_MAVLINK_Parameters()
     AP_Param::setup_object_defaults(this, var_info);
 }
 
-void GCS::create_gcs_mavlink_backend(GCS_MAVLINK_Parameters &params, AP_HAL::UARTDriver &uart)
+void GCS::create_gcs_mavlink_backend(GCS_MAVLINK_Parameters &params, AP_HAL::UARTDriver &uart, bool eahrs, uint8_t eahrs_instance)
 {
     if (_num_gcs >= ARRAY_SIZE(chan_parameters)) {
         return;
@@ -2196,7 +2318,7 @@ void GCS::create_gcs_mavlink_backend(GCS_MAVLINK_Parameters &params, AP_HAL::UAR
         return;
     }
 
-    if (!_chan[_num_gcs]->init(_num_gcs)) {
+    if (!_chan[_num_gcs]->init(_num_gcs, eahrs, eahrs_instance)) {
         delete _chan[_num_gcs];
         _chan[_num_gcs] = nullptr;
         return;
@@ -2207,7 +2329,8 @@ void GCS::create_gcs_mavlink_backend(GCS_MAVLINK_Parameters &params, AP_HAL::UAR
 
 void GCS::setup_uarts()
 {
-    for (uint8_t i = 1; i < MAVLINK_COMM_NUM_BUFFERS; i++) {
+    uint8_t i = 1;
+    for (i = 1; i < MAVLINK_COMM_NUM_BUFFERS; i++) {
         if (i >= ARRAY_SIZE(chan_parameters)) {
             // should not happen
             break;
@@ -2217,7 +2340,20 @@ void GCS::setup_uarts()
             // no more mavlink uarts
             break;
         }
-        create_gcs_mavlink_backend(chan_parameters[i], *uart);
+        create_gcs_mavlink_backend(chan_parameters[i], *uart, false);
+    }
+
+    for (uint8_t j = 0; j < MAVLINK_COMM_NUM_BUFFERS; j++) {
+        if (i >= ARRAY_SIZE(chan_parameters)) {
+            // should not happen
+            break;
+        }
+        AP_HAL::UARTDriver *uart = AP::serialmanager().find_serial(AP_SerialManager::SerialProtocol_AHRSMAVLINK, j);
+        if (uart == nullptr) {
+            break;
+        }
+        create_gcs_mavlink_backend(chan_parameters[i], *uart, true, j);
+        i++;
     }
 
     if (frsky == nullptr) {

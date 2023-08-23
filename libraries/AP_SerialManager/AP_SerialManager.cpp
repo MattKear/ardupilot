@@ -461,9 +461,14 @@ void AP_SerialManager::init()
                 case SerialProtocol_Console:
                 case SerialProtocol_MAVLink:
                 case SerialProtocol_MAVLink2:
-                    uart->begin(map_baudrate(state[i].baud), 
+                    uart->begin(map_baudrate(state[i].baud),
                                          AP_SERIALMANAGER_MAVLINK_BUFSIZE_RX,
                                          AP_SERIALMANAGER_MAVLINK_BUFSIZE_TX);
+                    break;
+                case SerialProtocol_AHRSMAVLINK:
+                    uart->begin(map_baudrate(state[i].baud),
+                                                        1024,
+                                                        512);
                     break;
                 case SerialProtocol_FrSky_D:
                     // Note baudrate is hardcoded to 9600
@@ -648,7 +653,7 @@ int8_t AP_SerialManager::find_portnum(enum SerialProtocol protocol, uint8_t inst
 bool AP_SerialManager::get_mavlink_channel(enum SerialProtocol protocol, uint8_t instance, mavlink_channel_t &mav_chan) const
 {
     // check for MAVLink
-    if (protocol_match(protocol, SerialProtocol_MAVLink)) {
+    if (protocol_match(protocol, SerialProtocol_MAVLink) || protocol_match(protocol, SerialProtocol_AHRSMAVLINK)) {
         if (instance < MAVLINK_COMM_NUM_BUFFERS) {
             mav_chan = (mavlink_channel_t)(MAVLINK_COMM_0 + instance);
             return true;
@@ -679,6 +684,12 @@ AP_SerialManager::SerialProtocol AP_SerialManager::get_mavlink_protocol(mavlink_
             state[i].protocol == SerialProtocol_MAVLink2) {
             if (instance == chan_idx) {
                 return (SerialProtocol)state[i].protocol.get();
+            }
+            instance++;
+        }
+        if (state[i].protocol == SerialProtocol_AHRSMAVLINK) {
+            if (instance == chan_idx) {
+                return SerialProtocol_MAVLink2;
             }
             instance++;
         }

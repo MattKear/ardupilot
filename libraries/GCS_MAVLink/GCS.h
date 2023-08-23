@@ -29,6 +29,7 @@
 #include <AP_VisualOdom/AP_VisualOdom.h>
 #include <AP_OpticalFlow/AP_OpticalFlow.h>
 #include <AP_OpenDroneID/AP_OpenDroneID.h>
+#include <array>
 
 #include "MissionItemProtocol_Waypoints.h"
 #include "MissionItemProtocol_Rally.h"
@@ -145,9 +146,10 @@ public:
     GCS_MAVLINK(GCS_MAVLINK_Parameters &parameters, AP_HAL::UARTDriver &uart);
     virtual ~GCS_MAVLINK() {}
 
-    void        update_receive(uint32_t max_time_us=1000);
+    void        update_receive(uint32_t max_time_us=1000, bool timesync=true);
     void        update_send();
-    bool        init(uint8_t instance);
+    void        update_send2();
+    bool        init(uint8_t instance, bool eahrs=false, uint8_t eahrs_instance=0);
     void        send_message(enum ap_message id);
     void        send_text(MAV_SEVERITY severity, const char *fmt, ...) const FMT_PRINTF(3, 4);
     void        queued_param_send();
@@ -399,6 +401,31 @@ public:
 
     MAV_RESULT set_message_interval(uint32_t msg_id, int32_t interval_us);
 
+    struct CCDLInfo {
+        mavlink_channel_t mavlink_channel;
+        uint8_t sysid_target_my;
+        uint8_t sysid_target_other;
+        uint32_t last_seen_hb_my;
+        bool working_my;
+        uint32_t last_seen_hb_other;
+        bool working_other;
+        CCDLInfo(mavlink_channel_t channel = MAVLINK_COMM_0, uint8_t target_my = 0, uint8_t target_other = 0, uint32_t lastSeen = 0, bool isWorking = false) :
+                mavlink_channel(channel), sysid_target_my(target_my), sysid_target_other(target_other), last_seen_hb_my(lastSeen), working_my(isWorking), last_seen_hb_other(lastSeen), working_other(isWorking) {}    };
+
+    struct ccdl_routing_table {
+        std::array<CCDLInfo, 2> ccdl;
+    };
+
+    static std::array<ccdl_routing_table, 3> ccdl_routing_tables;
+
+    static ccdl_routing_table init_ccdl_routing_table(uint8_t sysid_target_ccdl_1, uint8_t sysid_target_ccdl_2)
+    {
+        ccdl_routing_table routing_table;
+        routing_table.ccdl = {CCDLInfo(MAVLINK_COMM_0, sysid_target_ccdl_1, sysid_target_ccdl_2, 0, false), CCDLInfo(MAVLINK_COMM_0, sysid_target_ccdl_2, sysid_target_ccdl_1, 0, false)};
+
+        return routing_table;
+    }
+    static constexpr uint32_t CDDL_HB_TIMEOUT = 2000;
 protected:
 
     bool mavlink_coordinate_frame_to_location_alt_frame(MAV_FRAME coordinate_frame,
@@ -1131,7 +1158,7 @@ private:
     static GCS *_singleton;
 
     void create_gcs_mavlink_backend(GCS_MAVLINK_Parameters &params,
-                                    AP_HAL::UARTDriver &uart);
+                                    AP_HAL::UARTDriver &uart, bool eahrs=false, uint8_t eahrs_instance=0);
 
     char statustext_printf_buffer[256+1];
 
