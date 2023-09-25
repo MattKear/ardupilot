@@ -28,3 +28,8 @@ mav.*
 !Tools/environment_install/install-prereqs-ubuntu.sh
 !Tools/environment_install/install-prereqs-arch.sh
 !Tools/completion
+**/.mypy_cache
+cmake-build-*/
+*.tar
+*.tlog
+*.tlog.raw
