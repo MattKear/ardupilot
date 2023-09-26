@@ -608,15 +608,14 @@ void AP_ICEngine::update_idle_governor(int8_t &min_throttle)
 void AP_ICEngine::set_ignition(bool on)
 {
     SRV_Channels::set_output_pwm(SRV_Channel::k_ignition, on? pwm_ignition_on : pwm_ignition_off);
+
 #if AP_RELAY_ENABLED
-    // optionally use a relay as well
-    if (ignition_relay > 0) {
-        auto *relay = AP::relay();
-        if (relay != nullptr) {
-            relay->set(ignition_relay-1, on);
-        }
+    AP_Relay *relay = AP::relay();
+    if (relay != nullptr) {
+        relay->set(AP_Relay_Params::Function::ignition, on);
     }
 #endif // AP_RELAY_ENABLED
+
 }
 
 /*
@@ -629,6 +628,13 @@ void AP_ICEngine::set_starter(bool on)
 #if AP_ICENGINE_TCA9554_STARTER_ENABLED
     tca9554_starter.set_starter(on);
 #endif
+
+#if AP_RELAY_ENABLED
+    AP_Relay *relay = AP::relay();
+    if (relay != nullptr) {
+        relay->set(AP_Relay_Params::Function::starter, on);
+    }
+#endif // AP_RELAY_ENABLED
 }
 
 
