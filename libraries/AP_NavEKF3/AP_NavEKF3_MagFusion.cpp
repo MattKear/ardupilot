@@ -1570,7 +1570,7 @@ bool NavEKF3_core::EKFGSF_resetMainFilterYaw(bool emergency_reset)
         }
 
         // record the yaw reset event
-        recordYawReset();
+        recordYawResetsCompleted();
 
         // reset velocity and position states to GPS - if yaw is fixed then the filter should start to operate correctly
         ResetVelocity(resetDataSource::DEFAULT);
@@ -1646,10 +1646,5 @@ void NavEKF3_core::resetQuatStateYawOnly(ftype yaw, ftype yawVariance, rotationO
     lastYawReset_ms = imuSampleTime_ms;
 
     // record the yaw reset event
-    recordYawReset();
-
-    // clear all pending yaw reset requests
-    gpsYawResetRequest = false;
-    magYawResetRequest = false;
-    
+    recordYawResetsCompleted();
 }
