@@ -8,7 +8,7 @@ local TORQUE = 2 -- Index for calibration values relating to torque sensor
 -- key must be a number between 0 and 200. The key is persistent in storage
 local PARAM_TABLE_KEY = 73
 -- generate table
-assert(param:add_table(PARAM_TABLE_KEY, "THST_", 13), 'could not add param table')
+assert(param:add_table(PARAM_TABLE_KEY, "THST_", 14), 'could not add param table')
 
 ------------------------------------------------------------------------
 -- bind a parameter to a variable
@@ -33,6 +33,7 @@ assert(param:add_param(PARAM_TABLE_KEY, 10, 'OMEGA_MIN', 0.3), 'could not add pa
 assert(param:add_param(PARAM_TABLE_KEY, 11, 'OMEGA_MAX', 12.0), 'could not add param OMEGA_MAX')
 assert(param:add_param(PARAM_TABLE_KEY, 12, 'NSE_RAT', 0.1), 'could not add param NSE_RAT')
 assert(param:add_param(PARAM_TABLE_KEY, 13, 'RAMP_STEP', 0.1), 'could not add param RAMP_STEP')
+assert(param:add_param(PARAM_TABLE_KEY, 14, 'USE_LIN', 0), 'could not add param USE_LIN')
 
 -- setup param bindings
 local ZERO_OFFSET_PARAM = {0,0}
@@ -50,6 +51,7 @@ local OMEGA_MIN = bind_param("THST_OMEGA_MIN")
 local OMEGA_MAX = bind_param("THST_OMEGA_MAX")
 local NOISE_RATIO = bind_param("THST_NSE_RAT")
 local RAMP_STEP = bind_param("THST_RAMP_STEP")
+local USE_LINEARISATION = bind_param("THST_USE_LIN")
 
 ------------------------------------------------------------------------
 local function torque_enabled()
@@ -878,7 +880,7 @@ function update_throttle_ramp(time)
   end
 
   -- update throttle overide
-  SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_linear_throttle_pwm(_current_thr), MOTOR_TIMEOUT)
+  output_to_motor()
   _last_thr_update = time
 end
 ------------------------------------------------------------------------
@@ -941,7 +943,7 @@ function update_throttle_transient(time)
       -- Gradually ramp throttle to hover throttle
       _current_thr = constrain((_current_thr + _ramp_rate * (time - _last_thr_update) * 0.001 * _thr_inc_dec), 0, _max_throttle)
       _last_thr_update = time
-      SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_linear_throttle_pwm(_current_thr), MOTOR_TIMEOUT)
+      output_to_motor()
       return
     end
   end
@@ -980,7 +982,7 @@ function update_throttle_transient(time)
   end
 
   -- Update motor output during step changes
-  SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_linear_throttle_pwm(_current_thr), MOTOR_TIMEOUT)
+  output_to_motor()
   _last_thr_update = time
 
 end
@@ -1011,7 +1013,7 @@ function update_throttle_chirp(time)
       -- Gradually ramp throttle to hover throttle
       _current_thr = constrain((_current_thr + _ramp_rate * dt * _thr_inc_dec), 0, _max_throttle)
       _last_thr_update = time
-      SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_linear_throttle_pwm(_current_thr), MOTOR_TIMEOUT)
+      output_to_motor()
       return
     end
   end
@@ -1036,7 +1038,7 @@ function update_throttle_chirp(time)
         end
     end
 
-    SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_linear_throttle_pwm(_current_thr), MOTOR_TIMEOUT)
+    output_to_motor()
     _last_thr_update = time
     return
   end
@@ -1104,7 +1106,7 @@ function update_throttle_chirp(time)
 
   -- Update motor output during freq sweep
   _current_thr = delta_sweep + noise
-  SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_linear_throttle_pwm(_current_thr), MOTOR_TIMEOUT)
+  output_to_motor()
   _last_thr_update = time
 
 end
@@ -1187,6 +1189,17 @@ function calc_linear_throttle_pwm(throttle_pct)
   local thr = throttle_pct * (mot_spin_max - mot_spin_min) + mot_spin_min
   thr = constrain(thr, mot_spin_min, mot_spin_max)
   return calc_pwm(thr)
+end
+------------------------------------------------------------------------
+
+------------------------------------------------------------------------
+-- Output to motors. Handler directs output to pre or post throttle linearisation
+function output_to_motor()
+  if (USE_LINEARISATION:get() > 0) then
+    MotorsMatrix:override_thrust_out( 1, _current_thr, MOTOR_TIMEOUT)
+  else
+    SRV_Channels:set_output_pwm_chan_timeout(_motor_channel, calc_linear_throttle_pwm(_current_thr), MOTOR_TIMEOUT)
+  end
 end
 ------------------------------------------------------------------------
 
