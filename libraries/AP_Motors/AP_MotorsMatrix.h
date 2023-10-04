@@ -58,6 +58,9 @@ public:
     // output_to_motors - sends minimum values out to the motors
     virtual void        output_to_motors() override;
 
+    // Scripting accessor to override the thrust output before it is converted to a throttle
+    void                override_thrust_out(int8_t mot, float thst, uint32_t override_time_ms);
+
     // get_motor_mask - returns a bitmask of which outputs are being used for motors (1 means being used)
     //  this can be used to ensure other pwm outputs (i.e. for servos) do not conflict
     uint32_t            get_motor_mask() override;
@@ -154,6 +157,10 @@ protected:
 
     const char*         _frame_class_string = ""; // string representation of frame class
     const char*         _frame_type_string = "";  //  string representation of frame type
+
+    uint32_t            _scr_override_time[AP_MOTORS_MAX_NUM_MOTORS]; // time period allowed for scripting to be able to override actuator thrust
+    uint32_t            _last_override_check[AP_MOTORS_MAX_NUM_MOTORS];
+    float               _thrust_override[AP_MOTORS_MAX_NUM_MOTORS]; // thust output override
 
 private:
 

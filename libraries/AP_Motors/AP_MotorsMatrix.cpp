@@ -177,9 +177,26 @@ void AP_MotorsMatrix::output_to_motors()
     // convert output to PWM and send to each motor
     for (i = 0; i < AP_MOTORS_MAX_NUM_MOTORS; i++) {
         if (motor_enabled[i]) {
-            rc_write(i, output_to_pwm(_actuator[i]));
+            // Scripting Override
+            if ((_scr_override_time[i] > 0) && (AP_HAL::millis() - _last_override_check[i] <= _scr_override_time[i])) {
+                rc_write(i, output_to_pwm(thr_lin.thrust_to_actuator(_thrust_override[i])));
+            } else {
+                rc_write(i, output_to_pwm(_actuator[i]));
+            }
         }
     }
+}
+
+// Scripting accessor to override the thrust output before it is converted to a throttle
+void AP_MotorsMatrix::override_thrust_out(int8_t mot, float thst, uint32_t override_time_ms)
+{
+    // Account for motor index automagically
+    mot -= 1;
+    mot = MIN(MAX(mot, 0), AP_MOTORS_MAX_NUM_MOTORS);
+
+    _scr_override_time[mot] = override_time_ms;
+    _last_override_check[mot] = AP_HAL::millis();
+    _thrust_override[mot] = thst;
 }
 
 // get_motor_mask - returns a bitmask of which outputs are being used for motors (1 means being used)
