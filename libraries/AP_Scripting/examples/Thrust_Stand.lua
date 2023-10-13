@@ -1002,7 +1002,7 @@ function update_throttle_chirp(time)
 
   -- Control initial and final ramp to/from hover throttle
   if (not _hover_point_achieved) then
-  -- Check wheather initial throttle ramp is complete
+  -- Check whether initial throttle ramp is complete
     if (_current_thr >= _hover_throttle) then
       _hover_point_achieved = true
       _hold_thr_last_time = time
