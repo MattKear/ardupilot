@@ -521,6 +521,9 @@ public:
     // return true if the parameter is configured
     bool configured(void) const;
 
+    // return true if the parameter is configured in EEPROM/FRAM
+    bool configured_in_storage(void) const;
+
     // return true if the parameter is read-only
     bool is_read_only(void) const;
 
@@ -736,9 +739,6 @@ private:
 
     // return true if the parameter is configured in the defaults file
     bool configured_in_defaults_file(bool &read_only) const;
-
-    // return true if the parameter is configured in EEPROM/FRAM
-    bool configured_in_storage(void) const;
 
     // send a parameter to all GCS instances
     void send_parameter(const char *name, enum ap_var_type param_header_type, uint8_t idx) const;
