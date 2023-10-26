@@ -425,7 +425,8 @@ public:
 
         return routing_table;
     }
-    static constexpr uint32_t CDDL_HB_TIMEOUT = 2000;
+    static constexpr auto CCDL_FAILOVER_TIMEOUT_MS = 20;
+    static constexpr auto CCDL_FAILOVER_TIMEOUT_US = CCDL_FAILOVER_TIMEOUT_MS * 1000;
 protected:
 
     bool mavlink_coordinate_frame_to_location_alt_frame(MAV_FRAME coordinate_frame,

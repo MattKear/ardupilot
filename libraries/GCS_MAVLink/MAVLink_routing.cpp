@@ -124,6 +124,10 @@ bool MAVLink_routing::check_and_forward(mavlink_channel_t in_channel, const mavl
         return true;
     }
 
+    if (msg.msgid == MAVLINK_MSG_ID_CCDL_TIMEOUT) {
+        update_ccdl_routing(in_channel, msg);
+    }
+
     // extract the targets for this packet
     int16_t target_system = -1;
     int16_t target_component = -1;
@@ -368,25 +372,11 @@ void MAVLink_routing::learn_route(mavlink_channel_t in_channel, const mavlink_me
     }
 }
 
-
-/*
-  special handling for heartbeat messages. To ensure routing
-  propagation heartbeat messages need to be forwarded on all channels
-  except channels where the sysid/compid of the heartbeat could come from
-*/
-void MAVLink_routing::handle_heartbeat(mavlink_channel_t in_channel, const mavlink_message_t &msg)
+// update the ccdl routing : use HB and ccdl messages as route validation
+void MAVLink_routing::update_ccdl_routing(mavlink_channel_t in_channel, const mavlink_message_t &msg)
 {
-    uint16_t mask = GCS_MAVLINK::active_channel_mask() & ~GCS_MAVLINK::private_channel_mask();
-
-    // don't send on the incoming channel. This should only matter if
-    // the routing table is full
-    mask &= ~(1U<<(in_channel-MAVLINK_COMM_0));
-    
-    // mask out channels that do not want the heartbeat to be forwarded
-    // mask &= ~no_route_mask; // MANNA
     const auto tnow = AP_HAL::millis();
     auto& ccdl_routing_current_sysid = GCS_MAVLINK::ccdl_routing_tables[mavlink_system.sysid - 1];
-
     for (auto & i : ccdl_routing_current_sysid.ccdl) {
         if (in_channel == i.mavlink_channel) {
             if (i.sysid_target_my == msg.sysid) {
@@ -411,18 +401,37 @@ void MAVLink_routing::handle_heartbeat(mavlink_channel_t in_channel, const mavli
         }
     }
     for (auto & i : ccdl_routing_current_sysid.ccdl) {
-        if (tnow - i.last_seen_hb_my > GCS_MAVLINK::CDDL_HB_TIMEOUT) {
+        if (tnow - i.last_seen_hb_my > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_MS) {
             i.working_my = false;
         }
-        if (tnow - i.last_seen_hb_other > GCS_MAVLINK::CDDL_HB_TIMEOUT) {
+        if (tnow - i.last_seen_hb_other > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_MS) {
             i.working_other  = false;
         }
     }
+}
+/*
+  special handling for heartbeat messages. To ensure routing
+  propagation heartbeat messages need to be forwarded on all channels
+  except channels where the sysid/compid of the heartbeat could come from
+*/
+void MAVLink_routing::handle_heartbeat(mavlink_channel_t in_channel, const mavlink_message_t &msg)
+{
+    uint16_t mask = GCS_MAVLINK::active_channel_mask() & ~GCS_MAVLINK::private_channel_mask();
 
+    // don't send on the incoming channel. This should only matter if
+    // the routing table is full
+    mask &= ~(1U<<(in_channel-MAVLINK_COMM_0));
     
+    // mask out channels that do not want the heartbeat to be forwarded
+    // mask &= ~no_route_mask; // MANNA
+
+    update_ccdl_routing(in_channel, msg);
+
+    const auto& ccdl_routing_current_sysid = GCS_MAVLINK::ccdl_routing_tables[mavlink_system.sysid - 1];
     // mask out channels that are known sources for this sysid/compid
     for (uint8_t i=0; i<num_routes; i++) {
         if (routes[i].sysid == msg.sysid && routes[i].compid == msg.compid) {
+            // make heartbeat always pass on CCDL to have decay on the second route
             bool mask_ccdl = true;
             for (auto & j : ccdl_routing_current_sysid.ccdl) {
                 if (routes[i].channel != in_channel && routes[i].channel == j.mavlink_channel && routes[i].sysid == j.sysid_target_other) {

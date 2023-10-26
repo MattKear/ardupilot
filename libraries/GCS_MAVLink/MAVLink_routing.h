@@ -68,4 +68,5 @@ private:
     void handle_heartbeat(mavlink_channel_t in_channel, const mavlink_message_t &msg);
 
     void send_to_components(const char *pkt, const mavlink_msg_entry_t *entry, uint8_t pkt_len);
+    void update_ccdl_routing(mavlink_channel_t in_channel, const mavlink_message_t &msg);
 };

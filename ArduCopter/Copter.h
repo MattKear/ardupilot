@@ -635,7 +635,6 @@ private:
         uint64_t last_time;
     } ccdl_timeout[3];
     static constexpr uint8_t CCLD_TIMEOUT_ERR_MAX = 3;
-    static constexpr uint8_t CCDL_FAILOVER_TIMEOUT = 20;
 
     // AP_State.cpp
     void set_auto_armed(bool b);

@@ -476,10 +476,10 @@ void Copter::ccdl_failover()
     }
     bool timeout_ccdl1 = false;
     bool timeout_ccdl2 = false;
-    if (tnow - ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[0].sysid_target_my].last_time > CCDL_FAILOVER_TIMEOUT) {
+    if (tnow - ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[0].sysid_target_my].last_time > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_US) {
         timeout_ccdl1 = true;
     }
-    if (tnow - ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].sysid_target_my].last_time > CCDL_FAILOVER_TIMEOUT) {
+    if (tnow - ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].sysid_target_my].last_time > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_US) {
         timeout_ccdl2 = true;
     }
 
