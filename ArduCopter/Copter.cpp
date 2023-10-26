@@ -124,6 +124,7 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
 #endif
     SCHED_TASK(auto_disarm_check,     10,     50,  27),
     SCHED_TASK(auto_trim,             10,     75,  30),
+    SCHED_TASK(ccdl_failover, 50, 75,  31),
 #if RANGEFINDER_ENABLED == ENABLED
     SCHED_TASK(read_rangefinder,      20,    100,  33),
 #endif
@@ -458,6 +459,39 @@ void Copter::nav_script_time_done(uint16_t id)
 
 #endif // AP_SCRIPTING_ENABLED
 
+void Copter::ccdl_failover()
+{
+    const auto tnow = AP_HAL::micros();
+    const auto my_id = g.sysid_this_mav - 1;
+    ccdl_timeout[my_id].seq++;
+    ccdl_timeout[my_id].time_usec = tnow;
+    for (auto i=0; i<2; i++) {
+        auto pkt_ccdl = mavlink_ccdl_timeout_t {
+                .time_usec = ccdl_timeout[my_id].time_usec,
+                .seq = ccdl_timeout[my_id].seq,
+                .target_system = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].sysid_target_my,
+                .target_component = 0,
+        };
+        mavlink_msg_ccdl_timeout_send_struct(GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].mavlink_channel, &pkt_ccdl);
+    }
+    bool timeout_ccdl1 = false;
+    bool timeout_ccdl2 = false;
+    if (tnow - ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[0].sysid_target_my].last_time > CCDL_FAILOVER_TIMEOUT) {
+        timeout_ccdl1 = true;
+    }
+    if (tnow - ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].sysid_target_my].last_time > CCDL_FAILOVER_TIMEOUT) {
+        timeout_ccdl2 = true;
+    }
+
+    if (timeout_ccdl1 && timeout_ccdl2) {
+        // we are the culprit, don't vote
+    }
+    if (timeout_ccdl1) {
+        // vote GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].sysid_target_my
+    } else {
+        // vote GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[0].sysid_target_my
+    }
+}
 
 // rc_loops - reads user input from transmitter/receiver
 // called at 100hz

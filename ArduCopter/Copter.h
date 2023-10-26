@@ -627,6 +627,15 @@ private:
                   "_failsafe_priorities is missing the sentinel");
 
 
+    struct ccdl_timeout_struct {
+        uint32_t seq;
+        uint8_t seq_err;
+        uint64_t time_usec;
+        uint8_t time_usec_err;
+        uint64_t last_time;
+    } ccdl_timeout[3];
+    static constexpr uint8_t CCLD_TIMEOUT_ERR_MAX = 3;
+    static constexpr uint8_t CCDL_FAILOVER_TIMEOUT = 20;
 
     // AP_State.cpp
     void set_auto_armed(bool b);
@@ -656,6 +665,7 @@ private:
     bool nav_script_time(uint16_t &id, uint8_t &cmd, float &arg1, float &arg2) override;
     void nav_script_time_done(uint16_t id) override;
 #endif // AP_SCRIPTING_ENABLED
+    void ccdl_failover();
     void rc_loop();
     void throttle_loop();
     void update_batt_compass(void);

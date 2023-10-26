@@ -1075,6 +1075,42 @@ void GCS_MAVLINK_Copter::handleMessage(const mavlink_message_t &msg)
 
     switch (msg.msgid) {
 
+    case MAVLINK_MSG_ID_CCDL_TIMEOUT:
+    {
+        mavlink_ccdl_timeout_t packet;
+        mavlink_msg_ccdl_timeout_decode(&msg, &packet);
+
+        if (packet.target_system != copter.g.sysid_this_mav) {
+            break; // only accept control aimed at us
+        }
+        const auto sender_id = msg.sysid - 1;
+        if (packet.seq <= copter.ccdl_timeout[sender_id].seq) {
+            // TODO log
+            // TOOD send error
+            copter.ccdl_timeout[sender_id].seq_err++;
+            if (copter.ccdl_timeout[sender_id].seq_err > copter.CCLD_TIMEOUT_ERR_MAX) {
+                copter.ccdl_timeout[sender_id].seq_err = 0;
+                copter.ccdl_timeout[sender_id].seq = packet.seq;
+            }
+        } else {
+            copter.ccdl_timeout[sender_id].seq = packet.seq;
+        }
+
+        if (packet.time_usec <= copter.ccdl_timeout[sender_id].time_usec) {
+            // TODO log
+            // TOOD send error
+            copter.ccdl_timeout[sender_id].time_usec_err++;
+            if (copter.ccdl_timeout[sender_id].time_usec_err > copter.CCLD_TIMEOUT_ERR_MAX) {
+                copter.ccdl_timeout[sender_id].time_usec_err = 0;
+                copter.ccdl_timeout[sender_id].time_usec = packet.time_usec;
+            }
+        } else {
+            copter.ccdl_timeout[sender_id].time_usec = packet.time_usec;
+        }
+        copter.ccdl_timeout[sender_id].last_time = AP_HAL::micros();
+        break;
+    }
+
     case MAVLINK_MSG_ID_MANUAL_CONTROL:
     {
         if (msg.sysid != copter.g.sysid_my_gcs) {
