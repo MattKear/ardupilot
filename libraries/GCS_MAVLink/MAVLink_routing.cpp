@@ -428,6 +428,22 @@ void MAVLink_routing::handle_heartbeat(mavlink_channel_t in_channel, const mavli
     update_ccdl_routing(in_channel, msg);
 
     const auto& ccdl_routing_current_sysid = GCS_MAVLINK::ccdl_routing_tables[mavlink_system.sysid - 1];
+
+    for (auto i = 0; i < 2; i++ ) {
+        if (in_channel == ccdl_routing_current_sysid.ccdl[i].mavlink_channel && ccdl_routing_current_sysid.ccdl[i].sysid_target_other == msg.sysid) {
+            if (i == 0) {
+                if (ccdl_routing_current_sysid.ccdl[1].working_my) {
+                    return; // don't forward hb from indirect route if direct is working
+                }
+            }
+            if (i == 1) {
+                if (ccdl_routing_current_sysid.ccdl[0].working_my) {
+                    return; // don't forward hb from indirect route if direct is working
+                }
+            }
+        }
+    }
+
     // mask out channels that are known sources for this sysid/compid
     for (uint8_t i=0; i<num_routes; i++) {
         if (routes[i].sysid == msg.sysid && routes[i].compid == msg.compid) {

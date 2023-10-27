@@ -119,7 +119,7 @@ bool GCS_MAVLINK::init(uint8_t instance, bool eahrs, uint8_t eahrs_instance)
     const AP_SerialManager::SerialProtocol protocol = eahrs ? AP_SerialManager::SerialProtocol_AHRSMAVLINK : AP_SerialManager::SerialProtocol_MAVLink;
 
     // get associated mavlink channel
-    if (!serial_manager.get_mavlink_channel(protocol, instance, chan)) {
+    if (!serial_manager.get_mavlink_channel(protocol, instance, chan)) {  // here we use mavlink instance not eahrs instance #confusion
         // return immediately in unlikely case mavlink channel cannot be found
         return false;
     }
@@ -1141,7 +1141,15 @@ int8_t GCS_MAVLINK::deferred_message_to_send_index(uint16_t now16_ms)
 
 void GCS_MAVLINK::update_send2()
 {
-    send_ftp_replies();
+ //   send_ftp_replies();
+
+    if (!deferred_messages_initialised) {
+        initialise_message_intervals_from_streamrates();
+#if HAL_MAVLINK_INTERVALS_FROM_FILES_ENABLED
+        initialise_message_intervals_from_config_files();
+#endif
+        deferred_messages_initialised = true;
+    }
 
     const uint32_t start = AP_HAL::millis();
     const uint16_t start16 = start & 0xFFFF;
@@ -1541,7 +1549,7 @@ void GCS_MAVLINK::packetReceived(const mavlink_status_t &status,
     }
     if (!(status.flags & MAVLINK_STATUS_FLAG_IN_MAVLINK1) &&
         (status.flags & MAVLINK_STATUS_FLAG_OUT_MAVLINK1) &&
-        AP::serialmanager().get_mavlink_protocol(chan) == AP_SerialManager::SerialProtocol_MAVLink2) {
+            (AP::serialmanager().get_mavlink_protocol(chan) == AP_SerialManager::SerialProtocol_MAVLink2 || AP::serialmanager().get_mavlink_protocol(chan) == AP_SerialManager::SerialProtocol_AHRSMAVLINK)) {
         // if we receive any MAVLink2 packets on a connection
         // currently sending MAVLink1 then switch to sending
         // MAVLink2
@@ -1554,9 +1562,11 @@ void GCS_MAVLINK::packetReceived(const mavlink_status_t &status,
         // the routing code has indicated we should not handle this packet locally
         return;
     }
+#if HAL_MOUNT_ENABLED
     if (msg.msgid == MAVLINK_MSG_ID_GLOBAL_POSITION_INT) {
         handle_mount_message(msg);
     }
+#endif
     if (!accept_packet(status, msg)) {
         // e.g. enforce-sysid says we shouldn't look at this packet
         return;
@@ -1575,8 +1585,8 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us, bool timesync)
     // receive new packets
     mavlink_message_t msg;
     mavlink_status_t status;
-    uint32_t tstart_us = AP_HAL::micros();
-    uint32_t now_ms = AP_HAL::millis();
+    const uint32_t tstart_us = AP_HAL::micros();
+    const uint32_t now_ms = AP_HAL::millis();
 
     status.packet_rx_drop_count = 0;
 
@@ -1641,10 +1651,12 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us, bool timesync)
     }
 
     // consider logging mavlink stats:
-    if (is_active() || is_streaming()) {
-        if (tnow - last_mavlink_stats_logged > 1000) {
-            log_mavlink_stats();
-            last_mavlink_stats_logged = tnow;
+    if (timesync) {
+        if (is_active() || is_streaming()) {
+            if (tnow - last_mavlink_stats_logged > 1000) {
+                log_mavlink_stats();
+                last_mavlink_stats_logged = tnow;
+            }
         }
     }
 
