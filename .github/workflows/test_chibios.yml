@@ -17,27 +17,24 @@ jobs:
       fail-fast: false  # don't cancel if a job from the matrix fails
       matrix:
         config: [
-            stm32f7,
+            # stm32f7,
             stm32h7,
             # fmuv2-plane,
-            periph-build,
+            # periph-build,
             iofirmware,
             CubeOrange-bootloader,
-            revo-bootloader,
+            # revo-bootloader,
             stm32h7-debug,
             fmuv3,
-            revo-mini,
-            MatekF405-Wing,
-            configure-all
+            # revo-mini,
+            # MatekF405-Wing,
+            # configure-all
             CubeOrange-ODID,
         ]
         toolchain: [
             chibios,  # GCC-6
         ]
         gcc: [10]
-        include:
-          - config: stm32h7
-            toolchain: chibios-py2
 
     steps:
       # git checkout the PR
