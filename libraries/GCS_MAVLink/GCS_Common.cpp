@@ -2354,7 +2354,7 @@ void GCS::setup_uarts()
         }
         create_gcs_mavlink_backend(chan_parameters[i], *uart, false);
     }
-
+    bool have_ccdl = false;
     for (uint8_t j = 0; j < MAVLINK_COMM_NUM_BUFFERS; j++) {
         if (i >= ARRAY_SIZE(chan_parameters)) {
             // should not happen
@@ -2365,7 +2365,15 @@ void GCS::setup_uarts()
             break;
         }
         create_gcs_mavlink_backend(chan_parameters[i], *uart, true, j);
+        have_ccdl = true;
         i++;
+    }
+    if (have_ccdl) {
+        gcs().send_text(MAV_SEVERITY_INFO, "MAV %d, Config ccdl", mavlink_system.sysid);
+        for (auto & ccdl_routing_tablei : GCS_MAVLINK::ccdl_routing_tables) {
+            gcs().send_text(MAV_SEVERITY_INFO, "ccdl 0 : chan %d, tgt : %d", ccdl_routing_tablei.ccdl[0].mavlink_channel, ccdl_routing_tablei.ccdl[0].sysid_target_my);
+            gcs().send_text(MAV_SEVERITY_INFO, "ccdl 0 : chan %d, tgt : %d", ccdl_routing_tablei.ccdl[1].mavlink_channel, ccdl_routing_tablei.ccdl[1].sysid_target_my);
+        }
     }
 
     if (frsky == nullptr) {

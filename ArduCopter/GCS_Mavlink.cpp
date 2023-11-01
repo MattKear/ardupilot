@@ -1079,11 +1079,13 @@ void GCS_MAVLINK_Copter::handleMessage(const mavlink_message_t &msg)
     {
         mavlink_ccdl_timeout_t packet;
         mavlink_msg_ccdl_timeout_decode(&msg, &packet);
-
+        const auto sender_id = msg.sysid - 1;
+        if (copter.g2.ccdl_timeout_enabled > 1) {
+            gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV : receviced frm %d, trg % d", sender_id, packet.target_system);
+        }
         if (packet.target_system != copter.g.sysid_this_mav) {
             break; // only accept control aimed at us
         }
-        const auto sender_id = msg.sysid - 1;
         if (packet.seq <= copter.ccdl_timeout[sender_id].seq) {
             // TODO log
             // TOOD send error
@@ -1108,6 +1110,7 @@ void GCS_MAVLINK_Copter::handleMessage(const mavlink_message_t &msg)
             copter.ccdl_timeout[sender_id].time_usec = packet.time_usec;
         }
         copter.ccdl_timeout[sender_id].last_time = AP_HAL::micros();
+
         break;
     }
 
