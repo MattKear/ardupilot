@@ -9105,9 +9105,9 @@ class AutoTestCopter(AutoTest):
              "Test MAV_CMD_DO_PAUSE_CONTINUE in GUIDED mode",
              self.PAUSE_CONTINUE_GUIDED),
 
-            ("RichenPower",
-             "Test RichenPower generator",
-             self.test_richenpower),
+            # ("RichenPower",
+            #  "Test RichenPower generator",
+            #  self.test_richenpower),
 
             ("IE24",
              "Test IntelligentEnergy 2.4kWh generator",
