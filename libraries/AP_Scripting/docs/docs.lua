@@ -1641,6 +1641,10 @@ function gcs:set_message_interval(port_num, msg_id, interval_us) end
 ---@param text string
 function gcs:send_text(severity, text) end
 
+-- Return the system time when a gcs with id of SYSID_MYGCS was last seen
+---@return uint32_t_ud -- system time in milliseconds
+function gcs:last_seen() end
+
 -- desc
 ---@class relay
 relay = {}
