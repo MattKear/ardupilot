@@ -403,6 +403,7 @@ public:
 
     struct CCDLInfo {
         mavlink_channel_t mavlink_channel;
+        uint8_t serial_port;
         uint8_t sysid_target_my;
         uint8_t sysid_target_other;
         uint32_t last_seen_hb_my;
@@ -425,7 +426,7 @@ public:
 
         return routing_table;
     }
-    static constexpr auto CCDL_FAILOVER_TIMEOUT_MS = 20;
+    static constexpr auto CCDL_FAILOVER_TIMEOUT_MS = 25;
     static constexpr auto CCDL_FAILOVER_TIMEOUT_US = CCDL_FAILOVER_TIMEOUT_MS * 1000;
 protected:
 

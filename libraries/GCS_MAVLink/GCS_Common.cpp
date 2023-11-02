@@ -98,7 +98,7 @@ uint8_t GCS_MAVLINK::mavlink_private = 0;
 // then call the function to initialize array
 std::array<GCS_MAVLINK::ccdl_routing_table, 3> GCS_MAVLINK::ccdl_routing_tables = {
         GCS_MAVLINK::init_ccdl_routing_table(2, 3),
-        GCS_MAVLINK::init_ccdl_routing_table(1, 3),
+        GCS_MAVLINK::init_ccdl_routing_table(3, 1),
         GCS_MAVLINK::init_ccdl_routing_table(1, 2)
 };
 
@@ -174,6 +174,7 @@ bool GCS_MAVLINK::init(uint8_t instance, bool eahrs, uint8_t eahrs_instance)
     if (eahrs) {
         for (auto & ccdl_routing_tablei : ccdl_routing_tables) {
             ccdl_routing_tablei.ccdl[eahrs_instance].mavlink_channel = chan;
+            ccdl_routing_tablei.ccdl[eahrs_instance].serial_port = serial_manager.find_portnum(AP_SerialManager::SerialProtocol_AHRSMAVLINK, eahrs_instance);
         }
     }
 
@@ -2354,7 +2355,6 @@ void GCS::setup_uarts()
         }
         create_gcs_mavlink_backend(chan_parameters[i], *uart, false);
     }
-    bool have_ccdl = false;
     for (uint8_t j = 0; j < MAVLINK_COMM_NUM_BUFFERS; j++) {
         if (i >= ARRAY_SIZE(chan_parameters)) {
             // should not happen
@@ -2365,15 +2365,7 @@ void GCS::setup_uarts()
             break;
         }
         create_gcs_mavlink_backend(chan_parameters[i], *uart, true, j);
-        have_ccdl = true;
         i++;
-    }
-    if (have_ccdl) {
-        gcs().send_text(MAV_SEVERITY_INFO, "MAV %d, Config ccdl", mavlink_system.sysid);
-        for (auto & ccdl_routing_tablei : GCS_MAVLINK::ccdl_routing_tables) {
-            gcs().send_text(MAV_SEVERITY_INFO, "ccdl 0 : chan %d, tgt : %d", ccdl_routing_tablei.ccdl[0].mavlink_channel, ccdl_routing_tablei.ccdl[0].sysid_target_my);
-            gcs().send_text(MAV_SEVERITY_INFO, "ccdl 0 : chan %d, tgt : %d", ccdl_routing_tablei.ccdl[1].mavlink_channel, ccdl_routing_tablei.ccdl[1].sysid_target_my);
-        }
     }
 
     if (frsky == nullptr) {
@@ -4012,6 +4004,13 @@ void GCS_MAVLINK::send_banner()
         }
     }
 #endif
+    send_text(MAV_SEVERITY_INFO, "MAV %d, Config ccdl", mavlink_system.sysid);
+    auto& routing_tables = GCS_MAVLINK::ccdl_routing_tables;
+    for(size_t i = 0; i < routing_tables.size(); i++) {
+        auto& ccdl_routing_tablei = routing_tables[i];
+        send_text(MAV_SEVERITY_INFO, "table number: %d, ccdl 0, chan %d, port %d, tgt : %d", (int8_t)i, ccdl_routing_tablei.ccdl[0].mavlink_channel, ccdl_routing_tablei.ccdl[0].serial_port, ccdl_routing_tablei.ccdl[0].sysid_target_my);
+        send_text(MAV_SEVERITY_INFO, "ccdl 1, chan %d, port %d, tgt : %d", ccdl_routing_tablei.ccdl[1].mavlink_channel, ccdl_routing_tablei.ccdl[1].serial_port, ccdl_routing_tablei.ccdl[1].sysid_target_my);
+    }
 }
 
 

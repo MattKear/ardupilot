@@ -387,17 +387,6 @@ void MAVLink_routing::update_ccdl_routing(mavlink_channel_t in_channel, const ma
                 i.last_seen_hb_other = tnow;
                 i.working_other = true;
             }
-#if ROUTING_DEBUG
-            ::printf("HB from chan %u from sysid=%u compid=%u\n",
-                     (unsigned)in_channel,
-                     (unsigned)msg.sysid,
-                     (unsigned)msg.compid);
-            ::printf("HB timeing 1 %u, 2, %u, 3 %u, 4 %u \n",
-                     (unsigned)ccdl_routing_current_sysid.ccdl[0].last_seen_hb_my,
-                     (unsigned)ccdl_routing_current_sysid.ccdl[0].last_seen_hb_other,
-                     (unsigned)ccdl_routing_current_sysid.ccdl[1].last_seen_hb_my,
-                     ccdl_routing_current_sysid.ccdl[1].last_seen_hb_other);
-#endif
         }
     }
     for (auto & i : ccdl_routing_current_sysid.ccdl) {
@@ -428,6 +417,18 @@ void MAVLink_routing::handle_heartbeat(mavlink_channel_t in_channel, const mavli
     update_ccdl_routing(in_channel, msg);
 
     const auto& ccdl_routing_current_sysid = GCS_MAVLINK::ccdl_routing_tables[mavlink_system.sysid - 1];
+
+#if ROUTING_DEBUG
+    ::printf("HB from chan %u from sysid=%u compid=%u\n",
+                     (unsigned)in_channel,
+                     (unsigned)msg.sysid,
+                     (unsigned)msg.compid);
+            ::printf("HB timeing 1 %u, 2, %u, 3 %u, 4 %u \n",
+                     (unsigned)ccdl_routing_current_sysid.ccdl[0].last_seen_hb_my,
+                     (unsigned)ccdl_routing_current_sysid.ccdl[0].last_seen_hb_other,
+                     (unsigned)ccdl_routing_current_sysid.ccdl[1].last_seen_hb_my,
+                     (unsigned)ccdl_routing_current_sysid.ccdl[1].last_seen_hb_other);
+#endif
 
     for (auto i = 0; i < 2; i++ ) {
         if (in_channel == ccdl_routing_current_sysid.ccdl[i].mavlink_channel && ccdl_routing_current_sysid.ccdl[i].sysid_target_other == msg.sysid) {

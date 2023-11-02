@@ -27,8 +27,8 @@ FCU1
 mavproxy.py --master /dev/CUBE1 --source-system 251 --target-system 1
 
 
-FCU2 
-
+FCU2
+mavproxy.py --master /dev/CUBE2 --source-system 252 --target-system 2
 mavproxy.py --master /dev/ttyACM0 --source-system 252 --target-system 2
 
 FCU3 
@@ -41,3 +41,7 @@ param set RNGFND1_TYPE 0
 param set SERIAL1_PROTOCOL 43
 param set SERIAL4_PROTOCOL 43
 param set SERIAL4_BAUD 921
+
+
+get the CCDL routing config with 
+long MAV_CMD_DO_SEND_BANNER
