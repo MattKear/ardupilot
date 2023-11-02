@@ -610,3 +610,9 @@ userdata uint32_t manual_operator __tostring uint32_t___tostring
 userdata uint32_t manual toint uint32_t_toint
 userdata uint32_t manual tofloat uint32_t_tofloat
 
+include AC_Fence/AC_Fence.h depends AP_FENCE_ENABLED
+include AC_Fence/AC_Fence_config.h
+singleton AC_Fence depends AP_FENCE_ENABLED
+singleton AC_Fence rename fence
+singleton AC_Fence method get_breaches uint8_t
+singleton AC_Fence method get_breach_time uint32_t
