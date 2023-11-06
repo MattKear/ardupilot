@@ -229,6 +229,17 @@ bool Plane::set_mode(Mode &new_mode, const ModeReason reason)
         return true;
     }
 
+    // Manual has been configured to be "override" flight mode. Only RC mode reasons can change from manual if RC was used to put the aircraft in that mode.
+    // For example, we will still want to allow GCS to make the mode change if GCS set the manual mode
+    if ((control_mode->mode_number() == Mode::Number::MANUAL) &&
+        (control_mode_reason == ModeReason::RC_COMMAND) &&
+        (reason != ModeReason::RC_COMMAND)) {
+            // make sad noise and notify
+            AP_Notify::events.user_mode_change_failed = 1;
+            gcs().send_text(MAV_SEVERITY_WARNING, "Mode change must be from RC");
+            return false;
+    }
+
 #if HAL_QUADPLANE_ENABLED
     if (new_mode.is_vtol_mode() && !plane.quadplane.available()) {
         // dont try and switch to a Q mode if quadplane is not enabled and initalized
