@@ -603,7 +603,7 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
             })
 
             # add another servo:
-            self.set_parameter("RELAY_PIN6", 14)
+            self.set_parameter("RELAY6_PIN", 14)
             self.assert_received_message_field_values('RELAY_STATUS', {
                 "present": 35,
                 "on": 0,
@@ -5352,7 +5352,7 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
         self.context_collect("STATUSTEXT")
         self.set_parameters({
             "SCR_ENABLE": 1,
-            "RELAY_PIN": 1,
+            "RELAY1_PIN": 1,
         })
         self.install_example_script_context("RCIN_test.lua")
         self.reboot_sitl()
