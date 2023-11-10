@@ -231,6 +231,8 @@ void Plane::calc_airspeed_errors()
                        target_airspeed_cm = new_airspeed_cm;
     } else if (control_mode == &mode_auto) {
         target_airspeed_cm = mode_auto_target_airspeed_cm();
+    } else if (control_mode == &mode_rtl) {
+        target_airspeed_cm = new_airspeed_cm;
 #if HAL_QUADPLANE_ENABLED
     } else if (control_mode == &mode_qrtl && quadplane.in_vtol_land_approach()) {
         target_airspeed_cm = quadplane.get_land_airspeed() * 100;
