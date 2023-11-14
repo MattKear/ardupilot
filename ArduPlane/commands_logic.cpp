@@ -932,6 +932,22 @@ void Plane::do_loiter_at_location()
     next_WP_loc = current_loc;
 }
 
+bool Plane::do_change_airspeed(float airspeed_ms)
+{
+    // Replicate protections from GCS_Mavlink command handling
+    if ((!control_mode->is_guided_mode()) &&
+        (control_mode != &mode_auto) && 
+        (control_mode != &mode_rtl)) {
+        // failed
+        return false;
+    }
+
+    AP_Mission::Mission_Command cmd;
+    cmd.content.speed.speed_type = 0;
+    cmd.content.speed.target_ms = airspeed_ms;
+    return do_change_speed(cmd);
+}
+
 bool Plane::do_change_speed(const AP_Mission::Mission_Command& cmd)
 {
     switch (cmd.content.speed.speed_type)
