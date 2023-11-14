@@ -57,10 +57,10 @@ private:
     
     // a channel mask to block routing as required
     uint8_t no_route_mask;
-    
+    static const mavlink_channel_t MAVLINK_MAX_CHANNEL_T = (mavlink_channel_t)UINT8_MAX;
     // learn new routes
     void learn_route(mavlink_channel_t in_channel, const mavlink_message_t &msg);
-
+    mavlink_channel_t check_ccdl_forward(mavlink_channel_t in_channel, const mavlink_message_t &msg, uint8_t idx1, uint8_t idx2);
     // extract target sysid and compid from a message
     void get_targets(const mavlink_message_t &msg, int16_t &sysid, int16_t &compid);
 

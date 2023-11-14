@@ -148,7 +148,6 @@ public:
 
     void        update_receive(uint32_t max_time_us=1000, bool timesync=true);
     void        update_send();
-    void        update_send2();
     bool        init(uint8_t instance, bool eahrs=false, uint8_t eahrs_instance=0);
     void        send_message(enum ap_message id);
     void        send_text(MAV_SEVERITY severity, const char *fmt, ...) const FMT_PRINTF(3, 4);
@@ -400,21 +399,21 @@ public:
     uint8_t get_last_txbuf() const { return last_txbuf; }
 
     MAV_RESULT set_message_interval(uint32_t msg_id, int32_t interval_us);
-
+    static constexpr uint8_t MAX_CCDL = 2;
     struct CCDLInfo {
         mavlink_channel_t mavlink_channel;
         uint8_t serial_port;
-        uint8_t sysid_target_my;
-        uint8_t sysid_target_other;
-        uint32_t last_seen_hb_my;
-        bool working_my;
-        uint32_t last_seen_hb_other;
-        bool working_other;
+        uint8_t primary_route_sysid_target;
+        uint8_t backup_route_sysid_target;
+        uint32_t primary_route_last_hb;
+        bool primary_route_working;
+        uint32_t backup_route_last_hb;
+        bool backup_route_working;
         CCDLInfo(mavlink_channel_t channel = MAVLINK_COMM_0, uint8_t target_my = 0, uint8_t target_other = 0, uint32_t lastSeen = 0, bool isWorking = false) :
-                mavlink_channel(channel), sysid_target_my(target_my), sysid_target_other(target_other), last_seen_hb_my(lastSeen), working_my(isWorking), last_seen_hb_other(lastSeen), working_other(isWorking) {}    };
+                mavlink_channel(channel), primary_route_sysid_target(target_my), backup_route_sysid_target(target_other), primary_route_last_hb(lastSeen), primary_route_working(isWorking), backup_route_last_hb(lastSeen), backup_route_working(isWorking) {}    };
 
     struct ccdl_routing_table {
-        std::array<CCDLInfo, 2> ccdl;
+        std::array<CCDLInfo, MAX_CCDL> ccdl;
     };
 
     static std::array<ccdl_routing_table, 3> ccdl_routing_tables;
@@ -422,7 +421,7 @@ public:
     static ccdl_routing_table init_ccdl_routing_table(uint8_t sysid_target_ccdl_1, uint8_t sysid_target_ccdl_2)
     {
         ccdl_routing_table routing_table;
-        routing_table.ccdl = {CCDLInfo(MAVLINK_COMM_0, sysid_target_ccdl_1, sysid_target_ccdl_2, 0, false), CCDLInfo(MAVLINK_COMM_0, sysid_target_ccdl_2, sysid_target_ccdl_1, 0, false)};
+        routing_table.ccdl = {CCDLInfo(MAVLINK_COMM_1, sysid_target_ccdl_1, sysid_target_ccdl_2, 0, false), CCDLInfo(MAVLINK_COMM_3, sysid_target_ccdl_2, sysid_target_ccdl_1, 0, false)};
 
         return routing_table;
     }

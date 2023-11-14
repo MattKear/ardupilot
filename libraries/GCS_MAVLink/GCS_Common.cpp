@@ -1140,122 +1140,6 @@ int8_t GCS_MAVLINK::deferred_message_to_send_index(uint16_t now16_ms)
     return next_deferred_message_to_send_cache;
 }
 
-void GCS_MAVLINK::update_send2()
-{
- //   send_ftp_replies();
-
-    if (!deferred_messages_initialised) {
-        initialise_message_intervals_from_streamrates();
-#if HAL_MAVLINK_INTERVALS_FROM_FILES_ENABLED
-        initialise_message_intervals_from_config_files();
-#endif
-        deferred_messages_initialised = true;
-    }
-
-    const uint32_t start = AP_HAL::millis();
-    const uint16_t start16 = start & 0xFFFF;
-    while (AP_HAL::millis() - start < 5) { // spend a max of 5ms sending messages.  This should never trigger - out_of_time() should become true
-#if GCS_DEBUG_SEND_MESSAGE_TIMINGS
-        retry_deferred_body_start = AP_HAL::micros();
-#endif
-
-        // check if any "specially handled" messages should be sent out
-        {
-            const int8_t next = deferred_message_to_send_index(start16);
-            if (next != -1) {
-                if (!do_try_send_message(deferred_message[next].id)) {
-                    break;
-                }
-                // we try to keep output on a regular clock to avoid
-                // user support questions:
-                const uint16_t interval_ms = deferred_message[next].interval_ms;
-                deferred_message[next].last_sent_ms += interval_ms;
-                // but we do not want to try to catch up too much:
-                if (uint16_t(start16 - deferred_message[next].last_sent_ms) > interval_ms) {
-                    deferred_message[next].last_sent_ms = start16;
-                }
-
-                next_deferred_message_to_send_cache = -1; // deferred_message_to_send will recalculate
-#if GCS_DEBUG_SEND_MESSAGE_TIMINGS
-                const uint32_t stop = AP_HAL::micros();
-                const uint32_t delta = stop - retry_deferred_body_start;
-                if (delta > try_send_message_stats.max_retry_deferred_body_us) {
-                    try_send_message_stats.max_retry_deferred_body_us = delta;
-                    try_send_message_stats.max_retry_deferred_body_type = 1;
-                }
-#endif
-                continue;
-            }
-        }
-
-        // check for any messages that the code has explicitly sent
-        const int16_t fs = pushed_ap_message_ids.first_set();
-        if (fs != -1) {
-            ap_message next = (ap_message)fs;
-            if (!do_try_send_message(next)) {
-                break;
-            }
-            pushed_ap_message_ids.clear(next);
-#if GCS_DEBUG_SEND_MESSAGE_TIMINGS
-            const uint32_t stop = AP_HAL::micros();
-            const uint32_t delta = stop - retry_deferred_body_start;
-            if (delta > try_send_message_stats.max_retry_deferred_body_us) {
-                try_send_message_stats.max_retry_deferred_body_us = delta;
-                try_send_message_stats.max_retry_deferred_body_type = 2;
-            }
-#endif
-            continue;
-        }
-
-        ap_message next = next_deferred_bucket_message_to_send(start16);
-        if (next != no_message_to_send) {
-            if (!do_try_send_message(next)) {
-                break;
-            }
-            bucket_message_ids_to_send.clear(next);
-            if (bucket_message_ids_to_send.count() == 0) {
-                // we sent everything in the bucket.  Reschedule it.
-                // we try to keep output on a regular clock to avoid
-                // user support questions:
-                const uint16_t interval_ms = get_reschedule_interval_ms(deferred_message_bucket[sending_bucket_id]);
-                deferred_message_bucket[sending_bucket_id].last_sent_ms += interval_ms;
-                // but we do not want to try to catch up too much:
-                if (uint16_t(start16 - deferred_message_bucket[sending_bucket_id].last_sent_ms) > interval_ms) {
-                    deferred_message_bucket[sending_bucket_id].last_sent_ms = start16;
-                }
-                find_next_bucket_to_send(start16);
-            }
-#if GCS_DEBUG_SEND_MESSAGE_TIMINGS
-            const uint32_t stop = AP_HAL::micros();
-                const uint32_t delta = stop - retry_deferred_body_start;
-                if (delta > try_send_message_stats.max_retry_deferred_body_us) {
-                    try_send_message_stats.max_retry_deferred_body_us = delta;
-                    try_send_message_stats.max_retry_deferred_body_type = 3;
-                }
-#endif
-            continue;
-        }
-        break;
-    }
-#if GCS_DEBUG_SEND_MESSAGE_TIMINGS
-    const uint32_t stop = AP_HAL::micros();
-    const uint32_t delta = stop - retry_deferred_body_start;
-    if (delta > try_send_message_stats.max_retry_deferred_body_us) {
-        try_send_message_stats.max_retry_deferred_body_us = delta;
-        try_send_message_stats.max_retry_deferred_body_type = 4;
-    }
-#endif
-
-    // update the number of packets transmitted base on seqno, making
-    // the assumption that we don't send more than 256 messages
-    // between the last pass through here
-    mavlink_status_t *status = mavlink_get_channel_status(chan);
-    if (status != nullptr) {
-        send_packet_count += uint8_t(status->current_tx_seq - last_tx_seq);
-        last_tx_seq = status->current_tx_seq;
-    }
-}
-
 void GCS_MAVLINK::update_send()
 {
 #if !defined(HAL_BUILD_AP_PERIPH) || HAL_LOGGING_ENABLED
@@ -4008,8 +3892,8 @@ void GCS_MAVLINK::send_banner()
     auto& routing_tables = GCS_MAVLINK::ccdl_routing_tables;
     for(size_t i = 0; i < routing_tables.size(); i++) {
         auto& ccdl_routing_tablei = routing_tables[i];
-        send_text(MAV_SEVERITY_INFO, "table number: %d, ccdl 0, chan %d, port %d, tgt : %d", (int8_t)i, ccdl_routing_tablei.ccdl[0].mavlink_channel, ccdl_routing_tablei.ccdl[0].serial_port, ccdl_routing_tablei.ccdl[0].sysid_target_my);
-        send_text(MAV_SEVERITY_INFO, "ccdl 1, chan %d, port %d, tgt : %d", ccdl_routing_tablei.ccdl[1].mavlink_channel, ccdl_routing_tablei.ccdl[1].serial_port, ccdl_routing_tablei.ccdl[1].sysid_target_my);
+        send_text(MAV_SEVERITY_INFO, "table number: %d, ccdl 0, chan %d, port %d, tgt : %d", (int8_t)i, ccdl_routing_tablei.ccdl[0].mavlink_channel, ccdl_routing_tablei.ccdl[0].serial_port, ccdl_routing_tablei.ccdl[0].primary_route_sysid_target);
+        send_text(MAV_SEVERITY_INFO, "ccdl 1, chan %d, port %d, tgt : %d", ccdl_routing_tablei.ccdl[1].mavlink_channel, ccdl_routing_tablei.ccdl[1].serial_port, ccdl_routing_tablei.ccdl[1].primary_route_sysid_target);
     }
 }
 
