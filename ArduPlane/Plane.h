@@ -1266,6 +1266,9 @@ public:
 
     // allow for landing descent rate to be overridden by a script, may be -ve to climb
     bool set_land_descent_rate(float descent_rate) override;
+
+    // helper for equivalent of MAV_CMD_DO_CHANGE_SPEED for scripting
+    bool do_change_airspeed(float airspeed_ms) override;
 #endif // AP_SCRIPTING_ENABLED
 
 };
