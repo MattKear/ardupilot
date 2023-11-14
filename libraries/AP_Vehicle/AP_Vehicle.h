@@ -239,6 +239,9 @@ public:
     // returns true if the EKF failsafe has triggered
     virtual bool has_ekf_failsafed() const { return false; }
 
+    // helper for equivalent of MAV_CMD_DO_CHANGE_SPEED for scripting
+    virtual bool do_change_airspeed(float airspeed_ms) { return false; }
+    
     // control outputs enumeration
     enum class ControlOutput {
         Roll = 1,
