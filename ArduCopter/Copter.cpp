@@ -462,7 +462,7 @@ void Copter::nav_script_time_done(uint16_t id)
 void Copter::ccdl_failover()
 {
     if (g2.ccdl_timeout_enabled) {
-        const auto tnow = AP_HAL::micros();
+        const auto tnow = AP_HAL::micros64();
         const auto my_id = g.sysid_this_mav - 1;
         ccdl_timeout[my_id].seq++;
         ccdl_timeout[my_id].time_usec = tnow;
@@ -470,43 +470,39 @@ void Copter::ccdl_failover()
             auto pkt_ccdl = mavlink_ccdl_timeout_t {
                     .time_usec = ccdl_timeout[my_id].time_usec,
                     .seq = ccdl_timeout[my_id].seq,
-                    .target_system = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].sysid_target_my,
+                    .target_system = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target,
                     .target_component = 0,
             };
 //            gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV : send to %d, chan %d", GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].sysid_target_my, GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].mavlink_channel);
             mavlink_msg_ccdl_timeout_send_struct(GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].mavlink_channel, &pkt_ccdl);
+            if (tnow - ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].last_seen_time > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_US) {
+                ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].timeout_ccdl = true;
+            }
         }
-        bool timeout_ccdl1 = false;
-        bool timeout_ccdl2 = false;
-        if (tnow - ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[0].sysid_target_my - 1].last_time > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_US) {
-            timeout_ccdl1 = true;
-        }
-        if (tnow - ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].sysid_target_my - 1].last_time > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_US) {
-            timeout_ccdl2 = true;
-        }
+
         static uint32_t last_warn = 0;
-        if (timeout_ccdl1 && timeout_ccdl2) {
+        if (ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[0].primary_route_sysid_target - 1].timeout_ccdl && ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].primary_route_sysid_target - 1].timeout_ccdl) {
             // we are the culprit, don't vote
             if (tnow - last_warn >= 1000000U) {
                 gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: Double timeout", g.sysid_this_mav.get());
                 last_warn = tnow;
             }
-        }
-        if (timeout_ccdl1) {
-            if (tnow - last_warn >= 1000000U) {
-                gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: Timeout ccdl1", g.sysid_this_mav.get());
-                last_warn = tnow;
+        } else {
+            if (ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[0].primary_route_sysid_target - 1].timeout_ccdl) {
+                if (tnow - last_warn >= 1000000U) {
+                    gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: Timeout ccdl1", g.sysid_this_mav.get());
+                    last_warn = tnow;
+                }
+                // vote GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].sysid_target_my
             }
-            // vote GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].sysid_target_my
-        }
-        if (timeout_ccdl2) {
-            if (tnow - last_warn >= 1000000U) {
-                gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: Timeout ccdl2", g.sysid_this_mav.get());
-                last_warn = tnow;
+            if (ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].primary_route_sysid_target - 1].timeout_ccdl) {
+                if (tnow - last_warn >= 1000000U) {
+                    gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: Timeout ccdl2", g.sysid_this_mav.get());
+                    last_warn = tnow;
+                }
+                // vote GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[0].sysid_target_my
             }
-            // vote GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[0].sysid_target_my
         }
-
     }
 }
 

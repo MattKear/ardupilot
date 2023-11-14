@@ -632,9 +632,10 @@ private:
         uint8_t seq_err;
         uint64_t time_usec;
         uint8_t time_usec_err;
-        uint64_t last_time;
+        uint64_t last_seen_time;
+        bool timeout_ccdl;
     } ccdl_timeout[3];
-    static constexpr uint8_t CCLD_TIMEOUT_ERR_MAX = 3;
+    static constexpr uint8_t CCLD_TIMEOUT_ERR_MAX_DROPPED_PACKETS = 3;
 
     // AP_State.cpp
     void set_auto_armed(bool b);
