@@ -208,6 +208,9 @@ public:
 
     // allow for landing descent rate to be overridden by a script, may be -ve to climb
     virtual bool set_land_descent_rate(float descent_rate) { return false; }
+
+    // helper for equivalent of MAV_CMD_DO_CHANGE_SPEED for scripting
+    virtual bool do_change_airspeed(float airspeed_ms) { return false; }
     
     // control outputs enumeration
     enum class ControlOutput {
