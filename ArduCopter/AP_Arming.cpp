@@ -62,6 +62,7 @@ bool AP_Arming_Copter::run_pre_arm_checks(bool display_failure)
         & gcs_failsafe_check(display_failure)
         & winch_checks(display_failure)
         & alt_checks(display_failure)
+        & ccdl_checks(display_failure)
 #if AP_AIRSPEED_ENABLED
         & AP_Arming::airspeed_checks(display_failure)
 #endif
@@ -624,6 +625,27 @@ bool AP_Arming_Copter::winch_checks(bool display_failure) const
 #endif
     return true;
 }
+
+bool AP_Arming_Copter::ccdl_checks(bool display_failure)
+{
+    if (((checks_to_perform & ARMING_CHECK_ALL) == 0) && ((checks_to_perform & ARMING_CHECK_CCDL) == 0)) {
+        return true;
+    }
+    const auto my_id = copter.g.sysid_this_mav - 1;
+    const auto tnow = AP_HAL::micros64();
+    for (auto i=0; i<2; i++) {
+        if (copter.ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].timeout_ccdl) {
+            check_failed(display_failure, "CCDL %u timed out", i);
+            return false;
+        }
+        if (tnow - copter.ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].last_timeout < 5000000U) {
+            check_failed(display_failure, "Waiting CCDL %u sync", i);
+            return false;
+        }
+    }
+    return true;
+}
+
 
 // performs altitude checks.  returns true if passed
 bool AP_Arming_Copter::alt_checks(bool display_failure)
