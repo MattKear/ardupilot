@@ -479,31 +479,28 @@ void Copter::ccdl_failover()
                 ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].timeout_ccdl = true;
             }
         }
-
-        static uint32_t last_warn = 0;
-        if (ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[0].primary_route_sysid_target - 1].timeout_ccdl && ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].primary_route_sysid_target - 1].timeout_ccdl) {
+        const auto ccdl0 = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[0].primary_route_sysid_target - 1;
+        const auto ccdl1= GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].primary_route_sysid_target - 1;
+        if (ccdl_timeout[ccdl0].timeout_ccdl && ccdl_timeout[ccdl1].timeout_ccdl) {
             // we are the culprit, don't vote
-            if (tnow - last_warn >= 1000000U) {
+            if (tnow - ccdl_timeout[ccdl0].last_timeout >= 1000000U) {
                 gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: Double timeout", g.sysid_this_mav.get());
-                last_warn = tnow;
+                ccdl_timeout[ccdl0].last_timeout = tnow;
+                ccdl_timeout[ccdl1].last_timeout = tnow;
             }
         } else {
-            if (ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[0].primary_route_sysid_target - 1].timeout_ccdl) {
-                if (tnow - last_warn >= 1000000U) {
-                    gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: Timeout ccdl1", g.sysid_this_mav.get());
-                    last_warn = tnow;
+            for (uint8_t i = 0; i < 2; i++) {
+                if (ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].timeout_ccdl) {
+                    if (tnow - ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].last_timeout >= 1000000U) {
+                        gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: Timeout ccdl %u", g.sysid_this_mav.get(), i);
+                        ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].last_timeout = tnow;
+                    }
+                    // vote GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].sysid_target_my
                 }
-                // vote GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].sysid_target_my
-            }
-            if (ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].primary_route_sysid_target - 1].timeout_ccdl) {
-                if (tnow - last_warn >= 1000000U) {
-                    gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: Timeout ccdl2", g.sysid_this_mav.get());
-                    last_warn = tnow;
-                }
-                // vote GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[0].sysid_target_my
             }
         }
     }
+    Log_Write_CCDL_Timeout();
 }
 
 // rc_loops - reads user input from transmitter/receiver

@@ -634,6 +634,7 @@ private:
         uint8_t time_usec_err;
         uint64_t last_seen_time;
         bool timeout_ccdl;
+        uint64_t last_timeout;
     } ccdl_timeout[3];
     static constexpr uint8_t CCLD_TIMEOUT_ERR_MAX_DROPPED_PACKETS = 3;
 
@@ -815,6 +816,7 @@ private:
     void Log_Write_SysID_Setup(uint8_t systemID_axis, float waveform_magnitude, float frequency_start, float frequency_stop, float time_fade_in, float time_const_freq, float time_record, float time_fade_out);
     void Log_Write_SysID_Data(float waveform_time, float waveform_sample, float waveform_freq, float angle_x, float angle_y, float angle_z, float accel_x, float accel_y, float accel_z);
     void Log_Write_Vehicle_Startup_Messages();
+    void Log_Write_CCDL_Timeout();
     void log_init(void);
 
     // mode.cpp

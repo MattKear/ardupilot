@@ -413,6 +413,40 @@ void Copter::Log_Write_Guided_Attitude_Target(ModeGuided::SubMode target_type, f
     logger.WriteBlock(&pkt, sizeof(pkt));
 }
 
+// CCDL Timeout logging
+struct PACKED log_CCDL_Timeout {
+    LOG_PACKET_HEADER;
+    uint64_t time_us;
+    uint8_t instance;
+    uint32_t seq;
+    uint8_t seq_err;
+    uint64_t time_usec;
+    uint8_t time_usec_err;
+    uint64_t last_seen_time;
+    uint8_t timeout_ccdl;
+    uint64_t last_timeout;
+};
+
+void Copter::Log_Write_CCDL_Timeout()
+{
+    const uint64_t time_us = AP_HAL::micros64();
+    for (uint8_t i = 0; i < 3; i++) {
+        const log_CCDL_Timeout pkt {
+                LOG_PACKET_HEADER_INIT(LOG_CCDL_TIMEOUT_MSG),
+                time_us        : time_us,
+                instance       : i,
+                seq            : ccdl_timeout[i].seq,
+                seq_err        : ccdl_timeout[i].seq_err,
+                time_usec      : ccdl_timeout[i].time_usec,
+                time_usec_err  : ccdl_timeout[i].time_usec_err,
+                last_seen_time : ccdl_timeout[i].last_seen_time,
+                timeout_ccdl   : ccdl_timeout[i].timeout_ccdl,
+                last_timeout   : ccdl_timeout[i].last_timeout
+        };
+        logger.WriteBlock(&pkt, sizeof(pkt));
+    }
+}
+
 // type and unit information can be found in
 // libraries/AP_Logger/Logstructure.h; search for "log_Units" for
 // units and "Format characters" for field type information
@@ -568,6 +602,20 @@ const struct LogStructure Copter::log_structure[] = {
 
     { LOG_GUIDED_ATTITUDE_TARGET_MSG, sizeof(log_Guided_Attitude_Target),
       "GUIA",  "QBffffffff",    "TimeUS,Type,Roll,Pitch,Yaw,RollRt,PitchRt,YawRt,Thrust,ClimbRt", "s-dddkkk-n", "F-000000-0" , true },
+
+// @LoggerMessage: CCDT
+// @Description: CCDL Timeout information
+// @Field: TimeUS: Time since system startup
+// @Field: instance: CCDL instance number
+// @Field: seq: CCDL0 sequence number
+// @Field: seq_err: CCDL0 sequence error
+// @Field: time_usec: CDDL0 received sent time
+// @Field: time_usec_err: CCDL0 receive sent time error
+// @Field: last_seen_time: Last received message time
+// @Field: timeoutccdl: CCDL timed out
+// @Field: last_timeout: CCDL last timeout time
+    { LOG_CCDL_TIMEOUT_MSG, sizeof (log_CCDL_Timeout),
+      "CCDT", "QBIBQBQBQ", "TimeUS, I, Seq, SErr, T, TErr, LastS, Tout, LTout", "s---s-s-s", "F---F-F-F", true},
 };
 
 void Copter::Log_Write_Vehicle_Startup_Messages()
@@ -603,6 +651,7 @@ void Copter::Log_Write_Guided_Attitude_Target(ModeGuided::SubMode target_type, f
 void Copter::Log_Write_SysID_Setup(uint8_t systemID_axis, float waveform_magnitude, float frequency_start, float frequency_stop, float time_fade_in, float time_const_freq, float time_record, float time_fade_out) {}
 void Copter::Log_Write_SysID_Data(float waveform_time, float waveform_sample, float waveform_freq, float angle_x, float angle_y, float angle_z, float accel_x, float accel_y, float accel_z) {}
 void Copter::Log_Write_Vehicle_Startup_Messages() {}
+void Copter::Log_Write_CCDL_Timeout() {}
 
 #if FRAME_CONFIG == HELI_FRAME
 void Copter::Log_Write_Heli() {}
