@@ -28,7 +28,7 @@ local _init_spdweight = TECS_SPDWEIGHT:get()
 
 -- Create param table for "Lua FailSafes"
 local PARAM_TABLE_KEY = 75 -- Does not clash with ready_take_off script table (key = 74)
-assert(param:add_table(PARAM_TABLE_KEY, "LFS_", 7), 'could not add param table')
+assert(param:add_table(PARAM_TABLE_KEY, "LFS_", 9), 'could not add param table')
 
 -- Add params to table
 assert(param:add_param(PARAM_TABLE_KEY, 1, 'RPM_SHORT', 5), 'could not add LFS_RPM_SHORT')
@@ -38,6 +38,8 @@ assert(param:add_param(PARAM_TABLE_KEY, 4, 'FENCE_SHORT', 5), 'could not add LFS
 assert(param:add_param(PARAM_TABLE_KEY, 5, 'FENCE_LONG', 30), 'could not add LFS_FENCE_LONG')
 assert(param:add_param(PARAM_TABLE_KEY, 6, 'GPS_SHORT', 10), 'could not add LFS_GPS_SHORT')
 assert(param:add_param(PARAM_TABLE_KEY, 7, 'GPS_LONG', 60), 'could not add LFS_GPS_LONG')
+assert(param:add_param(PARAM_TABLE_KEY, 8, 'TELEM_SHORT', 10), 'could not add LFS_TELEM_SHORT')
+assert(param:add_param(PARAM_TABLE_KEY, 9, 'TELEM_LONG', 60), 'could not add LFS_TELEM_LONG')
 
 local LFS_RPM_SHORT = Parameter("LFS_RPM_SHORT")
 local LFS_RPM_LONG = Parameter("LFS_RPM_LONG")
@@ -46,6 +48,8 @@ local LFS_FENCE_SHORT = Parameter("LFS_FENCE_SHORT")
 local LFS_FENCE_LONG = Parameter("LFS_FENCE_LONG")
 local LFS_GPS_SHORT = Parameter("LFS_GPS_SHORT")
 local LFS_GPS_LONG = Parameter("LFS_GPS_LONG")
+local LFS_TELEM_SHORT = Parameter("LFS_TELEM_SHORT")
+local LFS_TELEM_LONG = Parameter("LFS_TELEM_LONG")
 
 local MODE_RTL = 11
 
@@ -216,7 +220,36 @@ function check_gps(now_ms)
 
    -- if we got this far we are not in failsafe yet
    return false
+end
 
+
+-- track if we have seen a given instance of GPS scince boot
+local _last_gcs_time = uint32_t(0)
+function check_gcs(now_ms)
+
+   _last_gcs_time = gcs:last_seen()
+
+   if _last_gcs_time == 0 then
+      -- we haven't seen a GCS yet
+      return true
+   end
+
+   local time_since_last = (now_ms - _last_gcs_time):tofloat()
+
+   -- Long failsafe timer
+   if time_since_last >= LFS_TELEM_LONG:get()*1000 then
+      _in_failsafe_long = true
+      return true
+   end
+
+   -- Short failsafe timer
+   if time_since_last >= LFS_TELEM_SHORT:get()*1000 then
+      _in_failsafe_short = true
+      return true
+   end
+
+   -- if we got this far we are not in failsafe yet
+   return false
 end
 
 
@@ -234,9 +267,10 @@ function update()
    local in_rpm_fs = check_engine(now_ms)
    local in_fence_fs = check_fence(now_ms)
    local in_gps_fs = check_gps(now_ms)
+   local in_gcs_fs = check_gcs(now_ms)
 
    -- Check if we can clear the failsafes
-   if (not in_rpm_fs) and (not in_fence_fs) and (not in_gps_fs) then
+   if (not in_rpm_fs) and (not in_fence_fs) and (not in_gps_fs) and (not in_gcs_fs) then
       -- TODO: Do we want to cancel the failesafes here. For example, a dodgey RPM sensor cutting in and out will may keep cancelling the long failsafe mean while the aircraft is loosing height
       reset_fs()
    end
@@ -245,14 +279,16 @@ function update()
    local reason = 0
    local reason_bm = 0
    if (in_fence_fs) then
-      -- RPM reason should always be last as this can result in an engine failure and we want short action to modify speed weight for safe gliding
       reason = REASON_GEOFENCE_FS
       reason_bm = reason_bm | 1 << REASON_GEOFENCE_FS
    end
    if (in_gps_fs) then
-      -- RPM reason should always be last as this can result in an engine failure and we want short action to modify speed weight for safe gliding
       reason = REASON_GPS_FS
       reason_bm = reason_bm | 1 << REASON_GPS_FS
+   end
+   if (in_gcs_fs) then
+      reason = REASON_TELEM_FS
+      reason_bm = reason_bm | 1 << REASON_TELEM_FS
    end
    if (in_rpm_fs) then
       -- RPM reason should always be last as this can result in an engine failure and we want short action to modify speed weight for safe gliding
@@ -265,7 +301,8 @@ function update()
    -- rpm = RPM from provided instance
    -- FR = Fence breach Reason
    -- GT = last Gps Time
-   logger.write('LFS','R,rpm,FR,GT','IfII', uint32_t(reason_bm), _rpm, uint32_t(_breach_bm), _last_gps_time)
+   -- TT = last Telemetry Time
+   logger.write('LFS','R,rpm,FR,GT,TT','IfIII', uint32_t(reason_bm), _rpm, uint32_t(_breach_bm), _last_gps_time, _last_gcs_time)
 
    if _in_failsafe_long then
       do_fs_long_action(now_ms, reason)
