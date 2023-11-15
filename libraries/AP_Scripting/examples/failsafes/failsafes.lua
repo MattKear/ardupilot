@@ -28,7 +28,7 @@ local _init_spdweight = TECS_SPDWEIGHT:get()
 
 -- Create param table for "Lua FailSafes"
 local PARAM_TABLE_KEY = 75 -- Does not clash with ready_take_off script table (key = 74)
-assert(param:add_table(PARAM_TABLE_KEY, "LFS_", 9), 'could not add param table')
+assert(param:add_table(PARAM_TABLE_KEY, "LFS_", 11), 'could not add param table')
 
 -- Add params to table
 assert(param:add_param(PARAM_TABLE_KEY, 1, 'RPM_SHORT', 5), 'could not add LFS_RPM_SHORT')
@@ -40,6 +40,8 @@ assert(param:add_param(PARAM_TABLE_KEY, 6, 'GPS_SHORT', 10), 'could not add LFS_
 assert(param:add_param(PARAM_TABLE_KEY, 7, 'GPS_LONG', 60), 'could not add LFS_GPS_LONG')
 assert(param:add_param(PARAM_TABLE_KEY, 8, 'TELEM_SHORT', 10), 'could not add LFS_TELEM_SHORT')
 assert(param:add_param(PARAM_TABLE_KEY, 9, 'TELEM_LONG', 60), 'could not add LFS_TELEM_LONG')
+assert(param:add_param(PARAM_TABLE_KEY, 10, 'HOME_DIST', 50), 'could not add LFS_HOME_DIST')
+assert(param:add_param(PARAM_TABLE_KEY, 11, 'HOME_ALT', 20), 'could not add LFS_HOME_ALT')
 
 local LFS_RPM_SHORT = Parameter("LFS_RPM_SHORT")
 local LFS_RPM_LONG = Parameter("LFS_RPM_LONG")
@@ -50,12 +52,15 @@ local LFS_GPS_SHORT = Parameter("LFS_GPS_SHORT")
 local LFS_GPS_LONG = Parameter("LFS_GPS_LONG")
 local LFS_TELEM_SHORT = Parameter("LFS_TELEM_SHORT")
 local LFS_TELEM_LONG = Parameter("LFS_TELEM_LONG")
+local LFS_HOME_DIST = Parameter("LFS_HOME_DIST")
+local LFS_HOME_ALT = Parameter("LFS_HOME_ALT")
 
 local MODE_RTL = 11
 
 local _in_failsafe_short = false
 local _in_failsafe_long = false
 local _have_set_mode = false
+local _in_home_bubble = false
 
 local _last_lua_fs_msg_sent = uint32_t(0)
 
@@ -257,16 +262,29 @@ end
 -- example main loop function
 function update()
 
-   -- TODO: add in check distance from home
    if (not arming:is_armed()) or (not vehicle:get_likely_flying()) then
       return
    end
 
    local now_ms = millis()
 
+   -- Update gps failsafe check irrelevent of whether we are within the home bubble or not
+   local in_gps_fs = check_gps(now_ms)
+
+   -- Ensure we have a current GPS data packet, independant of the LFS_GPS_* times
+   _in_home_bubble = false
+   if (not in_gps_fs) and ((now_ms - _last_gps_time):tofloat() < 1000) and (ahrs:home_is_set())then
+      -- check if we are within the home bubble before checking the rest of the failsafes
+      -- We do not do this check if we are already in a failsafe
+      local pos = ahrs:get_relative_position_NED_home()
+      if pos and (pos:xy():length() < LFS_HOME_DIST:get()) and (-pos:z() < LFS_HOME_ALT:get()) then
+         -- don't update failsafes within the home bubble
+         _in_home_bubble = true
+      end
+   end
+
    local in_rpm_fs = check_engine(now_ms)
    local in_fence_fs = check_fence(now_ms)
-   local in_gps_fs = check_gps(now_ms)
    local in_gcs_fs = check_gcs(now_ms)
 
    -- Check if we can clear the failsafes
@@ -296,13 +314,23 @@ function update()
       reason_bm = reason_bm | 1 << REASON_RPM_FS
    end
 
+   -- reset all failsafes if we are in the home bubble
+   if _in_home_bubble then
+      reset_fs()
+   end
+
    -- update logs
    -- R = failsafe Reason
    -- rpm = RPM from provided instance
    -- FR = Fence breach Reason
    -- GT = last Gps Time
    -- TT = last Telemetry Time
-   logger.write('LFS','R,rpm,FR,GT,TT','IfIII', uint32_t(reason_bm), _rpm, uint32_t(_breach_bm), _last_gps_time, _last_gcs_time)
+   -- HB = bool, true if in Home Bubble
+   local HB = 0
+   if _in_home_bubble then
+      HB = 1
+   end
+   logger.write('LFS','R,rpm,FR,GT,TT,HB','IfIIII', uint32_t(reason_bm), _rpm, uint32_t(_breach_bm), _last_gps_time, _last_gcs_time, uint32_t(HB))
 
    if _in_failsafe_long then
       do_fs_long_action(now_ms, reason)
