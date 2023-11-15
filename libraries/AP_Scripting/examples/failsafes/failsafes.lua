@@ -28,16 +28,20 @@ local _init_spdweight = TECS_SPDWEIGHT:get()
 
 -- Create param table for "Lua FailSafes"
 local PARAM_TABLE_KEY = 75 -- Does not clash with ready_take_off script table (key = 74)
-assert(param:add_table(PARAM_TABLE_KEY, "LFS_", 3), 'could not add param table')
+assert(param:add_table(PARAM_TABLE_KEY, "LFS_", 5), 'could not add param table')
 
 -- Add params to table
 assert(param:add_param(PARAM_TABLE_KEY, 1, 'RPM_SHORT', 5), 'could not add LFS_RPM_SHORT')
 assert(param:add_param(PARAM_TABLE_KEY, 2, 'RPM_LONG', 30), 'could not add LFS_RPM_SHORT')
 assert(param:add_param(PARAM_TABLE_KEY, 3, 'CHUTE_SPD', 20), 'could not add LFS_CHUTE_SPD')
+assert(param:add_param(PARAM_TABLE_KEY, 4, 'FENCE_SHORT', 5), 'could not add LFS_FENCE_SHORT')
+assert(param:add_param(PARAM_TABLE_KEY, 5, 'FENCE_LONG', 30), 'could not add LFS_FENCE_LONG')
 
 local LFS_RPM_SHORT = Parameter("LFS_RPM_SHORT")
 local LFS_RPM_LONG = Parameter("LFS_RPM_LONG")
 local LFS_CHUTE_SPD = Parameter("LFS_CHUTE_SPD")
+local LFS_FENCE_SHORT = Parameter("LFS_FENCE_SHORT")
+local LFS_FENCE_LONG = Parameter("LFS_FENCE_LONG")
 
 local MODE_RTL = 11
 
@@ -102,6 +106,7 @@ function do_fs_long_action(now_ms, reason)
 
 end
 
+
 function reset_fs()
    _last_lua_fs_msg_sent = 0
    _in_failsafe_short = false
@@ -110,15 +115,12 @@ function reset_fs()
    _confirm_counter = 0
    _set_speed_complete = false
    TECS_SPDWEIGHT:set(_init_spdweight)
+   _breach_bm = 0
 end
 
 
 local _rpm_failed_ms = 0
 function check_engine(now_ms)
-
-   if (not arming:is_armed()) or (not vehicle:get_likely_flying()) then
-      return false
-   end
 
    _rpm = RPM:get_rpm(math.max(ICE_RPM_CHAN:get() - 1, 0))
 
@@ -132,14 +134,47 @@ function check_engine(now_ms)
    -- Long failsafe timer
    if ((now_ms - _rpm_failed_ms):tofloat() >= LFS_RPM_LONG:get()*1000) and (_rpm_failed_ms > 0) then
       _in_failsafe_long = true
+      return true
    end
 
    -- Short failsafe timer
    if ((now_ms - _rpm_failed_ms):tofloat() >= LFS_RPM_SHORT:get()*1000) and (_rpm_failed_ms > 0) then
       _in_failsafe_short = true
+      return true
    end
 
-   return true
+   -- if we got this far we are not in failsafe yet
+   return false
+
+end
+
+
+local _breach_bm = 0
+function check_fence(now_ms)
+
+   _breach_bm = fence:get_breaches()
+
+   if _breach_bm == 0 then
+      return false
+   end
+
+   -- Note: Fence only returns to the first break time so do not have to worry about multiple breaches reseting the timer
+   local breach_time = (now_ms - fence:get_breach_time()):tofloat()
+
+   -- Long failsafe timer
+   if breach_time >= LFS_FENCE_LONG:get()*1000 then
+      _in_failsafe_long = true
+      return true
+   end
+
+   -- Short failsafe timer
+   if breach_time >= LFS_FENCE_SHORT:get()*1000 then
+      _in_failsafe_short = true
+      return true
+   end
+
+   -- if we got this far we are not in failsafe yet
+   return false
 
 end
 
@@ -150,20 +185,29 @@ end
 function update()
 
    -- TODO: add in check distance from home
+   if (not arming:is_armed()) or (not vehicle:get_likely_flying()) then
+      return
+   end
 
    local now_ms = millis()
 
    local in_rpm_fs = check_engine(now_ms)
+   local in_fence_fs = check_fence(now_ms)
 
    -- Check if we can clear the failsafes
-   if (not in_rpm_fs) then
-      -- TODO: Do we want to cancel the failesafes here.  For example, a dodgey RPM sensor cutting in and out will may keep cancelling the long failsafe mean while the aircraft is loosing height
+   if (not in_rpm_fs) and (not in_fence_fs) then
+      -- TODO: Do we want to cancel the failesafes here. For example, a dodgey RPM sensor cutting in and out will may keep cancelling the long failsafe mean while the aircraft is loosing height
       reset_fs()
    end
 
    -- FS Reason bitmask
    local reason = 0
    local reason_bm = 0
+   if (in_fence_fs) then
+      -- RPM reason should always be last as this can result in an engine failure and we want short action to modify speed weight for safe gliding
+      reason = REASON_GEOFENCE_FS
+      reason_bm = reason_bm | 1 << REASON_GEOFENCE_FS
+   end
    if (in_rpm_fs) then
       -- RPM reason should always be last as this can result in an engine failure and we want short action to modify speed weight for safe gliding
       reason = REASON_RPM_FS
@@ -171,7 +215,10 @@ function update()
    end
 
    -- update logs
-   logger.write('LFS','R,rpm','If', uint32_t(reason_bm), _rpm)
+   -- R = Failsafe reason
+   -- rpm = RPM from provided instance
+   -- FR = Fence breach reason
+   logger.write('LFS','R,rpm,FR','IfI', uint32_t(reason_bm), _rpm, uint32_t(_breach_bm))
 
    -- update telem
    gcs:send_named_float("FSRP", _rpm)
