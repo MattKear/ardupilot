@@ -1119,7 +1119,7 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @Description: Enable CCDL timeout enable
     // @Values: 0:Disabled, 1:Enabled
     // @User: Standard
-    AP_GROUPINFO("CCDL_TOUT_ENABLE", 58, ParametersG2, ccdl_timeout_enabled, 1),
+    AP_GROUPINFO("CCDL_TOUT_ENABLE", 58, ParametersG2, ccdl_timeout_enabled, 0),
     AP_GROUPEND
 };
 
