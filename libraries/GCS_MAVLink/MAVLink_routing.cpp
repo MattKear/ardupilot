@@ -132,15 +132,17 @@ bool MAVLink_routing::check_and_forward(mavlink_channel_t in_channel, const mavl
     int16_t target_component = -1;
     get_targets(msg, target_system, target_component);
 
-    // TODO : skip_channel shoudl be an array ...
+    std::array<bool, MAVLINK_COMM_NUM_BUFFERS> skip_channels {false};
     auto skip_channel = check_ccdl_forward(in_channel, msg, 0, 1);
     if (skip_channel == MAVLINK_MAX_CHANNEL_T) {
         return true;
     }
+    skip_channels[skip_channel] = true;
     skip_channel = check_ccdl_forward(in_channel, msg, 1, 0);
     if (skip_channel == MAVLINK_MAX_CHANNEL_T) {
         return true;
     }
+    skip_channels[skip_channel] = true;
 
     bool broadcast_system = (target_system == 0 || target_system == -1);
     bool broadcast_component = (target_component == 0 || target_component == -1);
@@ -166,7 +168,7 @@ bool MAVLink_routing::check_and_forward(mavlink_channel_t in_channel, const mavl
              target_component != routes[i].compid)) {
             continue;
         }
-        if (routes[i].channel == skip_channel) {
+        if (skip_channels[routes[i].channel]) {
             continue;
         }
 
@@ -228,7 +230,7 @@ mavlink_channel_t MAVLink_routing::check_ccdl_forward(mavlink_channel_t in_chann
                 return MAVLINK_MAX_CHANNEL_T;  // if hb my working from other ccdl, don't forward
             }
         }
-        // generic case , don't forward between ccdl if hb other is passing
+        // generic case, we received from non ccdl device on ccdl channel , don't forward on the other ccdl channel if hb other is working there
         if (ccdl_routing_current_sysid.ccdl[idx2].primary_route_working) {
             skip_channel = ccdl_routing_current_sysid.ccdl[idx2].mavlink_channel;
         }
@@ -401,7 +403,7 @@ void MAVLink_routing::handle_heartbeat(mavlink_channel_t in_channel, const mavli
     mask &= ~(1U<<(in_channel-MAVLINK_COMM_0));
     
     // mask out channels that do not want the heartbeat to be forwarded
-    // mask &= ~no_route_mask; // MANNA
+    mask &= ~no_route_mask;
 
     update_ccdl_routing(in_channel, msg);
 
