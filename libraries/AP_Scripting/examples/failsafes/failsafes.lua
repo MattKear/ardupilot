@@ -1,3 +1,5 @@
+-- Lua Failsafe Script V1.0
+
 -- Script to add failsafe functionaility in the event of the following:
    -- Loss of GPS
    -- Loss of GCS
@@ -8,16 +10,17 @@
    -- first action (on short timer) is to change to RTL and slow speed to safe deployable chute speed
    -- second action (on long timer) is to just deplot chute
 
+-- Bind a parameter to a variable
+function bind_param(name)
+   local p = Parameter()
+   assert(p:init(name), string.format('could not find %s parameter', name))
+   return p
+end
+
 -- Use ICE param for the minimum RPM to be conisdered running
 local ICE_RPM_THRESH = Parameter()
 if not ICE_RPM_THRESH:init('ICE_RPM_THRESH') then
    gcs:send_text(6, 'get ICE_RPM_THRESH failed')
-end
-
--- Need to know what instance of RPM the ICE library is using
-local ICE_RPM_CHAN = Parameter()
-if not ICE_RPM_CHAN:init('ICE_RPM_CHAN') then
-   gcs:send_text(6, 'get ICE_RPM_CHAN failed')
 end
 
 local TECS_SPDWEIGHT = Parameter()
@@ -28,7 +31,7 @@ local _init_spdweight = TECS_SPDWEIGHT:get()
 
 -- Create param table for "Lua FailSafes"
 local PARAM_TABLE_KEY = 75 -- Does not clash with ready_take_off script table (key = 74)
-assert(param:add_table(PARAM_TABLE_KEY, "LFS_", 11), 'could not add param table')
+assert(param:add_table(PARAM_TABLE_KEY, "LFS_", 12), 'could not add param table')
 
 -- Add params to table
 assert(param:add_param(PARAM_TABLE_KEY, 1, 'RPM_SHORT', 5), 'could not add LFS_RPM_SHORT')
@@ -42,18 +45,21 @@ assert(param:add_param(PARAM_TABLE_KEY, 8, 'TELEM_SHORT', 10), 'could not add LF
 assert(param:add_param(PARAM_TABLE_KEY, 9, 'TELEM_LONG', 60), 'could not add LFS_TELEM_LONG')
 assert(param:add_param(PARAM_TABLE_KEY, 10, 'HOME_DIST', 50), 'could not add LFS_HOME_DIST')
 assert(param:add_param(PARAM_TABLE_KEY, 11, 'HOME_ALT', 20), 'could not add LFS_HOME_ALT')
+assert(param:add_param(PARAM_TABLE_KEY, 12, 'RPM_CHAN', 1), 'could not add LFS_RPM_CHAN')
 
-local LFS_RPM_SHORT = Parameter("LFS_RPM_SHORT")
-local LFS_RPM_LONG = Parameter("LFS_RPM_LONG")
-local LFS_CHUTE_SPD = Parameter("LFS_CHUTE_SPD")
-local LFS_FENCE_SHORT = Parameter("LFS_FENCE_SHORT")
-local LFS_FENCE_LONG = Parameter("LFS_FENCE_LONG")
-local LFS_GPS_SHORT = Parameter("LFS_GPS_SHORT")
-local LFS_GPS_LONG = Parameter("LFS_GPS_LONG")
-local LFS_TELEM_SHORT = Parameter("LFS_TELEM_SHORT")
-local LFS_TELEM_LONG = Parameter("LFS_TELEM_LONG")
-local LFS_HOME_DIST = Parameter("LFS_HOME_DIST")
-local LFS_HOME_ALT = Parameter("LFS_HOME_ALT")
+
+local LFS_RPM_SHORT = bind_param("LFS_RPM_SHORT")
+local LFS_RPM_LONG = bind_param("LFS_RPM_LONG")
+local LFS_CHUTE_SPD = bind_param("LFS_CHUTE_SPD")
+local LFS_FENCE_SHORT = bind_param("LFS_FENCE_SHORT")
+local LFS_FENCE_LONG = bind_param("LFS_FENCE_LONG")
+local LFS_GPS_SHORT = bind_param("LFS_GPS_SHORT")
+local LFS_GPS_LONG = bind_param("LFS_GPS_LONG")
+local LFS_TELEM_SHORT = bind_param("LFS_TELEM_SHORT")
+local LFS_TELEM_LONG = bind_param("LFS_TELEM_LONG")
+local LFS_HOME_DIST = bind_param("LFS_HOME_DIST")
+local LFS_HOME_ALT = bind_param("LFS_HOME_ALT")
+local LFS_RPM_CHAN = bind_param("LFS_RPM_CHAN")
 
 local MODE_RTL = 11
 
@@ -86,7 +92,7 @@ function do_fs_short_action(now_ms, reason)
 
    -- Tell user that we are in a failsafe
    if ((now_ms - _last_lua_fs_msg_sent):tofloat() > 5000.0) or (_last_lua_fs_msg_sent == 0) then
-      gcs:send_text(2, " LFS: " .. _fs_reason_str[reason] .. ", Short")
+      gcs:send_text(2, "LFS: " .. _fs_reason_str[reason] .. ", Short")
       _last_lua_fs_msg_sent = now_ms
    end
 
@@ -113,7 +119,7 @@ function do_fs_long_action(now_ms, reason)
    parachute:release()
 
    if ((now_ms - _last_lua_fs_msg_sent):tofloat() > 5000.0) or (_last_lua_fs_msg_sent == 0) then
-      gcs:send_text(2, " LFS: " .. _fs_reason_str[reason] .. ", Long")
+      gcs:send_text(2, "LFS: " .. _fs_reason_str[reason] .. ", Long")
       _last_lua_fs_msg_sent = now_ms
    end
 
@@ -135,7 +141,8 @@ end
 local _rpm_failed_ms = 0
 function check_engine(now_ms)
 
-   _rpm = RPM:get_rpm(math.max(ICE_RPM_CHAN:get() - 1, 0))
+   _rpm = RPM:get_rpm(math.max(LFS_RPM_CHAN:get() - 1, 0))
+   gcs:send_named_float("rpm_test", _rpm)
 
    if (_rpm < ICE_RPM_THRESH:get()) and (_rpm_failed_ms == 0) then
       _rpm_failed_ms = now_ms
@@ -188,7 +195,6 @@ function check_fence(now_ms)
 
    -- if we got this far we are not in failsafe yet
    return false
-
 end
 
 -- track if we have seen a given instance of GPS scince boot
@@ -258,7 +264,6 @@ function check_gcs(now_ms)
 end
 
 
-
 -- example main loop function
 function update()
 
@@ -289,7 +294,10 @@ function update()
 
    -- Check if we can clear the failsafes
    if (not in_rpm_fs) and (not in_fence_fs) and (not in_gps_fs) and (not in_gcs_fs) then
-      -- TODO: Do we want to cancel the failesafes here. For example, a dodgey RPM sensor cutting in and out will may keep cancelling the long failsafe mean while the aircraft is loosing height
+      -- Tell the user the failsafe has cleared
+      if (_in_failsafe_short) then
+         gcs:send_text(2, "LFS: FS Cleared")
+      end
       reset_fs()
    end
 
@@ -339,10 +347,7 @@ function update()
    if _in_failsafe_short then
       do_fs_short_action(now_ms, reason)
    end
-
 end
-
-
 
 
 function protected_wrapper()
@@ -359,16 +364,3 @@ end
 
 -- delay start of running 
 return protected_wrapper, 5000
-
-
-
-
-
-
-
-
-
-
-
-
-
