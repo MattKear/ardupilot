@@ -463,6 +463,9 @@ void Copter::ccdl_failover()
 {
     if (g2.ccdl_timeout_enabled) {
         const auto tnow = AP_HAL::micros64();
+        if (g.sysid_this_mav < 1 || g.sysid_this_mav > 3 ) {
+            return; // only accept from 1-3
+        }
         const auto my_id = g.sysid_this_mav - 1;
         ccdl_timeout[my_id].seq++;
         ccdl_timeout[my_id].time_usec = tnow;
@@ -480,7 +483,7 @@ void Copter::ccdl_failover()
             }
         }
         const auto ccdl0 = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[0].primary_route_sysid_target - 1;
-        const auto ccdl1= GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].primary_route_sysid_target - 1;
+        const auto ccdl1 = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].primary_route_sysid_target - 1;
         if (ccdl_timeout[ccdl0].timeout_ccdl && ccdl_timeout[ccdl1].timeout_ccdl) {
             // we are the culprit, don't vote
             if (tnow - ccdl_timeout[ccdl0].last_timeout >= 1000000U) {

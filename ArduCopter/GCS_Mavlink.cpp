@@ -1079,6 +1079,9 @@ void GCS_MAVLINK_Copter::handleMessage(const mavlink_message_t &msg)
     {
         mavlink_ccdl_timeout_t packet;
         mavlink_msg_ccdl_timeout_decode(&msg, &packet);
+        if (msg.sysid < 1 || msg.sysid > 3 ) {
+            break; // only accept from 1-3
+        }
         const auto sender_id = msg.sysid - 1;
 //        if (copter.g2.ccdl_timeout_enabled > 1) {
 //            gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV : receviced frm %d, trg % d", sender_id, packet.target_system);
