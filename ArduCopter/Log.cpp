@@ -452,7 +452,7 @@ void Copter::Log_Write_CCDL_Timeout()
 // units and "Format characters" for field type information
 const struct LogStructure Copter::log_structure[] = {
     LOG_COMMON_STRUCTURES,
-    
+
 // @LoggerMessage: PTUN
 // @Description: Parameter Tuning information
 // @URL: https://ardupilot.org/copter/docs/tuning.html#in-flight-tuning
@@ -515,17 +515,17 @@ const struct LogStructure Copter::log_structure[] = {
 
     { LOG_CONTROL_TUNING_MSG, sizeof(log_Control_Tuning),
       "CTUN", "Qffffffefffhhbf", "TimeUS,ThI,b,ThO,ThH,DAlt,Alt,BAlt,DSAlt,SAlt,TAlt,DCRt,CRt,S,Tm", "s----mmmmmmnn--", "F----00B000BB--", true },
-    { LOG_DATA_INT16_MSG, sizeof(log_Data_Int16t),         
+    { LOG_DATA_INT16_MSG, sizeof(log_Data_Int16t),
       "D16",   "QBh",         "TimeUS,Id,Value", "s--", "F--" },
-    { LOG_DATA_UINT16_MSG, sizeof(log_Data_UInt16t),         
+    { LOG_DATA_UINT16_MSG, sizeof(log_Data_UInt16t),
       "DU16",  "QBH",         "TimeUS,Id,Value", "s--", "F--" },
-    { LOG_DATA_INT32_MSG, sizeof(log_Data_Int32t),         
+    { LOG_DATA_INT32_MSG, sizeof(log_Data_Int32t),
       "D32",   "QBi",         "TimeUS,Id,Value", "s--", "F--" },
-    { LOG_DATA_UINT32_MSG, sizeof(log_Data_UInt32t),         
+    { LOG_DATA_UINT32_MSG, sizeof(log_Data_UInt32t),
       "DU32",  "QBI",         "TimeUS,Id,Value", "s--", "F--" },
-    { LOG_DATA_FLOAT_MSG, sizeof(log_Data_Float),         
+    { LOG_DATA_FLOAT_MSG, sizeof(log_Data_Float),
       "DFLT",  "QBf",         "TimeUS,Id,Value", "s--", "F--" },
-    
+
 // @LoggerMessage: HELI
 // @Description: Helicopter related messages 
 // @Field: TimeUS: Time since system startup
@@ -606,16 +606,18 @@ const struct LogStructure Copter::log_structure[] = {
 // @LoggerMessage: CCDT
 // @Description: CCDL Timeout information
 // @Field: TimeUS: Time since system startup
-// @Field: instance: CCDL instance number
-// @Field: seq: CCDL0 sequence number
-// @Field: seq_err: CCDL0 sequence error
-// @Field: time_usec: CDDL0 received sent time
-// @Field: time_usec_err: CCDL0 receive sent time error
-// @Field: last_seen_time: Last received message time
-// @Field: timeoutccdl: CCDL timed out
-// @Field: last_timeout: CCDL last timeout time
-    { LOG_CCDL_TIMEOUT_MSG, sizeof (log_CCDL_Timeout),
-      "CCDT", "QBIBQBQBQ", "TimeUS, I, Seq, SErr, T, TErr, LastS, Tout, LTout", "s---s-s-s", "F---F-F-F", true},
+// @Field: I: CCDL instance number
+// @Field: Seq: CCDL sequence number
+// @Field: SErr: CCDL sequence error
+// @Field: T: CDDL received sent time
+// @Field: TErr: CCDL receive sent time error
+// @Field: LastS: Last received message time
+// @Field: Tout: CCDL timed out
+// @Field: LTout: CCDL last timeout time
+
+    { LOG_CCDL_TIMEOUT_MSG, sizeof(log_CCDL_Timeout),
+      "CCDT", "QBIBQBQBQ", "TimeUS,I,Seq,SErr,T,TErr,LastS,Tout,LTout", "s---s-s-s", "F---F-F-F", true },
+
 };
 
 void Copter::Log_Write_Vehicle_Startup_Messages()

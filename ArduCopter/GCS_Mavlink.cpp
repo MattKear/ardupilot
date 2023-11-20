@@ -1109,7 +1109,7 @@ void GCS_MAVLINK_Copter::handleMessage(const mavlink_message_t &msg)
         } else {
             copter.ccdl_timeout[sender_id].time_usec = packet.time_usec;
         }
-        copter.ccdl_timeout[sender_id].last_seen_time = AP_HAL::micros();
+        copter.ccdl_timeout[sender_id].last_seen_time = AP_HAL::micros64();
 
         break;
     }
