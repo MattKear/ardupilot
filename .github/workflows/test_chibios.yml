@@ -144,7 +144,7 @@ jobs:
             # fmuv2-plane,
             # periph-build,
             iofirmware,
-            CubeOrange-bootloader,
+            #CubeOrange-bootloader,
             # revo-bootloader,
             #stm32h7-debug,
             #fmuv3,
