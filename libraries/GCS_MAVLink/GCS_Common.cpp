@@ -3543,6 +3543,7 @@ void GCS_MAVLINK::handle_common_message(const mavlink_message_t &msg)
         handle_timesync(msg);
         break;
     case MAVLINK_MSG_ID_LOG_REQUEST_LIST:
+    case MAVLINK_MSG_ID_LOG_REQUEST_LAST:
     case MAVLINK_MSG_ID_LOG_REQUEST_DATA:
     case MAVLINK_MSG_ID_LOG_ERASE:
     case MAVLINK_MSG_ID_LOG_REQUEST_END:
