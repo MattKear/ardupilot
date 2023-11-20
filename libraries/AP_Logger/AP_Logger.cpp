@@ -826,6 +826,8 @@ void AP_Logger::handle_mavlink_msg(GCS_MAVLINK &link, const mavlink_message_t &m
         break;
     case MAVLINK_MSG_ID_LOG_REQUEST_LIST:
         FALLTHROUGH;
+    case MAVLINK_MSG_ID_LOG_REQUEST_LAST:
+        FALLTHROUGH;
     case MAVLINK_MSG_ID_LOG_REQUEST_DATA:
         FALLTHROUGH;
     case MAVLINK_MSG_ID_LOG_ERASE:
