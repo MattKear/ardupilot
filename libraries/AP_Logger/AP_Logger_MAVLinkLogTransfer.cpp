@@ -49,7 +49,7 @@ void AP_Logger::handle_log_message(GCS_MAVLINK &link, const mavlink_message_t &m
         handle_log_request_list(link, msg);
         break;
     case MAVLINK_MSG_ID_LOG_REQUEST_LAST:
-        handle_log_request_last(link, msg);
+        handle_log_request_last(link);
         break;
     case MAVLINK_MSG_ID_LOG_REQUEST_DATA:
         handle_log_request_data(link, msg);
@@ -104,7 +104,7 @@ void AP_Logger::handle_log_request_list(GCS_MAVLINK &link, const mavlink_message
 /**
    handle a request for the last log entry
 */
-void AP_Logger::handle_log_request_last(GCS_MAVLINK &link, const mavlink_message_t &msg)
+void AP_Logger::handle_log_request_last(GCS_MAVLINK &link)
 {
     WITH_SEMAPHORE(_log_send_sem);
 
@@ -112,9 +112,6 @@ void AP_Logger::handle_log_request_last(GCS_MAVLINK &link, const mavlink_message
         link.send_text(MAV_SEVERITY_INFO, "Log download in progress");
         return;
     }
-
-    mavlink_log_request_list_t packet;
-    mavlink_msg_log_request_list_decode(&msg, &packet);
 
     _log_num_logs = get_num_logs();
 

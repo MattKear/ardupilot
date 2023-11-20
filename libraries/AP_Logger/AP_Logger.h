@@ -622,7 +622,7 @@ private:
     void handle_log_message(class GCS_MAVLINK &, const mavlink_message_t &msg);
 
     void handle_log_request_list(class GCS_MAVLINK &, const mavlink_message_t &msg);
-    void handle_log_request_last(GCS_MAVLINK &link, const mavlink_message_t &msg);
+    void handle_log_request_last(GCS_MAVLINK &link);
     void handle_log_request_data(class GCS_MAVLINK &, const mavlink_message_t &msg);
     void handle_log_request_erase(class GCS_MAVLINK &, const mavlink_message_t &msg);
     void handle_log_request_end(class GCS_MAVLINK &, const mavlink_message_t &msg);
