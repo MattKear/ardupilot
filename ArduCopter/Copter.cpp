@@ -480,6 +480,8 @@ void Copter::ccdl_failover()
             mavlink_msg_ccdl_timeout_send_struct(GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].mavlink_channel, &pkt_ccdl);
             if (tnow - ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].last_seen_time > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_US) {
                 ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].timeout_ccdl = true;
+            } else {
+                ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].timeout_ccdl = false;
             }
         }
         const auto ccdl0 = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[0].primary_route_sysid_target - 1;
