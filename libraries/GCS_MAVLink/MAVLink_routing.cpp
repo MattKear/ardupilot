@@ -211,7 +211,6 @@ mavlink_channel_t MAVLink_routing::check_ccdl_forward(mavlink_channel_t in_chann
     // New routing for CCDL channel
     // Only forward packet to the direct target with the simplest route
     const auto& ccdl_routing_current_sysid = GCS_MAVLINK::ccdl_routing_tables[mavlink_system.sysid - 1];
-    mavlink_channel_t skip_channel = MAVLINK_MAX_CHANNEL_T;
     // check if we are on a CCDL channel
     if (in_channel == ccdl_routing_current_sysid.ccdl[idx1].mavlink_channel) {
         // check if the message is coming from this channel backup target
@@ -220,7 +219,7 @@ mavlink_channel_t MAVLink_routing::check_ccdl_forward(mavlink_channel_t in_chann
             if (ccdl_routing_current_sysid.ccdl[idx2].primary_route_working) {
                 return MAVLINK_MAX_CHANNEL_T;  // if direct route works, don't forward
             } else {
-                skip_channel = ccdl_routing_current_sysid.ccdl[idx2].mavlink_channel;  // direct route is not working, skip forwarding on the other CCDL channel
+                return ccdl_routing_current_sysid.ccdl[idx2].mavlink_channel;  // direct route is not working, skip forwarding on the other CCDL channel
             }
         }
         // check if the message is coming from this channel direct target
@@ -232,10 +231,10 @@ mavlink_channel_t MAVLink_routing::check_ccdl_forward(mavlink_channel_t in_chann
         }
         // generic case, we received from non ccdl device on ccdl channel , don't forward on the other ccdl channel if hb other is working there
         if (ccdl_routing_current_sysid.ccdl[idx2].primary_route_working) {
-            skip_channel = ccdl_routing_current_sysid.ccdl[idx2].mavlink_channel;
+            return ccdl_routing_current_sysid.ccdl[idx2].mavlink_channel;
         }
     }
-    return skip_channel;
+    return MAVLINK_NON_CCDL_CHANNEL_T;
 }
 
 /*
