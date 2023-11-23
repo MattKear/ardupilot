@@ -96,6 +96,11 @@ function do_fs_short_action(now_ms, reason)
       _last_lua_fs_msg_sent = now_ms
    end
 
+   -- return early if we are inside the home bubble so that we have notified the user but do not enact the failsafe action
+   if _in_home_bubble then
+      return
+   end
+
    -- Change to RTL without spamming to allow user to take back control
    if (vehicle:get_mode() ~= MODE_RTL) and (not _have_set_mode) then
       vehicle:set_mode(MODE_RTL)
@@ -115,12 +120,15 @@ end
 
 
 function do_fs_long_action(now_ms, reason)
-   -- release the chute
-   parachute:release()
-
+   -- Notify the user that we are in long failsafe
    if ((now_ms - _last_lua_fs_msg_sent):tofloat() > 5000.0) or (_last_lua_fs_msg_sent == 0) then
       gcs:send_text(2, "LFS: " .. _fs_reason_str[reason] .. ", Long")
       _last_lua_fs_msg_sent = now_ms
+   end
+
+   -- release the chute if not in the home bubble
+   if not _in_home_bubble then
+      parachute:release()
    end
 
 end
@@ -320,11 +328,6 @@ function update()
       -- RPM reason should always be last as this can result in an engine failure and we want short action to modify speed weight for safe gliding
       reason = REASON_RPM_FS
       reason_bm = reason_bm | 1 << REASON_RPM_FS
-   end
-
-   -- reset all failsafes if we are in the home bubble
-   if _in_home_bubble then
-      reset_fs()
    end
 
    -- update logs
