@@ -462,11 +462,24 @@ void Copter::nav_script_time_done(uint16_t id)
 void Copter::ccdl_failover()
 {
     if (g2.ccdl_timeout_enabled) {
-        const auto tnow = AP_HAL::micros64();
+
         if (g.sysid_this_mav < 1 || g.sysid_this_mav > 3 ) {
             return; // only accept from 1-3
         }
         const auto my_id = g.sysid_this_mav - 1;
+        // Forget ccdl route after timeout.
+        const auto tnow_ms = AP_HAL::millis();
+        auto &ccdl_routing_current_sysid = GCS_MAVLINK::ccdl_routing_tables[my_id];
+        for (auto &i: ccdl_routing_current_sysid.ccdl) {
+            if (tnow_ms - i.primary_route_last_hb > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_MS) {
+                i.primary_route_working = false;
+            }
+            if (tnow_ms - i.backup_route_last_hb > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_MS) {
+                i.backup_route_working = false;
+            }
+        }
+
+        const auto tnow = AP_HAL::micros64();
         ccdl_timeout[my_id].seq++;
         ccdl_timeout[my_id].time_usec = tnow;
         for (auto i=0; i<2; i++) {

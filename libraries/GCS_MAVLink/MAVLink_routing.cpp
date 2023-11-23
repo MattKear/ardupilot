@@ -379,14 +379,6 @@ void MAVLink_routing::update_ccdl_routing(mavlink_channel_t in_channel, const ma
             }
         }
     }
-    for (auto & i : ccdl_routing_current_sysid.ccdl) {
-        if (tnow - i.primary_route_last_hb > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_MS) {
-            i.primary_route_working = false;
-        }
-        if (tnow - i.backup_route_last_hb > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_MS) {
-            i.backup_route_working  = false;
-        }
-    }
 }
 /*
   special handling for heartbeat messages. To ensure routing
