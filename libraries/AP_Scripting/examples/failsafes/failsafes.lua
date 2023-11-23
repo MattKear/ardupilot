@@ -62,12 +62,15 @@ local LFS_HOME_ALT = bind_param("LFS_HOME_ALT")
 local LFS_RPM_CHAN = bind_param("LFS_RPM_CHAN")
 
 local MODE_RTL = 11
+local MODE_MANUAL = 0
+local REASON_RC = 1
 
 local _in_failsafe_short = false
 local _in_failsafe_long = false
 local _have_set_mode = false
 local _in_home_bubble = false
 local _armed_and_flying = false
+local _in_manual_on_rc = false
 
 local arm_check_auth_id = arming:get_aux_auth_id()
 
@@ -130,7 +133,7 @@ function do_fs_long_action(now_ms, reason)
    end
 
    -- release the chute if not in the home bubble and flying
-   if (_armed_and_flying) and (not _in_home_bubble) then
+   if (_armed_and_flying) and (not _in_home_bubble) and (not _in_manual_on_rc) then
       parachute:release()
    end
 
@@ -146,6 +149,7 @@ function reset_fs()
    _set_speed_complete = false
    TECS_SPDWEIGHT:set(_init_spdweight)
    _breach_bm = 0
+   _in_manual_on_rc = false
 end
 
 
@@ -374,6 +378,11 @@ function update()
       HB = 1
    end
    logger.write('LFS','R,rpm,FR,FS,GT,GS,TT,TS,HB','IfIfIfIfI', uint32_t(reason_bm), _rpm, uint32_t(_breach_bm), _time_since_breach, _last_gps_time, _time_since_last_gps, _last_gcs_time, _time_since_last_gcs, uint32_t(HB))
+
+   -- Check if the user has changed to manual via the transmitter. We will use this as a sign to block shute_deployment
+   if (_in_failsafe_short) then
+      _in_manual_on_rc = (vehicle:get_mode() == MODE_MANUAL) and (vehicle:get_control_mode_reason() == REASON_RC)
+   end
 
    if _in_failsafe_long then
       do_fs_long_action(now_ms, reason)
