@@ -1,4 +1,14 @@
--- Lua Failsafe Script V1.0
+-- Lua Failsafe Script V2.0
+
+-- Change Log:
+   -- V1.0
+      -- initial issue
+   -- V2.0
+      -- Add Uint32 timer race condition wrap protection.
+      -- Don't reset failsafes in the home bubble just block the actions. User still told about the fs.
+      -- Added time since calculation to logging
+      -- Prearm checks for GPS, Fence, and GCS
+      -- Use manual flight mode with mode reason from RC to block long failsafe action
 
 -- Script to add failsafe functionaility in the event of the following:
    -- Loss of GPS
