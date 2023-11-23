@@ -67,6 +67,9 @@ local _in_failsafe_short = false
 local _in_failsafe_long = false
 local _have_set_mode = false
 local _in_home_bubble = false
+local _armed_and_flying = false
+
+local arm_check_auth_id = arming:get_aux_auth_id()
 
 local _last_lua_fs_msg_sent = uint32_t(0)
 
@@ -96,8 +99,8 @@ function do_fs_short_action(now_ms, reason)
       _last_lua_fs_msg_sent = now_ms
    end
 
-   -- return early if we are inside the home bubble so that we have notified the user but do not enact the failsafe action
-   if _in_home_bubble then
+   -- return early if we are inside the home bubble, disarmed, or not flying so that we have notified the user but do not enact the failsafe action
+   if (not _armed_and_flying) or (_in_home_bubble) then
       return
    end
 
@@ -126,8 +129,8 @@ function do_fs_long_action(now_ms, reason)
       _last_lua_fs_msg_sent = now_ms
    end
 
-   -- release the chute if not in the home bubble
-   if not _in_home_bubble then
+   -- release the chute if not in the home bubble and flying
+   if (_armed_and_flying) and (not _in_home_bubble) then
       parachute:release()
    end
 
@@ -293,9 +296,7 @@ end
 -- example main loop function
 function update()
 
-   if (not arming:is_armed()) or (not vehicle:get_likely_flying()) then
-      return
-   end
+   _armed_and_flying = arming:is_armed() and vehicle:get_likely_flying()
 
    local now_ms = millis()
 
@@ -325,6 +326,16 @@ function update()
          gcs:send_text(2, "LFS: FS Cleared")
       end
       reset_fs()
+   end
+
+   -- pre-arm checks
+   if arm_check_auth_id then
+      -- we do not check rpm for a prearm as we may want to arm without the engine started
+      if (not in_fence_fs) and (not in_gps_fs) and (not in_gcs_fs) then
+         arming:set_aux_auth_passed(arm_check_auth_id)
+      else
+         arming:set_aux_auth_failed(arm_check_auth_id, "In LFS failsafe")
+      end
    end
 
    -- FS Reason bitmask
