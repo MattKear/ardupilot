@@ -156,6 +156,11 @@ end
 local _rpm_failed_ms = 0
 function check_engine(now_ms)
 
+   -- do not do RPM check unless we are armed and flying
+   if (not _armed_and_flying) then
+      return false
+   end
+
    _rpm = RPM:get_rpm(math.max(LFS_RPM_CHAN:get() - 1, 0))
 
    if (_rpm < ICE_RPM_THRESH:get()) and (_rpm_failed_ms == 0) then
