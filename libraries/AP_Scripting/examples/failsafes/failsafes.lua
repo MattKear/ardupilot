@@ -154,13 +154,15 @@ function check_engine(now_ms)
 
    if (_rpm < ICE_RPM_THRESH:get()) and (_rpm_failed_ms == 0) then
       _rpm_failed_ms = now_ms
+      -- Only just set the time on this loop so cannot failsafe yet
+      return false
    elseif (_rpm >= ICE_RPM_THRESH:get()) then
       _rpm_failed_ms = 0
       return false
    end
 
    -- Long failsafe timer
-   if ((now_ms - _rpm_failed_ms):tofloat() >= LFS_RPM_LONG:get()*1000) and (_rpm_failed_ms > 0) then
+   if ((now_ms - _rpm_failed_ms):tofloat() >= LFS_RPM_LONG:get()*1000) and (_rpm_failed_ms > 0) and (_in_failsafe_short) then
       _in_failsafe_long = true
       return true
    end
@@ -178,6 +180,7 @@ end
 
 
 local _breach_bm = 0
+local _time_since_breach = 0
 function check_fence(now_ms)
 
    _breach_bm = fence:get_breaches()
@@ -187,16 +190,22 @@ function check_fence(now_ms)
    end
 
    -- Note: Fence only returns to the first break time so do not have to worry about multiple breaches reseting the timer
-   local breach_time = (now_ms - fence:get_breach_time()):tofloat()
+   local _last_fence_breach_time = fence:get_breach_time()
+
+   local _time_since_breach = 0
+   -- Protect against race conditions incase _last_gps_time is larger than now_ms leading to a uint32 wrap.
+   if (_last_fence_breach_time < now_ms) then
+      _time_since_breach = (now_ms - _last_fence_breach_time):tofloat()
+   end
 
    -- Long failsafe timer
-   if breach_time >= LFS_FENCE_LONG:get()*1000 then
+   if (_time_since_breach >= LFS_FENCE_LONG:get()*1000) and (_in_failsafe_short) then
       _in_failsafe_long = true
       return true
    end
 
    -- Short failsafe timer
-   if breach_time >= LFS_FENCE_SHORT:get()*1000 then
+   if _time_since_breach >= LFS_FENCE_SHORT:get()*1000 then
       _in_failsafe_short = true
       return true
    end
@@ -207,6 +216,7 @@ end
 
 -- track if we have seen a given instance of GPS scince boot
 local _last_gps_time = uint32_t(0)
+local _time_since_last_gps = 0
 function check_gps(now_ms)
 
    -- Check both instances of physical gps devices
@@ -223,16 +233,20 @@ function check_gps(now_ms)
       end
    end
 
-   local time_since_last = (now_ms - _last_gps_time):tofloat()
+   _time_since_last_gps = 0
+   -- Protect against race conditions incase _last_gps_time is larger than now_ms leading to a uint32 wrap.
+   if (_last_gps_time < now_ms) then
+      _time_since_last_gps = (now_ms - _last_gps_time):tofloat()
+   end
 
    -- Long failsafe timer
-   if time_since_last >= LFS_GPS_LONG:get()*1000 then
+   if (_time_since_last_gps >= LFS_GPS_LONG:get()*1000) and (_in_failsafe_short) then
       _in_failsafe_long = true
       return true
    end
 
    -- Short failsafe timer
-   if time_since_last >= LFS_GPS_SHORT:get()*1000 then
+   if _time_since_last_gps >= LFS_GPS_SHORT:get()*1000 then
       _in_failsafe_short = true
       return true
    end
@@ -244,6 +258,7 @@ end
 
 -- track if we have seen a given instance of GPS scince boot
 local _last_gcs_time = uint32_t(0)
+local _time_since_last_gcs = 0
 function check_gcs(now_ms)
 
    _last_gcs_time = gcs:last_seen()
@@ -253,16 +268,20 @@ function check_gcs(now_ms)
       return true
    end
 
-   local time_since_last = (now_ms - _last_gcs_time):tofloat()
+   _time_since_last_gcs = 0
+   -- Protect against race conditions incase _last_gcs_time is larger than now_ms leading to a uint32 wrap.
+   if (_last_gcs_time < now_ms) then
+      _time_since_last_gcs = (now_ms - _last_gcs_time):tofloat()
+   end
 
    -- Long failsafe timer
-   if time_since_last >= LFS_TELEM_LONG:get()*1000 then
+   if (_time_since_last_gcs >= LFS_TELEM_LONG:get()*1000) and (_in_failsafe_short) then
       _in_failsafe_long = true
       return true
    end
 
    -- Short failsafe timer
-   if time_since_last >= LFS_TELEM_SHORT:get()*1000 then
+   if _time_since_last_gcs >= LFS_TELEM_SHORT:get()*1000 then
       _in_failsafe_short = true
       return true
    end
