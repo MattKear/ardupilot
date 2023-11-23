@@ -411,5 +411,5 @@ function protected_wrapper()
   return protected_wrapper, 200
 end
 
--- delay start of running 
-return protected_wrapper, 5000
+-- delay start of running to prevent a race condition with GPS devices comming up
+return protected_wrapper, 10000
