@@ -150,7 +150,6 @@ local _rpm_failed_ms = 0
 function check_engine(now_ms)
 
    _rpm = RPM:get_rpm(math.max(LFS_RPM_CHAN:get() - 1, 0))
-   gcs:send_named_float("rpm_test", _rpm)
 
    if (_rpm < ICE_RPM_THRESH:get()) and (_rpm_failed_ms == 0) then
       _rpm_failed_ms = now_ms
