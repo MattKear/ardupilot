@@ -1,0 +1,52 @@
+@startuml ccdl_routing_heartbeat
+
+title "CCDL Routing Logic - HB packet"
+
+start
+:Hearbeat Packet Recived;
+:Check if message should be forward to other mavlink channels;
+if (our own message?) then (yes)
+    :Ingnore message;
+    end
+else (no)
+    :Update register of compnents on the mavlink network per channel;
+    repeat
+        if (the channel the message was recived on is a ccdl channel?) then (yes)
+            if (sent from ccdl route primary route target?) then (yes)
+                :Record the time the heartbeat was recived;
+                :Set the primary route as working;
+            elseif (sent from ccdl route backup route target?) then (yes)
+                :Record the time the heartbeat was recived;
+                :Set the backup route as working;
+            endif
+        endif
+    repeat while (all ccdl channels checked?)
+    repeat
+        if (the channel the message was recived on is a ccdl channel?) then (yes)
+            if (sent from the backup route target?) then (yes)
+                if (other ccdl channels primary route is working?) then (yes)
+                    :Dont forward the heartbeat;
+                    end
+                endif
+            endif
+        endif
+    repeat while (all ccdl channels checked?)
+    repeat
+        if (the message sender is the routes target?) then (yes)
+            repeat
+                if (the route's channel is not the channel being checked?) then (yes)
+                    if (the route's channel is the ccdl the ccdl channel?) then (yes)
+                        if (the route's target is the ccdl channels back target?) then (yes)
+                            :Forward the heartbeat;
+                            end
+                        endif
+                    endif
+                endif
+            repeat while (all ccdl channels checked?)
+            :Don't forward the heartbeat;
+        endif
+    repeat while (all mavlink routes checked?)
+endif
+end
+
+@enduml

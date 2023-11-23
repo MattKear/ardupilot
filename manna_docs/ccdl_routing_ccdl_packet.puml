@@ -1,0 +1,48 @@
+@startuml ccdl_routing_ccdl_packet
+
+title "CCDL Routing Logic -  CCDL packet"
+
+start
+start
+:CCDL Packet Recived;
+:Check if message should be forward to other mavlink channels;
+if (our own message?) then (yes)
+    :Ingnore message;
+    end
+else (no)
+    repeat
+        if (the channel the message was recived on is a ccdl channel?) then (yes)
+            if (sent from ccdl route primary route target?) then (yes)
+                :Record the time the ccdl packet was recived;
+                :Set the primary route as working;
+            elseif (sent from ccdl route backup route target?) then (yes)
+                :Record the time the ccdl packet was recived;
+                :Set the backup route as working;
+            endif
+        endif
+    repeat while (all ccdl channels checked?)
+    repeat
+        if (not recived on a ccdl channel?) then (yes)
+            :Do normal mavlink routing;
+            end
+        endif
+        if (recived from the backup route target?) then (yes)
+            if (the primary route for the target is working?) then (yes)
+                :Drop the message from the ccdl;
+                end
+            else (no)
+                :Only forward to the gcs, drop message from the ccdl network;
+                end
+            endif
+        else (no)
+            :We either recived from the GCS, or the primary route target;
+            if (route to the backup target is working?) then (yes)
+                :Only forward to the gcs, drop message from the ccdl network;
+                end
+            endif
+        endif
+    repeat while (all ccdl channels checked?)
+    :forward to all allowed routes i.e. ones not mask and not the one we recived on;
+end
+
+@enduml
