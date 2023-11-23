@@ -353,14 +353,17 @@ function update()
    -- R = failsafe Reason
    -- rpm = RPM from provided instance
    -- FR = Fence breach Reason
+   -- FS = Time since fence breach (ms)
    -- GT = last Gps Time
+   -- GS = Time since last GPS was 2D fix or better (ms)
    -- TT = last Telemetry Time
+   -- TS = Time scince last gcs heartbeat (ms)
    -- HB = bool, true if in Home Bubble
    local HB = 0
    if _in_home_bubble then
       HB = 1
    end
-   logger.write('LFS','R,rpm,FR,GT,TT,HB','IfIIII', uint32_t(reason_bm), _rpm, uint32_t(_breach_bm), _last_gps_time, _last_gcs_time, uint32_t(HB))
+   logger.write('LFS','R,rpm,FR,FS,GT,GS,TT,TS,HB','IfIfIfIfI', uint32_t(reason_bm), _rpm, uint32_t(_breach_bm), _time_since_breach, _last_gps_time, _time_since_last_gps, _last_gcs_time, _time_since_last_gcs, uint32_t(HB))
 
    if _in_failsafe_long then
       do_fs_long_action(now_ms, reason)
