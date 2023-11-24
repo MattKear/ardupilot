@@ -433,7 +433,7 @@ void MAVLink_routing::handle_heartbeat(mavlink_channel_t in_channel, const mavli
             // make heartbeat always pass on CCDL to have decay on the second route
             bool mask_ccdl = true;
             for (auto & j : ccdl_routing_current_sysid.ccdl) {
-                if (routes[i].channel != in_channel && routes[i].channel == j.mavlink_channel && routes[i].sysid == j.backup_route_sysid_target) {
+                if (routes[i].channel != in_channel && routes[i].channel == j.mavlink_channel && (routes[i].sysid == j.backup_route_sysid_target || (routes[i].sysid != j.primary_route_sysid_target && !j.backup_route_working))) {
                     mask_ccdl = false;
                 }
             }
