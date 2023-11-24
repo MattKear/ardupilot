@@ -474,9 +474,16 @@ void Copter::ccdl_failover()
             if (tnow_ms - i.primary_route_last_hb > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_MS) {
                 i.primary_route_working = false;
             }
-            if (tnow_ms - i.backup_route_last_hb > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_MS) {
-                i.backup_route_working = false;
+            if (i.primary_route_working) {
+                if (tnow_ms - i.backup_route_last_hb > GCS_MAVLINK::CCDL_FAILOVER_BACKUP_TIMEOUT_MS) {
+                    i.backup_route_working = false;
+                }
+            } else {
+                if (tnow_ms - i.backup_route_last_hb > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_MS) {
+                    i.backup_route_working = false;
+                }
             }
+
         }
 
         const auto tnow = AP_HAL::micros64();

@@ -426,6 +426,7 @@ public:
         return routing_table;
     }
     static constexpr auto CCDL_FAILOVER_TIMEOUT_MS = 25;
+    static constexpr auto CCDL_FAILOVER_BACKUP_TIMEOUT_MS = 1025;
     static constexpr auto CCDL_FAILOVER_TIMEOUT_US = CCDL_FAILOVER_TIMEOUT_MS * 1000;
 protected:
 
