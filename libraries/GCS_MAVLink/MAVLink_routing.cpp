@@ -155,7 +155,8 @@ bool MAVLink_routing::check_and_forward(mavlink_channel_t in_channel, const mavl
         // nothing more to do - it can only be for us
         return true;
     }
-
+    const auto ccdl0 = GCS_MAVLINK::ccdl_routing_tables[mavlink_system.sysid - 1].ccdl[0];
+    const auto ccdl1 = GCS_MAVLINK::ccdl_routing_tables[mavlink_system.sysid - 1].ccdl[1];
     // forward on any channels matching the targets
     bool forwarded = false;
     bool sent_to_chan[MAVLINK_COMM_NUM_BUFFERS];
@@ -169,6 +170,13 @@ bool MAVLink_routing::check_and_forward(mavlink_channel_t in_channel, const mavl
             continue;
         }
         if (skip_channels[routes[i].channel]) {
+            continue;
+        }
+
+        if (broadcast_system && in_channel == ccdl0.mavlink_channel && routes[i].channel != ccdl1.mavlink_channel) {
+            continue;
+        }
+        if (broadcast_system && in_channel == ccdl1.mavlink_channel && routes[i].channel != ccdl0.mavlink_channel) {
             continue;
         }
 
