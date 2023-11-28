@@ -1142,6 +1142,11 @@ int8_t GCS_MAVLINK::deferred_message_to_send_index(uint16_t now16_ms)
 
 void GCS_MAVLINK::update_send()
 {
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    if ((_port->get_options() & AP_HAL::UARTDriver::OPTION_DISABLE_TX) == AP_HAL::UARTDriver::OPTION_DISABLE_TX) {
+        return;
+    }
+#endif
 #if !defined(HAL_BUILD_AP_PERIPH) || HAL_LOGGING_ENABLED
     if (!hal.scheduler->in_delay_callback()) {
         // AP_Logger will not send log data if we are armed.
@@ -1475,6 +1480,11 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us, bool timesync)
 
     status.packet_rx_drop_count = 0;
 
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    if ((_port->get_options() & AP_HAL::UARTDriver::OPTION_DISABLE_RX) == AP_HAL::UARTDriver::OPTION_DISABLE_RX) {
+        return;
+    }
+#endif
     const uint16_t nbytes = _port->available();
     for (uint16_t i=0; i<nbytes; i++)
     {
