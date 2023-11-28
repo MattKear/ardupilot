@@ -498,6 +498,8 @@ void Copter::ccdl_failover()
             };
 //            gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV : send to %d, chan %d", GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].sysid_target_my, GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].mavlink_channel);
             mavlink_msg_ccdl_timeout_send_struct(GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].mavlink_channel, &pkt_ccdl);
+            pkt_ccdl.target_system = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].backup_route_sysid_target;
+            mavlink_msg_ccdl_timeout_send_struct(GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].mavlink_channel, &pkt_ccdl);
             if (tnow - ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].last_seen_time > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_US) {
                 ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].timeout_ccdl = true;
             } else {
