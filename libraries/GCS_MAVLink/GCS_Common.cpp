@@ -3852,6 +3852,30 @@ void GCS_MAVLINK::handle_send_autopilot_version(const mavlink_message_t &msg)
     send_message(MSG_AUTOPILOT_VERSION);
 }
 
+void GCS_MAVLINK::send_ccdl_status()
+{
+    auto &ccdl_routing_current_sysid = GCS_MAVLINK::ccdl_routing_tables[mavlink_system.sysid - 1];
+    mavlink_msg_ccdl_status_send(chan,
+                                 AP_HAL::micros64(),
+                                 ccdl_routing_current_sysid.ccdl[0].mavlink_channel,
+                                 ccdl_routing_current_sysid.ccdl[0].serial_port,
+                                 ccdl_routing_current_sysid.ccdl[0].primary_route_sysid_target,
+                                 ccdl_routing_current_sysid.ccdl[0].primary_route_working,
+                                 ccdl_routing_current_sysid.ccdl[0].primary_route_last_hb,
+                                 ccdl_routing_current_sysid.ccdl[0].backup_route_working,
+                                 ccdl_routing_current_sysid.ccdl[0].backup_route_last_hb,
+                                 ccdl_routing_current_sysid.ccdl[1].mavlink_channel,
+                                 ccdl_routing_current_sysid.ccdl[1].serial_port,
+                                 ccdl_routing_current_sysid.ccdl[1].primary_route_sysid_target,
+                                 ccdl_routing_current_sysid.ccdl[1].primary_route_working,
+                                 ccdl_routing_current_sysid.ccdl[1].primary_route_last_hb,
+                                 ccdl_routing_current_sysid.ccdl[1].backup_route_working,
+                                 ccdl_routing_current_sysid.ccdl[1].backup_route_last_hb,
+                                 ccdl_status_msg_target,
+                                 0);
+
+}
+
 void GCS_MAVLINK::send_banner()
 {
     // mark the firmware version in the tlog
@@ -4301,6 +4325,16 @@ MAV_RESULT GCS_MAVLINK::handle_command_do_sprayer(const mavlink_command_long_t &
 }
 #endif
 
+MAV_RESULT GCS_MAVLINK::handle_command_get_ccdl_status(const mavlink_command_long_t &packet)
+{
+    if (!try_send_message(MSG_CCDL_STATUS)) {
+        // try again later
+        send_message(MSG_CCDL_STATUS);
+    }
+    return MAV_RESULT_ACCEPTED;
+}
+
+
 MAV_RESULT GCS_MAVLINK::handle_command_accelcal_vehicle_pos(const mavlink_command_long_t &packet)
 {
 #if HAL_INS_ENABLED
@@ -4386,6 +4420,10 @@ MAV_RESULT GCS_MAVLINK::handle_command_long_packet(const mavlink_command_long_t 
     MAV_RESULT result = MAV_RESULT_FAILED;
 
     switch (packet.command) {
+
+    case MAV_CMD_GET_CCDL_STATUS:
+        result = handle_command_get_ccdl_status(packet);
+        break;
 
     case MAV_CMD_ACCELCAL_VEHICLE_POS:
         result = handle_command_accelcal_vehicle_pos(packet);
@@ -4649,7 +4687,9 @@ void GCS_MAVLINK::handle_command_long(const mavlink_message_t &msg)
     case MAV_CMD_CAN_FORWARD:
         result = handle_can_forward(packet, msg);
         break;
-
+    case MAV_CMD_GET_CCDL_STATUS:
+        ccdl_status_msg_target = msg.sysid;
+        FALLTHROUGH;
     default:
          result = handle_command_long_packet(packet);
          break;
@@ -5200,6 +5240,11 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
     bool ret = true;
 
     switch(id) {
+
+    case MSG_CCDL_STATUS:
+        CHECK_PAYLOAD_SIZE(CCDL_STATUS);
+        send_ccdl_status();
+        break;
 
     case MSG_ATTITUDE:
         CHECK_PAYLOAD_SIZE(ATTITUDE);

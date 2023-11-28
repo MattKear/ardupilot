@@ -415,6 +415,7 @@ public:
     struct ccdl_routing_table {
         std::array<CCDLInfo, MAX_CCDL> ccdl;
     };
+    uint8_t ccdl_status_msg_target;
 
     static std::array<ccdl_routing_table, 3> ccdl_routing_tables;
 
@@ -531,6 +532,7 @@ protected:
     void handle_send_autopilot_version(const mavlink_message_t &msg);
     MAV_RESULT handle_command_request_autopilot_capabilities(const mavlink_command_long_t &packet);
 
+    void send_ccdl_status();
     virtual void send_banner();
 
     // send a (textual) message to the GCS that a received message has
@@ -575,6 +577,7 @@ protected:
 
     MAV_RESULT handle_command_battery_reset(const mavlink_command_long_t &packet);
     void handle_command_long(const mavlink_message_t &msg);
+    MAV_RESULT handle_command_get_ccdl_status(const mavlink_command_long_t &packet);
     MAV_RESULT handle_command_accelcal_vehicle_pos(const mavlink_command_long_t &packet);
     MAV_RESULT handle_command_do_set_roi_sysid(const uint8_t sysid);
     MAV_RESULT handle_command_do_set_roi_sysid(const mavlink_command_int_t &packet);
