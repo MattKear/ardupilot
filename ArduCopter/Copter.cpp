@@ -497,9 +497,19 @@ void Copter::ccdl_failover()
                     .target_component = 0,
             };
 //            gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV : send to %d, chan %d", GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].sysid_target_my, GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].mavlink_channel);
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+            AP_HAL::UARTDriver *uart = AP::serialmanager().find_serial(AP_SerialManager::SerialProtocol_AHRSMAVLINK, i);
+            if ((uart != nullptr && (uart->get_options() & AP_HAL::UARTDriver::OPTION_DISABLE_TX) != AP_HAL::UARTDriver::OPTION_DISABLE_TX)) {
+                mavlink_msg_ccdl_timeout_send_struct(GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].mavlink_channel, &pkt_ccdl);
+                pkt_ccdl.target_system = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].backup_route_sysid_target;
+                mavlink_msg_ccdl_timeout_send_struct(GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].mavlink_channel, &pkt_ccdl);
+            }
+#else
             mavlink_msg_ccdl_timeout_send_struct(GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].mavlink_channel, &pkt_ccdl);
             pkt_ccdl.target_system = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].backup_route_sysid_target;
             mavlink_msg_ccdl_timeout_send_struct(GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].mavlink_channel, &pkt_ccdl);
+#endif
+
             if (tnow - ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].last_seen_time > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_US) {
                 ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].timeout_ccdl = true;
             } else {
@@ -698,6 +708,15 @@ void Copter::one_hz_loop()
 #if FRAME_CONFIG != HELI_FRAME
         // set all throttle channel settings
         motors->update_throttle_range();
+#endif
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+        // Try updating the serial options.
+        for (auto i=0; i<2; i++) {
+            AP_HAL::UARTDriver *uart = AP::serialmanager().find_serial(AP_SerialManager::SerialProtocol_AHRSMAVLINK, i);
+            if (uart == nullptr) {
+                continue;
+            }
+        }
 #endif
     }
 
