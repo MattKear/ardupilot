@@ -231,7 +231,7 @@ mavlink_channel_t MAVLink_routing::check_ccdl_forward(mavlink_channel_t in_chann
             }
         } else {
             // generic case, we received from non ccdl device on ccdl channel , don't forward on the other ccdl channel if hb other is working there
-            if (ccdl_routing_current_sysid.ccdl[idx1].backup_route_working) {
+            if (ccdl_routing_current_sysid.ccdl[idx2].backup_route_working) {
                 return ccdl_routing_current_sysid.ccdl[idx2].mavlink_channel;
             }
         }
