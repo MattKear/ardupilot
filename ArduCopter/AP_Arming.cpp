@@ -634,8 +634,12 @@ bool AP_Arming_Copter::ccdl_checks(bool display_failure)
     const auto my_id = copter.g.sysid_this_mav - 1;
     const auto tnow = AP_HAL::micros64();
     for (auto i=0; i<2; i++) {
-        if (copter.ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].timeout_ccdl) {
-            check_failed(display_failure, "CCDL %u timed out", i);
+        if (!GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_working) {
+            check_failed(display_failure, "CCDL %u primary route broken", i);
+            return false;
+        }
+        if (!GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].backup_route_working) {
+            check_failed(display_failure, "CCDL %u backup route broken", i);
             return false;
         }
         if (tnow - copter.ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].last_timeout < 5000000U) {
