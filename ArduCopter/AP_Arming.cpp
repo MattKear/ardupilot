@@ -628,6 +628,9 @@ bool AP_Arming_Copter::winch_checks(bool display_failure) const
 
 bool AP_Arming_Copter::ccdl_checks(bool display_failure)
 {
+    if (copter.g2.ccdl_timeout_enabled == 0) {
+        return true;
+    }
     if (((checks_to_perform & ARMING_CHECK_ALL) == 0) && ((checks_to_perform & ARMING_CHECK_CCDL) == 0)) {
         return true;
     }
