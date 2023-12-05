@@ -1142,11 +1142,6 @@ int8_t GCS_MAVLINK::deferred_message_to_send_index(uint16_t now16_ms)
 
 void GCS_MAVLINK::update_send()
 {
-#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-    if ((_port->get_options() & AP_HAL::UARTDriver::OPTION_DISABLE_TX) == AP_HAL::UARTDriver::OPTION_DISABLE_TX) {
-        return;
-    }
-#endif
 #if !defined(HAL_BUILD_AP_PERIPH) || HAL_LOGGING_ENABLED
     if (!hal.scheduler->in_delay_callback()) {
         // AP_Logger will not send log data if we are armed.
@@ -3865,25 +3860,21 @@ void GCS_MAVLINK::handle_send_autopilot_version(const mavlink_message_t &msg)
 void GCS_MAVLINK::send_ccdl_status()
 {
     auto &ccdl_routing_current_sysid = GCS_MAVLINK::ccdl_routing_tables[mavlink_system.sysid - 1];
-    mavlink_msg_ccdl_status_send(chan,
-                                 AP_HAL::micros64(),
-                                 ccdl_routing_current_sysid.ccdl[0].mavlink_channel,
-                                 ccdl_routing_current_sysid.ccdl[0].serial_port,
-                                 ccdl_routing_current_sysid.ccdl[0].primary_route_sysid_target,
-                                 ccdl_routing_current_sysid.ccdl[0].primary_route_working,
-                                 ccdl_routing_current_sysid.ccdl[0].primary_route_last_hb,
-                                 ccdl_routing_current_sysid.ccdl[0].backup_route_working,
-                                 ccdl_routing_current_sysid.ccdl[0].backup_route_last_hb,
-                                 ccdl_routing_current_sysid.ccdl[1].mavlink_channel,
-                                 ccdl_routing_current_sysid.ccdl[1].serial_port,
-                                 ccdl_routing_current_sysid.ccdl[1].primary_route_sysid_target,
-                                 ccdl_routing_current_sysid.ccdl[1].primary_route_working,
-                                 ccdl_routing_current_sysid.ccdl[1].primary_route_last_hb,
-                                 ccdl_routing_current_sysid.ccdl[1].backup_route_working,
-                                 ccdl_routing_current_sysid.ccdl[1].backup_route_last_hb,
-                                 ccdl_status_msg_target,
-                                 0);
+    mavlink_ccdl_status_t msg;
+    msg.time_usec = AP_HAL::micros64();
+    for (auto i=0; i<2; i++) {
+        msg.mavlink_channel[i] = ccdl_routing_current_sysid.ccdl[i].mavlink_channel;
+        msg.serial_port[i] = ccdl_routing_current_sysid.ccdl[i].serial_port;
+        msg.primary_target[i] = ccdl_routing_current_sysid.ccdl[i].primary_route_sysid_target;
+        msg.primary_working[i] = ccdl_routing_current_sysid.ccdl[i].primary_route_working;
+        msg.primary_last_hb_ms[i] = ccdl_routing_current_sysid.ccdl[i].primary_route_last_hb;
+        msg.backup_working[i] = ccdl_routing_current_sysid.ccdl[i].backup_route_working;
+        msg.backup_last_hb_ms[i] = ccdl_routing_current_sysid.ccdl[i].backup_route_last_hb;
+    }
+    msg.target_system = ccdl_status_msg_target;
+    msg.target_component = 0;
 
+    mavlink_msg_ccdl_status_send_struct(chan, &msg);
 }
 
 void GCS_MAVLINK::send_banner()
@@ -3922,13 +3913,6 @@ void GCS_MAVLINK::send_banner()
         }
     }
 #endif
-    send_text(MAV_SEVERITY_INFO, "MAV %d, Config ccdl", mavlink_system.sysid);
-    auto& routing_tables = GCS_MAVLINK::ccdl_routing_tables;
-    for(size_t i = 0; i < routing_tables.size(); i++) {
-        auto& ccdl_routing_tablei = routing_tables[i];
-        send_text(MAV_SEVERITY_INFO, "table number: %d, ccdl 0, chan %d, port %d, tgt : %d", (int8_t)i, ccdl_routing_tablei.ccdl[0].mavlink_channel, ccdl_routing_tablei.ccdl[0].serial_port, ccdl_routing_tablei.ccdl[0].primary_route_sysid_target);
-        send_text(MAV_SEVERITY_INFO, "ccdl 1, chan %d, port %d, tgt : %d", ccdl_routing_tablei.ccdl[1].mavlink_channel, ccdl_routing_tablei.ccdl[1].serial_port, ccdl_routing_tablei.ccdl[1].primary_route_sysid_target);
-    }
 }
 
 
