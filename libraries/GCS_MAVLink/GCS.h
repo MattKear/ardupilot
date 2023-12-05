@@ -402,7 +402,7 @@ public:
     static constexpr uint8_t MAX_CCDL = 2;
     struct CCDLInfo {
         mavlink_channel_t mavlink_channel;
-        uint8_t serial_port;
+        uint8_t serial_port = UINT8_MAX;
         uint8_t primary_route_sysid_target;
         uint8_t backup_route_sysid_target;
         uint32_t primary_route_last_hb;
