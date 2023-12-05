@@ -176,25 +176,25 @@
 //////////////////////////////////////////////////////////////////////////////
 //  Crop Sprayer - enabled only on larger firmwares
 #ifndef SPRAYER_ENABLED
- # define SPRAYER_ENABLED  HAL_SPRAYER_ENABLED
+ # define SPRAYER_ENABLED  DISABLED
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
 // Precision Landing with companion computer or IRLock sensor
 #ifndef PRECISION_LANDING
- # define PRECISION_LANDING ENABLED
+ # define PRECISION_LANDING DISABLED
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
 // gripper - enabled only on larger firmwares
 #ifndef GRIPPER_ENABLED
- # define GRIPPER_ENABLED !HAL_MINIMIZE_FEATURES
+ # define GRIPPER_ENABLED DISABLED
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
 // winch support
 #ifndef WINCH_ENABLED
-# define WINCH_ENABLED !HAL_MINIMIZE_FEATURES
+# define WINCH_ENABLED DISABLED
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
@@ -218,7 +218,7 @@
 //////////////////////////////////////////////////////////////////////////////
 // Acro - fly vehicle in acrobatic mode
 #ifndef MODE_ACRO_ENABLED
-# define MODE_ACRO_ENABLED ENABLED
+# define MODE_ACRO_ENABLED DISABLED
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
@@ -242,19 +242,19 @@
 //////////////////////////////////////////////////////////////////////////////
 // Drift - fly vehicle in altitude-held, coordinated-turn mode
 #ifndef MODE_DRIFT_ENABLED
-# define MODE_DRIFT_ENABLED ENABLED
+# define MODE_DRIFT_ENABLED DISABLED
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
 // flip - fly vehicle in flip in pitch and roll direction mode
 #ifndef MODE_FLIP_ENABLED
-# define MODE_FLIP_ENABLED ENABLED
+# define MODE_FLIP_ENABLED DISABLED
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
 // Follow - follow another vehicle or GCS
 #ifndef MODE_FOLLOW_ENABLED
-# define MODE_FOLLOW_ENABLED !HAL_MINIMIZE_FEATURES
+# define MODE_FOLLOW_ENABLED DISABLED
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
@@ -266,7 +266,7 @@
 //////////////////////////////////////////////////////////////////////////////
 // GuidedNoGPS mode - control vehicle's angles from GCS
 #ifndef MODE_GUIDED_NOGPS_ENABLED
-# define MODE_GUIDED_NOGPS_ENABLED !HAL_MINIMIZE_FEATURES
+# define MODE_GUIDED_NOGPS_ENABLED DISABLED
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
@@ -308,19 +308,19 @@
 //////////////////////////////////////////////////////////////////////////////
 // Throw - fly vehicle after throwing it in the air
 #ifndef MODE_THROW_ENABLED
-# define MODE_THROW_ENABLED ENABLED
+# define MODE_THROW_ENABLED DISABLED
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
 // ZigZag - allow vehicle to fly in a zigzag manner with predefined point A B
 #ifndef MODE_ZIGZAG_ENABLED
-# define MODE_ZIGZAG_ENABLED !HAL_MINIMIZE_FEATURES
+# define MODE_ZIGZAG_ENABLED DISABLED
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
 // Turtle - allow vehicle to be flipped over after a crash
 #ifndef MODE_TURTLE_ENABLED
-# define MODE_TURTLE_ENABLED !HAL_MINIMIZE_FEATURES && !defined(DISABLE_DSHOT) && FRAME_CONFIG != HELI_FRAME
+# define MODE_TURTLE_ENABLED DISABLED
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
@@ -350,13 +350,13 @@
 
 // Beacon support - support for local positioning systems
 #ifndef BEACON_ENABLED
-# define BEACON_ENABLED !HAL_MINIMIZE_FEATURES
+# define BEACON_ENABLED DISABLED
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
 // Landing Gear support
 #ifndef LANDING_GEAR_ENABLED
- #define LANDING_GEAR_ENABLED ENABLED
+ #define LANDING_GEAR_ENABLED DISABLED
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
@@ -443,7 +443,7 @@
 // CAMERA TRIGGER AND CONTROL
 //
 #ifndef CAMERA
- # define CAMERA        ENABLED
+ # define CAMERA        DISABLED
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
