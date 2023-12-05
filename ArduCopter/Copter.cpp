@@ -553,11 +553,11 @@ void Copter::ccdl_failover()
         }
         counter++;
         avg += tdiff;
-        if (tdiff >= 1000000U) {
+        last_time = tnow;
+        if (avg >= 1000000U) {
             //gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: avg %d", g.sysid_this_mav.get(), avg / counter);
             avg = 0;
             counter = 0;
-            last_time = tnow;
         }
 
     }
