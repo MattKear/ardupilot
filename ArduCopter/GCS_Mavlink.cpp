@@ -1092,20 +1092,24 @@ void GCS_MAVLINK_Copter::handleMessage(const mavlink_message_t &msg)
         // Error logging and resync
         if (packet.seq <= copter.ccdl_timeout[sender_id].seq) {
             copter.ccdl_timeout[sender_id].seq_err++;
+            gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV%d : frm %d, trg % d, seq_err", copter.g.sysid_this_mav.get(), sender_id, packet.target_system);
             if (copter.ccdl_timeout[sender_id].seq_err > copter.CCLD_TIMEOUT_ERR_MAX_DROPPED_PACKETS) {
                 copter.ccdl_timeout[sender_id].seq_err = 0;
                 copter.ccdl_timeout[sender_id].seq = packet.seq;
             }
+            copter.ccdl_timeout[sender_id].failure_num++;
         } else {
             copter.ccdl_timeout[sender_id].seq = packet.seq;
         }
         // Error logging and resync
         if (packet.time_usec <= copter.ccdl_timeout[sender_id].time_usec) {
             copter.ccdl_timeout[sender_id].time_usec_err++;
+            gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV%d : frm %d, trg % d, t_err", copter.g.sysid_this_mav.get(), sender_id, packet.target_system);
             if (copter.ccdl_timeout[sender_id].time_usec_err > copter.CCLD_TIMEOUT_ERR_MAX_DROPPED_PACKETS) {
                 copter.ccdl_timeout[sender_id].time_usec_err = 0;
                 copter.ccdl_timeout[sender_id].time_usec = packet.time_usec;
             }
+            copter.ccdl_timeout[sender_id].failure_num++;
         } else {
             copter.ccdl_timeout[sender_id].time_usec = packet.time_usec;
         }

@@ -520,6 +520,11 @@ void Copter::ccdl_failover()
                 ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].timeout_ccdl = false;
             }
         }
+        static uint64_t last_time;
+        static uint32_t counter;
+        static uint32_t avg;
+        const auto tdiff = tnow - last_time;
+
         const auto ccdl0 = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[0].primary_route_sysid_target - 1;
         const auto ccdl1 = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].primary_route_sysid_target - 1;
         if (ccdl_timeout[ccdl0].timeout_ccdl && ccdl_timeout[ccdl1].timeout_ccdl) {
@@ -531,16 +536,32 @@ void Copter::ccdl_failover()
             }
         } else {
             for (uint8_t i = 0; i < 2; i++) {
-                if (ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].timeout_ccdl) {
-                    if (tnow - ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].last_timeout >= 1000000U) {
+                const auto target = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1;
+                if (ccdl_timeout[target].timeout_ccdl) {
+                    if (tnow - ccdl_timeout[target].last_timeout >= 500000U) {
                         gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: Timeout ccdl %u", g.sysid_this_mav.get(), i);
-                        ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].last_timeout = tnow;
+                        gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: seq_err %d, t_err %d", g.sysid_this_mav.get(), ccdl_timeout[target].seq_err, ccdl_timeout[target].time_usec_err);
+                        gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: seq %" PRIu32", t %" PRIu64, g.sysid_this_mav.get(), ccdl_timeout[target].seq, ccdl_timeout[target].time_usec);
+                        gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: failure num %" PRIu32, g.sysid_this_mav.get(), ccdl_timeout[target].failure_num);
+                        gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: avg %" PRIu32, g.sysid_this_mav.get(), avg / (counter!=0?counter:1));
+                        gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: loop %" PRIu64, g.sysid_this_mav.get(), tdiff);
+                        ccdl_timeout[target].last_timeout = tnow;
                     }
                     // vote GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].sysid_target_my
                 }
             }
         }
+        counter++;
+        avg += tdiff;
+        if (tdiff >= 1000000U) {
+            //gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: avg %d", g.sysid_this_mav.get(), avg / counter);
+            avg = 0;
+            counter = 0;
+            last_time = tnow;
+        }
+
     }
+
     Log_Write_CCDL_Timeout();
 }
 

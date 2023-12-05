@@ -635,6 +635,7 @@ private:
         uint64_t last_seen_time;
         bool timeout_ccdl;
         uint64_t last_timeout;
+        uint32_t failure_num;
     } ccdl_timeout[3];
     static constexpr uint8_t CCLD_TIMEOUT_ERR_MAX_DROPPED_PACKETS = 3;
 
