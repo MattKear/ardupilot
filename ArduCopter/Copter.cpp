@@ -468,8 +468,12 @@ void Copter::ccdl_failover()
         }
         const auto my_id = g.sysid_this_mav - 1;
         // Forget ccdl route after timeout.
-        const auto tnow_ms = AP_HAL::millis();
         auto &ccdl_routing_current_sysid = GCS_MAVLINK::ccdl_routing_tables[my_id];
+        if (ccdl_routing_current_sysid.ccdl[0].serial_port == UINT8_MAX || ccdl_routing_current_sysid.ccdl[1].serial_port == UINT8_MAX) {
+            // unconfigured ccdl, skip
+            return;
+        }
+        const auto tnow_ms = AP_HAL::millis();
         for (auto &i: ccdl_routing_current_sysid.ccdl) {
             if (tnow_ms - i.primary_route_last_hb > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_MS) {
                 i.primary_route_working = false;
