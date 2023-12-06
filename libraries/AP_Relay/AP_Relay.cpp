@@ -166,7 +166,7 @@ void AP_Relay::set_defaults () {
 
 void AP_Relay::init()
 {
-    set_defaults ();
+    set_defaults();
 
     convert_params();
 
