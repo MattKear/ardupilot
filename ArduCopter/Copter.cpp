@@ -514,6 +514,7 @@ void Copter::ccdl_failover()
 #else
             mavlink_msg_ccdl_timeout_send_struct(GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].mavlink_channel, &pkt_ccdl);
             pkt_ccdl.target_system = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].backup_route_sysid_target;
+            pkt_ccdl.type = 1;
             mavlink_msg_ccdl_timeout_send_struct(GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].mavlink_channel, &pkt_ccdl);
 #endif
 
