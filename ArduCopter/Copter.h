@@ -626,16 +626,18 @@ private:
     static_assert(_failsafe_priorities[ARRAY_SIZE(_failsafe_priorities) - 1] == -1,
                   "_failsafe_priorities is missing the sentinel");
 
-
-    struct ccdl_timeout_struct {
+    struct ccdl_timeout_err_struct {
         uint32_t seq;
         uint8_t seq_err;
         uint64_t time_usec;
         uint8_t time_usec_err;
+        uint32_t failure_num;
+    };
+    struct ccdl_timeout_struct {
+        std::array<ccdl_timeout_err_struct, 2> err;
         uint64_t last_seen_time;
         bool timeout_ccdl;
         uint64_t last_timeout;
-        uint32_t failure_num;
     } ccdl_timeout[3];
     static constexpr uint8_t CCLD_TIMEOUT_ERR_MAX_DROPPED_PACKETS = 3;
 

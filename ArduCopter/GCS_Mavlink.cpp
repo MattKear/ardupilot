@@ -1090,30 +1090,30 @@ void GCS_MAVLINK_Copter::handleMessage(const mavlink_message_t &msg)
             break; // only accept control aimed at us
         }
         // Error logging and resync
-        if (packet.seq <= copter.ccdl_timeout[sender_id].seq) {
-            copter.ccdl_timeout[sender_id].seq_err++;
-            if (copter.ccdl_timeout[sender_id].seq_err > copter.CCLD_TIMEOUT_ERR_MAX_DROPPED_PACKETS) {
+        if (packet.seq <= copter.ccdl_timeout[sender_id].err[packet.type].seq) {
+            copter.ccdl_timeout[sender_id].err[packet.type].seq_err++;
+            if (copter.ccdl_timeout[sender_id].err[packet.type].seq_err > copter.CCLD_TIMEOUT_ERR_MAX_DROPPED_PACKETS) {
                 gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV%d : frm %d, trg % d, seq_err", copter.g.sysid_this_mav.get(), sender_id, packet.target_system);
-                copter.ccdl_timeout[sender_id].seq_err = 0;
-                copter.ccdl_timeout[sender_id].seq = packet.seq;
-                copter.ccdl_timeout[sender_id].failure_num++;
+                copter.ccdl_timeout[sender_id].err[packet.type].seq_err = 0;
+                copter.ccdl_timeout[sender_id].err[packet.type].seq = packet.seq;
+                copter.ccdl_timeout[sender_id].err[packet.type].failure_num++;
             }
         } else {
-            copter.ccdl_timeout[sender_id].seq_err = 0;
-            copter.ccdl_timeout[sender_id].seq = packet.seq;
+            copter.ccdl_timeout[sender_id].err[packet.type].seq_err = 0;
+            copter.ccdl_timeout[sender_id].err[packet.type].seq = packet.seq;
         }
         // Error logging and resync
-        if (packet.time_usec <= copter.ccdl_timeout[sender_id].time_usec) {
-            copter.ccdl_timeout[sender_id].time_usec_err++;
-            if (copter.ccdl_timeout[sender_id].time_usec_err > copter.CCLD_TIMEOUT_ERR_MAX_DROPPED_PACKETS) {
+        if (packet.time_usec <= copter.ccdl_timeout[sender_id].err[packet.type].time_usec) {
+            copter.ccdl_timeout[sender_id].err[packet.type].time_usec_err++;
+            if (copter.ccdl_timeout[sender_id].err[packet.type].time_usec_err > copter.CCLD_TIMEOUT_ERR_MAX_DROPPED_PACKETS) {
                 gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV%d : frm %d, trg % d, t_err", copter.g.sysid_this_mav.get(), sender_id, packet.target_system);
-                copter.ccdl_timeout[sender_id].time_usec_err = 0;
-                copter.ccdl_timeout[sender_id].time_usec = packet.time_usec;
-                copter.ccdl_timeout[sender_id].failure_num++;
+                copter.ccdl_timeout[sender_id].err[packet.type].time_usec_err = 0;
+                copter.ccdl_timeout[sender_id].err[packet.type].time_usec = packet.time_usec;
+                copter.ccdl_timeout[sender_id].err[packet.type].failure_num++;
             }
         } else {
-            copter.ccdl_timeout[sender_id].time_usec_err = 0;
-            copter.ccdl_timeout[sender_id].time_usec = packet.time_usec;
+            copter.ccdl_timeout[sender_id].err[packet.type].time_usec_err = 0;
+            copter.ccdl_timeout[sender_id].err[packet.type].time_usec = packet.time_usec;
         }
         copter.ccdl_timeout[sender_id].last_seen_time = AP_HAL::micros64();
 
