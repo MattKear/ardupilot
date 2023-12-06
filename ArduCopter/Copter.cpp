@@ -559,9 +559,13 @@ void Copter::ccdl_failover_check()
                     if (tnow - ccdl_timeout[target].last_timeout >= 500000U) {
                         gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: Timeout ccdl %u", g.sysid_this_mav.get(), i);
                         for (uint8_t j = 0; j < 2; j++) {
-                            gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: seq_err %d, t_err %d", g.sysid_this_mav.get(), ccdl_timeout[target].err[j].seq_err, ccdl_timeout[target].err[j].time_usec_err);
                             gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: seq %" PRIu32", t %" PRIu64, g.sysid_this_mav.get(), ccdl_timeout[target].err[j].seq, ccdl_timeout[target].err[j].time_usec);
-                            gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: failure num %" PRIu32, g.sysid_this_mav.get(), ccdl_timeout[target].err[j].failure_num);
+                            if(ccdl_timeout[target].err[j].seq_err > 0 || ccdl_timeout[target].err[j].time_usec_err > 0) {
+                                gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: seq_err %d, t_err %d", g.sysid_this_mav.get(), ccdl_timeout[target].err[j].seq_err, ccdl_timeout[target].err[j].time_usec_err);
+                            }
+                            if (ccdl_timeout[target].err[j].failure_num > 0 ) {
+                                gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: failure num %" PRIu32, g.sysid_this_mav.get(), ccdl_timeout[target].err[j].failure_num);
+                            }
                         }
                         ccdl_timeout[target].last_timeout = tnow;
                     }
