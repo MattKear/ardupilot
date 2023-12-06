@@ -567,7 +567,9 @@ void Copter::ccdl_failover()
 
     }
 
-    Log_Write_CCDL_Timeout();
+    if (should_log(MASK_LOG_CCDL)) {
+        Log_Write_CCDL_Timeout();
+    }
 }
 
 // rc_loops - reads user input from transmitter/receiver
