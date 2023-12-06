@@ -669,7 +669,8 @@ private:
     bool nav_script_time(uint16_t &id, uint8_t &cmd, float &arg1, float &arg2) override;
     void nav_script_time_done(uint16_t id) override;
 #endif // AP_SCRIPTING_ENABLED
-    void ccdl_failover();
+    void ccdl_failover_check();
+    void ccdl_failover_send();
     void rc_loop();
     void throttle_loop();
     void update_batt_compass(void);

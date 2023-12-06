@@ -124,7 +124,8 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
 #endif
     SCHED_TASK(auto_disarm_check,     10,     50,  27),
     SCHED_TASK(auto_trim,             10,     75,  30),
-    SCHED_TASK(ccdl_failover, 100, 120,  31),
+    SCHED_TASK(ccdl_failover_send,   100,    120,  31),
+    SCHED_TASK(ccdl_failover_check,   70,    120,  32),
 #if RANGEFINDER_ENABLED == ENABLED
     SCHED_TASK(read_rangefinder,      20,    100,  33),
 #endif
@@ -459,11 +460,12 @@ void Copter::nav_script_time_done(uint16_t id)
 
 #endif // AP_SCRIPTING_ENABLED
 
-void Copter::ccdl_failover()
+void Copter::ccdl_failover_send()
 {
+
     if (g2.ccdl_timeout_enabled) {
 
-        if (g.sysid_this_mav < 1 || g.sysid_this_mav > 3 ) {
+        if (g.sysid_this_mav < 1 || g.sysid_this_mav > 3) {
             return; // only accept from 1-3
         }
         const auto my_id = g.sysid_this_mav - 1;
@@ -473,28 +475,11 @@ void Copter::ccdl_failover()
             // unconfigured ccdl, skip
             return;
         }
-        const auto tnow_ms = AP_HAL::millis();
-        for (auto &i: ccdl_routing_current_sysid.ccdl) {
-            if (tnow_ms - i.primary_route_last_hb > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_MS) {
-                i.primary_route_working = false;
-            }
-            if (i.primary_route_working) {
-                if (tnow_ms - i.backup_route_last_hb > GCS_MAVLINK::CCDL_FAILOVER_BACKUP_TIMEOUT_MS) {
-                    i.backup_route_working = false;
-                }
-            } else {
-                if (tnow_ms - i.backup_route_last_hb > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_MS) {
-                    i.backup_route_working = false;
-                }
-            }
-
-        }
-
         const auto tnow = AP_HAL::micros64();
         ccdl_timeout[my_id].err[0].seq++;
         ccdl_timeout[my_id].err[0].time_usec = tnow;
-        for (auto i=0; i<2; i++) {
-            auto pkt_ccdl = mavlink_ccdl_timeout_t {
+        for (auto i = 0; i < 2; i++) {
+            auto pkt_ccdl = mavlink_ccdl_timeout_t{
                     .time_usec = ccdl_timeout[my_id].err[0].time_usec,
                     .seq = ccdl_timeout[my_id].err[0].seq,
                     .type = 0,
@@ -502,7 +487,7 @@ void Copter::ccdl_failover()
                     .target_component = 0,
 
             };
-//            gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV : send to %d, chan %d", GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].sysid_target_my, GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].mavlink_channel);
+            // gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV : send to %d, chan %d", GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].sysid_target_my, GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].mavlink_channel);
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
             AP_HAL::UARTDriver *uart = AP::serialmanager().find_serial(AP_SerialManager::SerialProtocol_AHRSMAVLINK, i);
             if ((uart != nullptr && (uart->get_options() & AP_HAL::UARTDriver::OPTION_DISABLE_TX) != AP_HAL::UARTDriver::OPTION_DISABLE_TX)) {
@@ -517,17 +502,46 @@ void Copter::ccdl_failover()
             pkt_ccdl.type = 1;
             mavlink_msg_ccdl_timeout_send_struct(GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].mavlink_channel, &pkt_ccdl);
 #endif
+        }
+    }
+}
 
-            if (tnow - ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].last_seen_time > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_US) {
-                ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].timeout_ccdl = true;
+
+void Copter::ccdl_failover_check()
+{
+    if (g2.ccdl_timeout_enabled) {
+
+        if (g.sysid_this_mav < 1 || g.sysid_this_mav > 3 ) {
+            return; // only accept from 1-3
+        }
+        const auto my_id = g.sysid_this_mav - 1;
+        // Forget ccdl route after timeout.
+        auto &ccdl_routing_current_sysid = GCS_MAVLINK::ccdl_routing_tables[my_id];
+        if (ccdl_routing_current_sysid.ccdl[0].serial_port == UINT8_MAX || ccdl_routing_current_sysid.ccdl[1].serial_port == UINT8_MAX) {
+            // unconfigured ccdl, skip
+            return;
+        }
+        const auto tnow = AP_HAL::micros64();
+        const auto tnow_ms = tnow / 1000;
+        for (auto &i: ccdl_routing_current_sysid.ccdl) {
+            if (tnow_ms - i.primary_route_last_hb > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_MS) {
+                i.primary_route_working = false;
+            }
+            if (i.primary_route_working) {
+                if (tnow_ms - i.backup_route_last_hb > GCS_MAVLINK::CCDL_FAILOVER_BACKUP_TIMEOUT_MS) {
+                    i.backup_route_working = false;
+                }
             } else {
-                ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].timeout_ccdl = false;
+                if (tnow_ms - i.backup_route_last_hb > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_MS) {
+                    i.backup_route_working = false;
+                }
+            }
+            if (tnow - ccdl_timeout[i.primary_route_sysid_target - 1].last_seen_time > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_US) {
+                ccdl_timeout[i.primary_route_sysid_target - 1].timeout_ccdl = true;
+            } else {
+                ccdl_timeout[i.primary_route_sysid_target - 1].timeout_ccdl = false;
             }
         }
-        static uint64_t last_time;
-        static uint32_t counter;
-        static uint32_t avg;
-        const auto tdiff = tnow - last_time;
 
         const auto ccdl0 = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[0].primary_route_sysid_target - 1;
         const auto ccdl1 = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].primary_route_sysid_target - 1;
@@ -549,27 +563,15 @@ void Copter::ccdl_failover()
                             gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: seq %" PRIu32", t %" PRIu64, g.sysid_this_mav.get(), ccdl_timeout[target].err[j].seq, ccdl_timeout[target].err[j].time_usec);
                             gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: failure num %" PRIu32, g.sysid_this_mav.get(), ccdl_timeout[target].err[j].failure_num);
                         }
-                        gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: avg %" PRIu32, g.sysid_this_mav.get(), avg / (counter!=0?counter:1));
-                        gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: loop %" PRIu64, g.sysid_this_mav.get(), tdiff);
                         ccdl_timeout[target].last_timeout = tnow;
                     }
                     // vote GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].sysid_target_my
                 }
             }
         }
-        counter++;
-        avg += tdiff;
-        last_time = tnow;
-        if (avg >= 1000000U) {
-            //gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: avg %d", g.sysid_this_mav.get(), avg / counter);
-            avg = 0;
-            counter = 0;
+        if (should_log(MASK_LOG_CCDL)) {
+            Log_Write_CCDL_Timeout();
         }
-
-    }
-
-    if (should_log(MASK_LOG_CCDL)) {
-        Log_Write_CCDL_Timeout();
     }
 }
 
