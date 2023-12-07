@@ -124,8 +124,8 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
 #endif
     SCHED_TASK(auto_disarm_check,     10,     50,  27),
     SCHED_TASK(auto_trim,             10,     75,  30),
-    SCHED_TASK(ccdl_failover_send,   100,    120,  31),
-    SCHED_TASK(ccdl_failover_check,   70,    120,  32),
+    SCHED_TASK(ccdl_failover_send,    25,    150,  31),
+    SCHED_TASK(ccdl_failover_check,   15,    150,  32),
 #if RANGEFINDER_ENABLED == ENABLED
     SCHED_TASK(read_rangefinder,      20,    100,  33),
 #endif
@@ -169,7 +169,7 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
 #endif
     SCHED_TASK(standby_update,        100,    75,  96),
     SCHED_TASK(lost_vehicle_check,    10,     50,  99),
-    SCHED_TASK_CLASS(GCS,                  (GCS*)&copter._gcs,          update_receive, 400, 180, 102),
+    SCHED_TASK_CLASS(GCS,                  (GCS*)&copter._gcs,          update_receive, 400, 400, 102),
     SCHED_TASK_CLASS(GCS,                  (GCS*)&copter._gcs,          update_send,    400, 550, 105),
 #if HAL_MOUNT_ENABLED
     SCHED_TASK_CLASS(AP_Mount,             &copter.camera_mount,        update,          50,  75, 108),
