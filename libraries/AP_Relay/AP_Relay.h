@@ -31,9 +31,6 @@ public:
     // setup the relay pin
     void        init();
 
-    // set relay to state
-    void set(uint8_t instance, bool value);
-
     // activate the relay
     void        on(uint8_t instance) { set(instance, true); }
 
