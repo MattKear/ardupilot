@@ -634,7 +634,17 @@ bool AP_Arming_Copter::ccdl_checks(bool display_failure)
     if (((checks_to_perform & ARMING_CHECK_ALL) == 0) && ((checks_to_perform & ARMING_CHECK_CCDL) == 0)) {
         return true;
     }
+    if (copter.g.sysid_this_mav < 1 || copter.g.sysid_this_mav > 3 ) {
+        check_failed(display_failure, "Sysid should be [1, 3]");
+        return false; // only accept from 1-3
+    }
     const auto my_id = copter.g.sysid_this_mav - 1;
+    auto &ccdl_routing_current_sysid = GCS_MAVLINK::ccdl_routing_tables[my_id];
+    if (ccdl_routing_current_sysid.ccdl[0].serial_port == UINT8_MAX || ccdl_routing_current_sysid.ccdl[1].serial_port == UINT8_MAX) {
+        // unconfigured ccdl
+        check_failed(display_failure, "CCDL port aren't configured");
+        return false;
+    }
     const auto tnow = AP_HAL::micros64();
     for (auto i=0; i<2; i++) {
         if (!GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_working) {
