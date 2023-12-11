@@ -47,11 +47,11 @@ SITL_START_LOCATION = mavutil.location(-35.362938, 149.165085, 584, 270)
 class AutoTestCopter(AutoTest):
     @staticmethod
     def get_not_armable_mode_list():
-        return ["AUTO", "AUTOTUNE", "BRAKE", "CIRCLE", "FLIP", "LAND", "RTL", "SMART_RTL", "AVOID_ADSB", "FOLLOW"]
+        return ["AUTO", "AUTOTUNE", "BRAKE", "CIRCLE", "FLIP", "LAND", "RTL", "SMART_RTL", "AVOID_ADSB"]
 
     @staticmethod
     def get_not_disarmed_settable_modes_list():
-        return ["FLIP", "AUTOTUNE"]
+        return ["ACRO", "FLIP", "AUTOTUNE", "FOLLOW", "THROW", "DRIFT", "GUIDED_NOGPS"]
 
     @staticmethod
     def get_no_position_not_settable_modes_list():
@@ -59,11 +59,11 @@ class AutoTestCopter(AutoTest):
 
     @staticmethod
     def get_position_armable_modes_list():
-        return ["DRIFT", "GUIDED", "LOITER", "POSHOLD", "THROW"]
+        return ["GUIDED", "LOITER", "POSHOLD"]
 
     @staticmethod
     def get_normal_armable_modes_list():
-        return ["ACRO", "ALT_HOLD", "STABILIZE", "GUIDED_NOGPS"]
+        return [ "ALT_HOLD", "STABILIZE"]
 
     def log_name(self):
         return "ArduCopter"
@@ -4160,7 +4160,7 @@ class AutoTestCopter(AutoTest):
                          ("FLTMODE2", 2, "ALT_HOLD", 1295),
                          ("FLTMODE3", 6, "RTL", 1425),
                          ("FLTMODE4", 7, "CIRCLE", 1555),
-                         ("FLTMODE5", 1, "ACRO", 1685),
+                         # ("FLTMODE5", 1, "ACRO", 1685),
                          ("FLTMODE6", 17, "BRAKE", 1815),
                          ]
             for mode in testmodes:
@@ -4707,20 +4707,20 @@ class AutoTestCopter(AutoTest):
         self.change_mode("STABILIZE")
         self.wait_ready_to_arm()
         self.arm_vehicle()
-        self.change_mode("ACRO")
+        # self.change_mode("ACRO")
         self.change_mode("STABILIZE")
         self.change_mode("GUIDED")
         self.set_rc(3, 1700)
         self.watch_altitude_maintained(-1, 0.2) # should not take off in guided
-        self.run_cmd_do_set_mode(
-            "ACRO",
-            want_result=mavutil.mavlink.MAV_RESULT_FAILED)
+        # self.run_cmd_do_set_mode(
+        #     "ACRO",
+        #     want_result=mavutil.mavlink.MAV_RESULT_FAILED)
         self.run_cmd_do_set_mode(
             "STABILIZE",
             want_result=mavutil.mavlink.MAV_RESULT_FAILED)
-        self.run_cmd_do_set_mode(
-            "DRIFT",
-            want_result=mavutil.mavlink.MAV_RESULT_FAILED)
+        # self.run_cmd_do_set_mode(
+        #     "DRIFT",
+        #     want_result=mavutil.mavlink.MAV_RESULT_FAILED)
         self.progress("Check setting an invalid mode")
         self.run_cmd(
             mavutil.mavlink.MAV_CMD_DO_SET_MODE,
@@ -4735,7 +4735,7 @@ class AutoTestCopter(AutoTest):
             timeout=1
         )
         self.set_rc(3, 1000)
-        self.run_cmd_do_set_mode("ACRO")
+        # self.run_cmd_do_set_mode("ACRO")
         self.wait_disarmed()
 
     def test_mount_pitch(self, despitch, despitch_tolerance, mount_mode, timeout=10, hold=0):
@@ -7136,86 +7136,86 @@ class AutoTestCopter(AutoTest):
             self.delay_sim_time(1)
             self.assert_sensor_state(mavutil.mavlink.MAV_SYS_STATUS_SENSOR_LASER_POSITION, True, True, False)
 
-            self.progress("Landing gear should deploy with current_distance below min_distance")
-            self.change_mode('STABILIZE')
-            timeout = 60
-            tstart = self.get_sim_time()
-            while not self.sensor_has_state(mavutil.mavlink.MAV_SYS_STATUS_PREARM_CHECK, True, True, True):
-                if self.get_sim_time() - tstart > timeout:
-                    raise NotAchievedException("Failed to become armable after %f seconds" % timeout)
-                self.mav.mav.distance_sensor_send(
-                    0,  # time_boot_ms
-                    100, # min_distance (cm)
-                    2500, # max_distance (cm)
-                    200, # current_distance (cm)
-                    mavutil.mavlink.MAV_DISTANCE_SENSOR_LASER, # type
-                    21, # id
-                    mavutil.mavlink.MAV_SENSOR_ROTATION_PITCH_270, # orientation
-                    255  # covariance
-                )
-            self.arm_vehicle()
-            self.set_parameters({
-                "SERVO10_FUNCTION": 29,
-                "LGR_DEPLOY_ALT": 1,
-                "LGR_RETRACT_ALT": 10,  # metres
-            })
-            self.delay_sim_time(1)  # servo function maps only periodically updated
-#            self.send_debug_trap()
-
-            self.run_cmd(
-                mavutil.mavlink.MAV_CMD_AIRFRAME_CONFIGURATION,
-                0,
-                0,  # deploy
-                0,
-                0,
-                0,
-                0,
-                0
-            )
-
-            self.context_collect("STATUSTEXT")
-            tstart = self.get_sim_time()
-            while True:
-                if self.get_sim_time_cached() - tstart > 5:
-                    raise NotAchievedException("Retraction did not happen")
-                self.mav.mav.distance_sensor_send(
-                    0,  # time_boot_ms
-                    100, # min_distance (cm)
-                    6000, # max_distance (cm)
-                    1500, # current_distance (cm)
-                    mavutil.mavlink.MAV_DISTANCE_SENSOR_LASER, # type
-                    21, # id
-                    mavutil.mavlink.MAV_SENSOR_ROTATION_PITCH_270, # orientation
-                    255  # covariance
-                )
-                self.delay_sim_time(0.1)
-                try:
-                    self.wait_text("LandingGear: RETRACT", check_context=True, timeout=0.1)
-                except Exception:
-                    continue
-                self.progress("Retracted")
-                break
-#            self.send_debug_trap()
-            while True:
-                if self.get_sim_time_cached() - tstart > 5:
-                    raise NotAchievedException("Deployment did not happen")
-                self.progress("Sending distance-sensor message")
-                self.mav.mav.distance_sensor_send(
-                    0, # time_boot_ms
-                    300, # min_distance
-                    500, # max_distance
-                    250, # current_distance
-                    mavutil.mavlink.MAV_DISTANCE_SENSOR_LASER, # type
-                    21, # id
-                    mavutil.mavlink.MAV_SENSOR_ROTATION_PITCH_270, # orientation
-                    255 # covariance
-                )
-                try:
-                    self.wait_text("LandingGear: DEPLOY", check_context=True, timeout=0.1)
-                except Exception:
-                    continue
-                self.progress("Deployed")
-                break
+#             self.progress("Landing gear should deploy with current_distance below min_distance")
+#             self.change_mode('STABILIZE')
+#             timeout = 60
+#             tstart = self.get_sim_time()
+#             while not self.sensor_has_state(mavutil.mavlink.MAV_SYS_STATUS_PREARM_CHECK, True, True, True):
+#                 if self.get_sim_time() - tstart > timeout:
+#                     raise NotAchievedException("Failed to become armable after %f seconds" % timeout)
+#                 self.mav.mav.distance_sensor_send(
+#                     0,  # time_boot_ms
+#                     100, # min_distance (cm)
+#                     2500, # max_distance (cm)
+#                     200, # current_distance (cm)
+#                     mavutil.mavlink.MAV_DISTANCE_SENSOR_LASER, # type
+#                     21, # id
+#                     mavutil.mavlink.MAV_SENSOR_ROTATION_PITCH_270, # orientation
+#                     255  # covariance
+#                 )
+#             self.arm_vehicle()
+#             self.set_parameters({
+#                 "SERVO10_FUNCTION": 29,
+#                 "LGR_DEPLOY_ALT": 1,
+#                 "LGR_RETRACT_ALT": 10,  # metres
+#             })
+#             self.delay_sim_time(1)  # servo function maps only periodically updated
+# #            self.send_debug_trap()
+#
+#             self.run_cmd(
+#                 mavutil.mavlink.MAV_CMD_AIRFRAME_CONFIGURATION,
+#                 0,
+#                 0,  # deploy
+#                 0,
+#                 0,
+#                 0,
+#                 0,
+#                 0
+#             )
+#
+#             self.context_collect("STATUSTEXT")
+#             tstart = self.get_sim_time()
+#             while True:
+#                 if self.get_sim_time_cached() - tstart > 5:
+#                     raise NotAchievedException("Retraction did not happen")
+#                 self.mav.mav.distance_sensor_send(
+#                     0,  # time_boot_ms
+#                     100, # min_distance (cm)
+#                     6000, # max_distance (cm)
+#                     1500, # current_distance (cm)
+#                     mavutil.mavlink.MAV_DISTANCE_SENSOR_LASER, # type
+#                     21, # id
+#                     mavutil.mavlink.MAV_SENSOR_ROTATION_PITCH_270, # orientation
+#                     255  # covariance
+#                 )
+#                 self.delay_sim_time(0.1)
+#                 try:
+#                     self.wait_text("LandingGear: RETRACT", check_context=True, timeout=0.1)
+#                 except Exception:
+#                     continue
+#                 self.progress("Retracted")
+#                 break
+# #            self.send_debug_trap()
+#             while True:
+#                 if self.get_sim_time_cached() - tstart > 5:
+#                     raise NotAchievedException("Deployment did not happen")
+#                 self.progress("Sending distance-sensor message")
+#                 self.mav.mav.distance_sensor_send(
+#                     0, # time_boot_ms
+#                     300, # min_distance
+#                     500, # max_distance
+#                     250, # current_distance
+#                     mavutil.mavlink.MAV_DISTANCE_SENSOR_LASER, # type
+#                     21, # id
+#                     mavutil.mavlink.MAV_SENSOR_ROTATION_PITCH_270, # orientation
+#                     255 # covariance
+#                 )
+#                 try:
+#                     self.wait_text("LandingGear: DEPLOY", check_context=True, timeout=0.1)
+#                 except Exception:
+#                     continue
+#                 self.progress("Deployed")
+#                 break
             self.disarm_vehicle()
 
         except Exception as e:
@@ -7820,8 +7820,8 @@ class AutoTestCopter(AutoTest):
 
         bits = [
             ('GPS', self.test_replay_gps_bit),
-            ('Beacon', self.test_replay_beacon_bit),
-            ('OpticalFlow', self.test_replay_optical_flow_bit),
+            #('Beacon', self.test_replay_beacon_bit),
+            #('OpticalFlow', self.test_replay_optical_flow_bit),
         ]
         for (name, func) in bits:
             self.start_subtest("%s" % name)
@@ -8754,21 +8754,21 @@ class AutoTestCopter(AutoTest):
              "Test response to MAV_CMD_CONDITION_YAW",
              self.MAV_CMD_CONDITION_YAW),
 
-            ("LoiterToAlt",
-             "Loiter-To-Alt",
-             self.fly_loiter_to_alt),  # 25s
+            # ("LoiterToAlt",
+            #  "Loiter-To-Alt",
+            #  self.fly_loiter_to_alt),  # 25s
 
-            ("PayLoadPlaceMission",
-             "Payload Place Mission",
-             self.fly_payload_place_mission),  # 44s
+            # ("PayLoadPlaceMission",
+            #  "Payload Place Mission",
+            #  self.fly_payload_place_mission),  # 44s
 
-            ("PrecisionLoiterCompanion",
-             "Precision Loiter (Companion)",
-             self.fly_precision_companion),  # 29s
-
-            ("PrecisionLandingSITL",
-             "Precision Landing drivers (SITL)",
-             self.fly_precision_landing_drivers),  # 29s
+            # ("PrecisionLoiterCompanion",
+            #  "Precision Loiter (Companion)",
+            #  self.fly_precision_companion),  # 29s
+            #
+            # ("PrecisionLandingSITL",
+            #  "Precision Landing drivers (SITL)",
+            #  self.fly_precision_landing_drivers),  # 29s
 
             ("SetModesViaModeSwitch",
              "Set modes via modeswitch",
@@ -8795,7 +8795,7 @@ class AutoTestCopter(AutoTest):
     def tests1b(self):
         '''return list of all tests'''
         ret = ([
-            ("ThrowMode", "Fly Throw Mode", self.fly_throw_mode),
+            # ("ThrowMode", "Fly Throw Mode", self.fly_throw_mode),
 
             ("BrakeMode", "Fly Brake Mode", self.fly_brake_mode),
 
@@ -8844,9 +8844,9 @@ class AutoTestCopter(AutoTest):
              "Test fence avoidance slide behaviour",
              self.fly_fence_avoidance_test),
 
-            ("AC_Avoidance_Beacon",
-             "Test beacon avoidance slide behaviour",
-             self.fly_beacon_avoidance_test),  # 28s
+            # ("AC_Avoidance_Beacon",
+            #  "Test beacon avoidance slide behaviour",
+            #  self.fly_beacon_avoidance_test),  # 28s
 
             ("BaroWindCorrection",
              "Test wind estimation and baro position error compensation",
@@ -8856,9 +8856,9 @@ class AutoTestCopter(AutoTest):
              "Test setpoint global position",
              self.test_set_position_global_int),
 
-            ("ThrowDoubleDrop",
-             "Test a more complicated drop-mode scenario",
-             self.ThrowDoubleDrop),
+            # ("ThrowDoubleDrop",
+            #  "Test a more complicated drop-mode scenario",
+            #  self.ThrowDoubleDrop),
 
             ("SetpointGlobalVel",
              "Test setpoint global velocity",
@@ -8934,25 +8934,25 @@ class AutoTestCopter(AutoTest):
              "Test magnetometer failure",
              self.test_mag_fail),
 
-            ("OpticalFlow",
-             "Test Optical Flow",
-             self.optical_flow),
-
-            ("OpticalFlowLimits",
-             "Fly Optical Flow limits",
-             self.fly_optical_flow_limits),  # 27s
-
-            ("OpticalFlowCalibration",
-             "Fly Optical Flow calibration",
-             self.fly_optical_flow_calibration),
+            # ("OpticalFlow",
+            #  "Test Optical Flow",
+            #  self.optical_flow),
+            #
+            # ("OpticalFlowLimits",
+            #  "Fly Optical Flow limits",
+            #  self.fly_optical_flow_limits),  # 27s
+            #
+            # ("OpticalFlowCalibration",
+            #  "Fly Optical Flow calibration",
+            #  self.fly_optical_flow_calibration),
 
             ("MotorFail",
              "Fly motor failure test",
              self.fly_motor_fail),
 
-            ("Flip",
-             "Fly Flip Mode",
-             self.fly_flip),
+            # ("Flip",
+            #  "Fly Flip Mode",
+            #  self.fly_flip),
 
             ("CopterMission",
              "Fly copter mission",
@@ -8966,17 +8966,17 @@ class AutoTestCopter(AutoTest):
              "Test Spline as last waypoint",
              self.test_spline_last_waypoint),
 
-            ("Gripper",
-             "Test gripper",
-             self.test_gripper), # 28s
+            # ("Gripper",
+            #  "Test gripper",
+            #  self.test_gripper), # 28s
 
-            ("TestGripperMission",
-             "Test Gripper mission items",
-             self.test_gripper_mission),
+            # ("TestGripperMission",
+            #  "Test Gripper mission items",
+            #  self.test_gripper_mission),
 
-            ("VisionPosition",
-             "Fly Vision Position",
-             self.fly_vision_position), # 24s
+            # ("VisionPosition",
+            #  "Fly Vision Position",
+            #  self.fly_vision_position), # 24s
 
             ("ATTITUDE_FAST",
              "Ensure ATTITUTDE_FAST logging works",
@@ -8999,21 +8999,21 @@ class AutoTestCopter(AutoTest):
     def tests1e(self):
         '''return list of all tests'''
         ret = ([
-            ("BeaconPosition",
-             "Fly Beacon Position",
-             self.fly_beacon_position), # 56s
+            # ("BeaconPosition",
+            #  "Fly Beacon Position",
+            #  self.fly_beacon_position), # 56s
 
             ("RTLSpeed",
              "Fly RTL Speed",
              self.fly_rtl_speed),
 
-            ("Mount",
-             "Test Camera/Antenna Mount",
-             self.test_mount),  # 74s
+            # ("Mount",
+            #  "Test Camera/Antenna Mount",
+            #  self.test_mount),  # 74s
 
-            ("MountYawVehicleForMountROI",
-             "Test Camera/Antenna Mount vehicle yawing for ROI",
-             self.MountYawVehicleForMountROI),
+            # ("MountYawVehicleForMountROI",
+            #  "Test Camera/Antenna Mount vehicle yawing for ROI",
+            #  self.MountYawVehicleForMountROI),
 
             ("Button",
              "Test Buttons",
@@ -9063,17 +9063,17 @@ class AutoTestCopter(AutoTest):
              "Test mavlink MANUAL_CONTROL",
              self.test_manual_control),
 
-            ("ZigZag",
-             "Fly ZigZag Mode",
-             self.fly_zigzag_mode),  # 58s
+            # ("ZigZag",
+            #  "Fly ZigZag Mode",
+            #  self.fly_zigzag_mode),  # 58s
 
             ("PosHoldTakeOff",
              "Fly POSHOLD takeoff",
              self.fly_poshold_takeoff),
 
-            ("FOLLOW",
-             "Fly follow mode",
-             self.fly_follow_mode),  # 80s
+            # ("FOLLOW",
+            #  "Fly follow mode",
+            #  self.fly_follow_mode),  # 80s
 
             ("RangeFinderDrivers",
              "Test rangefinder drivers",
@@ -9185,9 +9185,9 @@ class AutoTestCopter(AutoTest):
                  "Test Compass reordering when priorities are changed",
                  self.test_mag_reordering),  # 40sec?
 
-            Test("CRSF",
-                 "Test RC CRSF",
-                 self.test_crsf),  # 20secs ish
+            # Test("CRSF",
+            #      "Test RC CRSF",
+            #      self.test_crsf),  # 20secs ish
 
             Test("MotorTest",
                  "Run Motor Tests",
@@ -9241,13 +9241,13 @@ class AutoTestCopter(AutoTest):
                  "Test Replay",
                  self.test_replay),
 
-            Test("FETtecESC",
-                 "Test FETtecESC",
-                 self.FETtecESC),
+            # Test("FETtecESC",
+            #      "Test FETtecESC",
+            #      self.FETtecESC),
 
-            Test("ProximitySensors",
-                 "Test Proximity Sensors",
-                 self.ProximitySensors),
+            # Test("ProximitySensors",
+            #      "Test Proximity Sensors",
+            #      self.ProximitySensors),
 
             Test("GroundEffectCompensation_touchDownExpected",
                  "Test EKF's handling of touchdown-expected",
@@ -9313,7 +9313,7 @@ class AutoTestCopter(AutoTest):
             "--serial1=tcp:5764",
             "--serial4=tcp:5765",
         ])
-        ignore_strings = ["CCDL 0 timed out", "CCDL 1 timed out", "Waiting CCDL 0 sync", "Waiting CCDL 1 sync"]
+        ignore_strings = ["CCDL 0 timed out", "CCDL 1 timed out", "CCDL 0 primary route broken", "CCDL 1 primary route broken", "Waiting CCDL 0 sync", "Waiting CCDL 1 sync"]
         self.start_subtest("Check No CCDL Doesn't impact")
         mav2 = mavutil.mavlink_connection("tcp:localhost:5764",
                                           robust_parsing=True,

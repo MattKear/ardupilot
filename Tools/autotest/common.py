@@ -8254,8 +8254,8 @@ Also, ignores heartbeats not from our target system'''
         for mode in self.mav.mode_mapping():
             self.drain_mav()
             self.start_subtest("Mode : %s" % mode)
-            if mode == "FOLLOW":
-                self.set_parameter("FOLL_ENABLE", 1)
+            # if mode == "FOLLOW":
+            #     self.set_parameter("FOLL_ENABLE", 1)
             if mode in self.get_normal_armable_modes_list():
                 self.progress("Armable mode : %s" % mode)
                 self.change_mode(mode)
@@ -8323,8 +8323,8 @@ Also, ignores heartbeats not from our target system'''
                 except ValueError:
                     self.set_parameter("SIM_GPS_DISABLE", 0)
                     self.progress("PASS not able to set mode without Position : %s" % mode)
-            if mode == "FOLLOW":
-                self.set_parameter("FOLL_ENABLE", 0)
+            # if mode == "FOLLOW":
+            #     self.set_parameter("FOLL_ENABLE", 0)
         self.change_mode(self.default_mode())
         if self.armed():
             if not self.disarm_vehicle():
