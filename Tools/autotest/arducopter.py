@@ -9304,6 +9304,7 @@ class AutoTestCopter(AutoTest):
         return ret
 
     def ccdl_timeout(self):
+        """Test CCDL timeout."""
         self.set_parameters({
             "SERIAL1_PROTOCOL": 99,
             "SERIAL4_PROTOCOL": 99,
@@ -9313,7 +9314,11 @@ class AutoTestCopter(AutoTest):
             "--serial1=tcp:5764",
             "--serial4=tcp:5765",
         ])
-        ignore_strings = ["CCDL 0 timed out", "CCDL 1 timed out", "CCDL 0 primary route broken", "CCDL 1 primary route broken", "Waiting CCDL 0 sync", "Waiting CCDL 1 sync"]
+        ignore_strings = ["CCDL 0 timed out", "CCDL 1 timed out",
+                          "CCDL 0 primary route broken", "CCDL 0 backup route broken",
+                          "CCDL 1 primary route broken", "CCDL 1 backup route broken",
+                          "Waiting CCDL 0 sync", "Waiting CCDL 1 sync",
+                          "MAV 1: seq", "MAV 1: failure"]
         self.start_subtest("Check No CCDL Doesn't impact")
         mav2 = mavutil.mavlink_connection("tcp:localhost:5764",
                                           robust_parsing=True,
@@ -9336,19 +9341,30 @@ class AutoTestCopter(AutoTest):
         self.start_subtest("Check send both CCDL and check arming")
         self.set_parameter('SIM_SPEEDUP', 1)
 
-        def send_mavlink_msg(mav, stop_event):
+        def send_ccdl_both_msg(mav_primary, mav_backup, stop_event, stop_even_backup):
             seq = 0
             while not stop_event.is_set():
-                mav.mav.ccdl_timeout_send(time_usec=int(self.get_sim_time_cached() * 1000000), seq=seq,
-                                          target_system=1, target_component=0, force_mavlink1=False)
+                t = int(time.time()*1000000)
+                mav_primary.mav.ccdl_timeout_send(time_usec=t, seq=seq, type=0,
+                                                  target_system=1, target_component=0, force_mavlink1=False)
+                if not stop_even_backup.is_set():
+                    backup_msg = mav_backup.mav.ccdl_timeout_encode(time_usec=t, seq=seq, type=1,
+                                                                    target_system=1, target_component=0)
+                    buf = backup_msg.pack(mav_backup.mav, force_mavlink1=False)
+                    mav_primary.mav.file.write(buf)
+                    mav_primary.mav.seq = (mav_primary.mav.seq + 1) % 256
+                    mav_primary.mav.total_packets_sent += 1
+                    mav_primary.mav.total_bytes_sent += len(buf)
                 seq += 1
-                time.sleep(1/50)
+                time.sleep(1/25)
 
         stopping_event_mav2 = threading.Event()
+        stopping_event_mav2_backup = threading.Event()
         stopping_event_mav3 = threading.Event()
+        stopping_event_mav3_backup = threading.Event()
         with ThreadPoolExecutor(max_workers=2) as executor:
-            future_mav2 = executor.submit(send_mavlink_msg, mav2, stopping_event_mav2)
-            future_mav3 = executor.submit(send_mavlink_msg, mav3, stopping_event_mav3)
+            future_mav2 = executor.submit(send_ccdl_both_msg, mav2, mav3, stopping_event_mav2, stopping_event_mav2_backup)
+            future_mav3 = executor.submit(send_ccdl_both_msg, mav3, mav2, stopping_event_mav3, stopping_event_mav3_backup)
             self.wait_ready_to_arm()
             self.arm_vehicle()
             self.wait_disarmed()
@@ -9360,12 +9376,15 @@ class AutoTestCopter(AutoTest):
         self.assert_prearm_failure('Double timeout', ignore_prearm_failures=ignore_strings)
         self.start_subtest("Check Check CCDL0 timeout")
         stopping_event_mav2.clear()
+        stopping_event_mav2_backup.clear()
         stopping_event_mav3.clear()
+        stopping_event_mav3_backup.clear()
         with ThreadPoolExecutor(max_workers=2) as executor:
-            future_mav2 = executor.submit(send_mavlink_msg, mav2, stopping_event_mav2)
-            future_mav3 = executor.submit(send_mavlink_msg, mav3, stopping_event_mav3)
-            self.wait_ready_to_arm()  # TODO replace by prearm check
+            future_mav2 = executor.submit(send_ccdl_both_msg, mav2, mav3, stopping_event_mav2, stopping_event_mav2_backup)
+            future_mav3 = executor.submit(send_ccdl_both_msg, mav3, mav2, stopping_event_mav3, stopping_event_mav3_backup)
+            self.wait_ready_to_arm()
             stopping_event_mav2.set()
+            stopping_event_mav3_backup.set()
             self.progress("Kill CDDL 0")
             self.delay_sim_time(5)
             self.assert_prearm_failure('Timeout ccdl 0', ignore_prearm_failures=ignore_strings)
@@ -9377,12 +9396,15 @@ class AutoTestCopter(AutoTest):
         self.assert_prearm_failure('Double timeout', ignore_prearm_failures=ignore_strings)
         self.start_subtest("Check Check CCDL1 timeout")
         stopping_event_mav2.clear()
+        stopping_event_mav2_backup.clear()
         stopping_event_mav3.clear()
+        stopping_event_mav3_backup.clear()
         with ThreadPoolExecutor(max_workers=2) as executor:
-            future_mav2 = executor.submit(send_mavlink_msg, mav2, stopping_event_mav2)
-            future_mav3 = executor.submit(send_mavlink_msg, mav3, stopping_event_mav3)
+            future_mav2 = executor.submit(send_ccdl_both_msg, mav2, mav3, stopping_event_mav2, stopping_event_mav2_backup)
+            future_mav3 = executor.submit(send_ccdl_both_msg, mav3, mav2, stopping_event_mav3, stopping_event_mav3_backup)
             self.wait_ready_to_arm()
             stopping_event_mav3.set()
+            stopping_event_mav2_backup.set()
             self.progress("Kill ccdl 1")
             self.delay_sim_time(5)
             self.assert_prearm_failure('Timeout ccdl 1', ignore_prearm_failures=ignore_strings)
