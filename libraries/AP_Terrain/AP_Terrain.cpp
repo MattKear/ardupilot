@@ -33,7 +33,7 @@ AP_Terrain *AP_Terrain::singleton;
 #if APM_BUILD_TYPE(APM_BUILD_ArduSub)
 #define TERRAIN_ENABLE_DEFAULT 0
 #else
-#define TERRAIN_ENABLE_DEFAULT 1
+#define TERRAIN_ENABLE_DEFAULT 0
 #endif
 
 // table of user settable parameters
