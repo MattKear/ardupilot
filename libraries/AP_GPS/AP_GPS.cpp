@@ -190,7 +190,7 @@ const AP_Param::GroupInfo AP_GPS::var_info[] = {
     // @Description: Controls if the autopilot should automatically configure the GPS based on the parameters and default settings
     // @Values: 0:Disables automatic configuration,1:Enable automatic configuration for Serial GPSes only,2:Enable automatic configuration for DroneCAN as well
     // @User: Advanced
-    AP_GROUPINFO("_AUTO_CONFIG", 13, AP_GPS, _auto_config, 1),
+    AP_GROUPINFO("_AUTO_CONFIG", 13, AP_GPS, _auto_config, 0),
 
     // @Param: _RATE_MS
     // @DisplayName: GPS update rate in milliseconds
