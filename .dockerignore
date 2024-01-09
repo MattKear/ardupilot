@@ -1,22 +1,15 @@
 # Docker context ignore list
 .azure
-.github
-.git
 .idea
 .vagrant
 AntennaTracker
 Rover
-ArduCopter
 ArduPlane
 ArduSub
 benchmarks
-build
 docs
-libraries
 mk
-modules
 tests
-Tools
 # autotest directories
 test.*
 terrain
@@ -24,10 +17,6 @@ logs
 # mavproxy stuff
 mav.*
 
-# include the setup script and completion
-!Tools/environment_install/install-prereqs-ubuntu.sh
-!Tools/environment_install/install-prereqs-arch.sh
-!Tools/completion
 **/.mypy_cache
 cmake-build-*/
 *.tar
