@@ -4,11 +4,6 @@ set -m
 
 echo "Starting ArduPilot instance"
 
-if [ "${MCAST2}" -eq 1 ]; then
-    SITL_MCAST="--uart2 mcast:"
-    SERIAL2_OPTIONS="SERIAL2_OPTIONS 1024"
-fi
-
 if [ -z "${SITL_PARAMETER_LIST}" ]; then
     SITL_PARAMETER_LIST="/ardupilot/copter.parm,/ardupilot/copter-octaquad.parm"
 fi
@@ -24,17 +19,17 @@ else
 fi
 if [ "${INSTANCE}" -eq 0 ];then
     SITL_MODEL="$SITL_MODEL --slave 2"
-    CCDL="--serial5=mcast:239.255.145.50:14550 --serial6=mcast:239.255.145.50:14551"
+    CCDL="--serial1=tcp:5764 --serial4=tcp:5765"
     SYSID=1
 fi
 if [ "${INSTANCE}" -eq 1 ];then
     SITL_MODEL="json:0.0.0.0 --slave 0"
-    CCDL="--serial5=mcast:239.255.145.50:14550 --serial6=mcast:239.255.145.50:14552"
+    CCDL="--serial1=tcp:5766 --serial4=tcpclient:127.0.0.1:5764"
     SYSID=2
 fi
 if [ "${INSTANCE}" -eq 2 ];then
     SITL_MODEL="json:0.0.0.0 --slave 0"
-    CCDL="--serial5=mcast:239.255.145.50:14551 --serial6=mcast:239.255.145.50:14552"
+    CCDL="--serial1=tcpclient:127.0.0.1:5765 --serial4=tcpclient:127.0.0.1:5766"
     SYSID=3
 fi
 
@@ -72,7 +67,7 @@ IDENTITY_FILE=identity${I_INSTANCE}.parm
 MASTER_FILE=master_param_fcu${I_INSTANCE}.param
 
 # RANGEFINDER CONFIG
-printf "RNGFND1_TYPE 8\nRNGFND1_SCALING 1\nRNGFND1_MIN_CM 5\nRNGFND1_MAX_CM 10000\nSERIAL4_PROTOCOL 9\nSERIAL4_BAUD 115\n" > "$IDENTITY_FILE"
+printf "RNGFND1_TYPE 8\nRNGFND1_SCALING 1\nRNGFND1_MIN_CM 5\nRNGFND1_MAX_CM 10000\nSERIAL6_PROTOCOL 9\nSERIAL6_BAUD 115\n" > "$IDENTITY_FILE"
 printf "SYSID_THISMAV %s\n%s\n" ${SYSID} "${SERIAL2_OPTIONS}" >> "$IDENTITY_FILE"
 echo "INSTANCE:"
 echo "$I_INSTANCE"
@@ -108,22 +103,6 @@ sed -i '/^COMPASS_PRIO/d' "$MASTER_FILE"
 sed -i '/^AHRS_ORIENTATION/d' "$MASTER_FILE"
 sed -i '/^GPS_POS/d' "$MASTER_FILE"
 
-# doesn't work with current model
-#sed -i '/^ATC_RAT_PIT/d' "$MASTER_FILE"
-#sed -i '/^ATC_RAT_RLL/d' "$MASTER_FILE"
-#sed -i '/^ATC_RAT_YAW/d' "$MASTER_FILE"
-#sed -i '/^INS_/d' "$MASTER_FILE"
-#sed -i '/^ATC_/d' "$MASTER_FILE"
-
-
-#sed -i 's/BATT_ARM_VOLT,4/BATT_ARM_VOLT,1/' "$MASTER_FILE"
-#sed -i 's/BATT_CRT_VOLT,4/BATT_CRT_VOLT,1/' "$MASTER_FILE"
-#sed -i 's/BATT_LOW_VOLT,4/BATT_LOW_VOLT,1/' "$MASTER_FILE"
-#sed -i 's/MOT_BAT_VOLT_MAX,52/MOT_BAT_VOLT_MAX,16.4/' "$MASTER_FILE"
-#sed -i 's/MOT_BAT_VOLT_MIN,42/MOT_BAT_VOLT_MIN,12/' "$MASTER_FILE"
-
-printf "\nSIM_BATT_VOLTAGE,52\nBATT_VOLT_PIN,13\nBATT_CURR_PIN,12\n" >> "$MASTER_FILE"
-
 # Remove empty lines from parameters files
 sed -i '/^[[:space:]]*$/d' "$MASTER_FILE"
 
@@ -149,7 +128,7 @@ sed -i '/^[[:space:]]*$/d' "$MASTER_FILE"
 
 SUREFLITE_PARAMS="$MASTER_FILE"
 
-args="-S $I_INSTANCE --home ${SITL_LOCATION} --model ${SITL_MODEL} --speedup 1 --serial4=sim:lightwareserial ${CCDL} --sysid ${SYSID} --disable-fgview --defaults ${SITL_PARAMETER_LIST},${IDENTITY_FILE},${SUREFLITE_PARAMS},${CCDL_FILE} ${SITL_MCAST}"
+args="-S $I_INSTANCE --home ${SITL_LOCATION} --model ${SITL_MODEL} --speedup 1 --serial6=sim:lightwareserial ${CCDL} --sysid ${SYSID} --disable-fgview --defaults ${SITL_PARAMETER_LIST},${IDENTITY_FILE},${SUREFLITE_PARAMS},${CCDL_FILE}"
 
 echo "args:"
 echo "$args"
