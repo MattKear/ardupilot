@@ -128,7 +128,7 @@ sed -i '/^[[:space:]]*$/d' "$MASTER_FILE"
 
 SUREFLITE_PARAMS="$MASTER_FILE"
 
-args="-S $I_INSTANCE --home ${SITL_LOCATION} --model ${SITL_MODEL} --speedup 1 --serial6=sim:lightwareserial ${CCDL} --sysid ${SYSID} --disable-fgview --defaults ${SITL_PARAMETER_LIST},${IDENTITY_FILE},${SUREFLITE_PARAMS},${CCDL_FILE}"
+args="-S $I_INSTANCE --home ${SITL_LOCATION} --model ${SITL_MODEL} --speedup 1 --serial6=sim:lightwareserial --serial2=tcp:57$(($INSTANCE+6))2 ${CCDL} --sysid ${SYSID} --disable-fgview --defaults ${SITL_PARAMETER_LIST},${IDENTITY_FILE},${SUREFLITE_PARAMS},${CCDL_FILE}"
 
 echo "args:"
 echo "$args"
