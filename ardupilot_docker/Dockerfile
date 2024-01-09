@@ -17,25 +17,20 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 
 RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
 
-# Clone simplified. Don't clone all the tree and nuttx stuff
-# put pymavlink to latest to work with python3 and recent gcc
-RUN --mount=type=ssh git init \
-    && git remote add origin git@github.com:m4a3/aircraft-fcs.git \
-    && git fetch origin feature/Copter-4.2-383-routing --depth 1 \
-    && git reset --hard FETCH_HEAD \
-    && git submodule update --init --recursive --depth 1
+COPY . /ardupilot
+RUN /ardupilot/Tools/gittools/submodule-sync.sh
 
 ENV DISABLE_MAVNATIVE=True
 RUN python3 -m pip install --user --no-deps --no-cache-dir future pymavlink empy pexpect ptyprocess
 
-COPY MNA383.json /ardupilot/Tools/autotest/models/MNA383.json
+COPY ardupilot_docker/MNA383.json /ardupilot/Tools/autotest/models/MNA383.json
 
 # Build binary
 RUN ./waf configure --board sitl --disable-scripting --no-submodule-update \
     && ./waf copter
 
 # Second stage build
-FROM public.ecr.aws/docker/library/python:3.11-slim
+FROM public.ecr.aws/docker/library/python:3.11-slim AS runner
 
 WORKDIR /ardupilot
 
@@ -47,15 +42,15 @@ COPY --from=builder /root/.local /root/.local
 COPY --from=builder /ardupilot/build/sitl/bin/arducopter .
 COPY --from=builder /ardupilot/Tools/autotest/default_params/copter.parm .
 COPY --from=builder /ardupilot/Tools/autotest/default_params/copter-octaquad.parm .
-COPY sitl_launch.bash /ardupilot/sitl_launch.bash
-COPY 383.parm /ardupilot/383.parm
-COPY ccdl.parm /ardupilot/ccdl.parm
-COPY no_ccdl.parm /ardupilot/no_ccdl.parm
-COPY terrain /ardupilot/terrain
-COPY logs /ardupilot/logs
+COPY ardupilot_docker/sitl_launch.bash /ardupilot/sitl_launch.bash
+COPY ardupilot_docker/383.parm /ardupilot/383.parm
+COPY ardupilot_docker/ccdl.parm /ardupilot/ccdl.parm
+COPY ardupilot_docker/no_ccdl.parm /ardupilot/no_ccdl.parm
+COPY ardupilot_docker/terrain /ardupilot/terrain
+COPY ardupilot_docker/logs /ardupilot/logs
 
 # Docker's supervisor
-COPY supervisord.conf /etc/supervisor/supervisord.conf
+COPY ardupilot_docker/supervisord.conf /etc/supervisor/supervisord.conf
 
 ENV PATH=/root/.local/bin:$PATH
 
