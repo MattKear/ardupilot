@@ -23,12 +23,12 @@ if [ "${INSTANCE}" -eq 0 ];then
     SYSID=1
 fi
 if [ "${INSTANCE}" -eq 1 ];then
-    SITL_MODEL="json:0.0.0.0 --slave 0"
+    SITL_MODEL="json:0.0.0.0"
     CCDL="--serial1=tcp:5766 --serial4=tcpclient:127.0.0.1:5764"
     SYSID=2
 fi
 if [ "${INSTANCE}" -eq 2 ];then
-    SITL_MODEL="json:0.0.0.0 --slave 0"
+    SITL_MODEL="json:0.0.0.0"
     CCDL="--serial1=tcpclient:127.0.0.1:5765 --serial4=tcpclient:127.0.0.1:5766"
     SYSID=3
 fi
