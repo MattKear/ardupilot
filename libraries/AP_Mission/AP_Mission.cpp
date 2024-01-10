@@ -321,6 +321,17 @@ void AP_Mission::update()
     // save persistent waypoint_num for watchdog restore
     hal.util->persistent_data.waypoint_num = _nav_cmd.index;
 
+    // check if we have an active do command
+    if (!_flags.do_cmd_loaded) {
+        advance_current_do_cmd();
+    } else {
+        // check the active do command
+        if (verify_command(_do_cmd)) {
+            // mark _do_cmd as complete
+            _flags.do_cmd_loaded = false;
+        }
+    }
+
     // check if we have an active nav command
     if (!_flags.nav_cmd_loaded || _nav_cmd.index == AP_MISSION_CMD_INDEX_NONE) {
         // advance in mission if no active nav command
@@ -340,17 +351,6 @@ void AP_Mission::update()
                 complete();
                 return;
             }
-        }
-    }
-
-    // check if we have an active do command
-    if (!_flags.do_cmd_loaded) {
-        advance_current_do_cmd();
-    } else {
-        // check the active do command
-        if (verify_command(_do_cmd)) {
-            // mark _do_cmd as complete
-            _flags.do_cmd_loaded = false;
         }
     }
 }
@@ -1997,20 +1997,20 @@ bool AP_Mission::advance_current_nav_cmd(uint16_t starting_index)
                 _flags.resuming_mission = false;
             }
 
-        } else {
+        // } else {
 
-            // check the active do command
-            if (verify_command(_do_cmd)) {
-                // mark _do_cmd as complete
-                _flags.do_cmd_loaded = false;
-            }
+        //     // check the active do command
+        //     if (verify_command(_do_cmd)) {
+        //         // mark _do_cmd as complete
+        //         _flags.do_cmd_loaded = false;
+        //     }
 
-            // set current do command and start it (if not already set)
-            if (!_flags.do_cmd_loaded) {
-                _do_cmd = cmd;
-                _flags.do_cmd_loaded = true;
-                start_command(_do_cmd);
-            }
+        //     // set current do command and start it (if not already set)
+        //     if (!_flags.do_cmd_loaded) {
+        //         _do_cmd = cmd;
+        //         _flags.do_cmd_loaded = true;
+        //         start_command(_do_cmd);
+        //     }
         }
         // move onto next command
         cmd_index = cmd.index+1;
@@ -2049,18 +2049,37 @@ void AP_Mission::advance_current_do_cmd()
         cmd_index = _do_cmd.index + 1;
     }
 
-    // find next do command
-    Mission_Command cmd;
-    if (!get_next_do_cmd(cmd_index, cmd)) {
-        // set flag to stop unnecessarily searching for do commands
-        _flags.do_cmd_all_done = true;
-        return;
-    }
+    // avoid endless loops
+    uint8_t max_loops = 255;
 
-    // set current do command and start it
-    _do_cmd = cmd;
-    _flags.do_cmd_loaded = true;
-    start_command(_do_cmd);
+    // search until we find next nav command or reach end of command list
+    while (!_flags.nav_cmd_loaded && max_loops-- > 0) {
+
+        // check the active do command
+        if (verify_command(_do_cmd)) {
+            // mark _do_cmd as complete
+            _flags.do_cmd_loaded = false;
+        } else {
+            // The active do command is still running so we cannot advance the do command any further
+            return;
+        }
+
+        // find next do command
+        Mission_Command cmd;
+        if (!get_next_do_cmd(cmd_index, cmd)) {
+            // set flag to stop unnecessarily searching for do commands
+            // _flags.do_cmd_all_done = true; TODO check if this flag gets rest on nav commands
+            return;
+        }
+
+        // set current do command and start it
+        _do_cmd = cmd;
+        _flags.do_cmd_loaded = true;
+        start_command(_do_cmd);
+
+        // move onto next command
+        cmd_index = cmd.index+1;
+    }
 }
 
 /// get_next_cmd - gets next command found at or after start_index
