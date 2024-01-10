@@ -27,6 +27,9 @@ I2C_ORDER I2C2 I2C1
 # order of UARTs (and USB)
 SERIAL_ORDER OTG1 USART2 USART3 UART4 UART8 UART7 OTG2
 
+# default the 2nd interface to MAVLink2
+define HAL_OTG2_PROTOCOL SerialProtocol_MAVLink2
+
 # default to all pins low to avoid ESD issues
 DEFAULTGPIO OUTPUT LOW PULLDOWN
 
@@ -330,6 +333,7 @@ ROMFS io_firmware.bin Tools/IO_Firmware/iofirmware_highpolh.bin
 DMA_NOSHARE SPI1* SPI4* USART6*
 
 # for users who have replaced their CubeSolo with a CubeOrange:
+
 define HAL_OREO_LED_ENABLED 1
 define HAL_SOLO_GIMBAL_ENABLED HAL_MOUNT_ENABLED
 
