@@ -19,17 +19,17 @@ else
 fi
 if [ "${INSTANCE}" -eq 0 ];then
     SITL_MODEL="$SITL_MODEL --slave 2"
-    CCDL="--serial1=tcp:5764 --serial4=tcp:5765"
+    CCDL_PORTS="--serial1=tcp:5764 --serial4=tcp:5765"
     SYSID=1
 fi
 if [ "${INSTANCE}" -eq 1 ];then
     SITL_MODEL="json:0.0.0.0"
-    CCDL="--serial1=tcp:5766 --serial4=tcpclient:127.0.0.1:5764"
+    CCDL_PORTS="--serial1=tcp:5766 --serial4=tcpclient:127.0.0.1:5764"
     SYSID=2
 fi
 if [ "${INSTANCE}" -eq 2 ];then
     SITL_MODEL="json:0.0.0.0"
-    CCDL="--serial1=tcpclient:127.0.0.1:5765 --serial4=tcpclient:127.0.0.1:5766"
+    CCDL_PORTS="--serial1=tcpclient:127.0.0.1:5765 --serial4=tcpclient:127.0.0.1:5766"
     SYSID=3
 fi
 
@@ -76,7 +76,7 @@ echo "${IDENTITY_FILE}:"
 cat "$IDENTITY_FILE"
 
 
-if [ -z "${CCDL}" ]; then
+if [ -z "${NO_CCDL}" ]; then
     CCDL_FILE=ccdl.parm
     cp /ardupilot/ccdl.parm ./"$CCDL_FILE"
     sed -i '/^[[:space:]]*$/d' "$CCDL_FILE"
@@ -128,7 +128,7 @@ sed -i '/^[[:space:]]*$/d' "$MASTER_FILE"
 
 SUREFLITE_PARAMS="$MASTER_FILE"
 
-args="-S $I_INSTANCE --home ${SITL_LOCATION} --model ${SITL_MODEL} --speedup 1 --serial6=sim:lightwareserial --serial2=tcp:57$(($INSTANCE+6))2 ${CCDL} --sysid ${SYSID} --disable-fgview --defaults ${SITL_PARAMETER_LIST},${IDENTITY_FILE},${SUREFLITE_PARAMS},${CCDL_FILE}"
+args="-S $I_INSTANCE --home ${SITL_LOCATION} --model ${SITL_MODEL} --speedup 1 --serial6=sim:lightwareserial --serial2=tcp:57$(($INSTANCE+6))2 ${CCDL_PORTS} --sysid ${SYSID} --disable-fgview --defaults ${SITL_PARAMETER_LIST},${IDENTITY_FILE},${SUREFLITE_PARAMS},${CCDL_FILE}"
 
 echo "args:"
 echo "$args"
