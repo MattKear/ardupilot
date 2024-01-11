@@ -280,6 +280,9 @@ public:
     // write log, to be called at 10hz
     virtual void Log_Write() {};
 
+    // Get target RPM for external governor
+    virtual float get_target_rpm() const { return 0; }
+
 protected:
     // output functions that should be overloaded by child classes
     virtual void        output_armed_stabilizing() = 0;

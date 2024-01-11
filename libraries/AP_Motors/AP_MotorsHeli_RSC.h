@@ -43,7 +43,8 @@ enum RotorControlMode {
     ROTOR_CONTROL_MODE_PASSTHROUGH,
     ROTOR_CONTROL_MODE_SETPOINT,
     ROTOR_CONTROL_MODE_THROTTLECURVE,
-    ROTOR_CONTROL_MODE_AUTOTHROTTLE
+    ROTOR_CONTROL_MODE_AUTOTHROTTLE,
+    ROTOR_CONTROL_MODE_RPM_SETPOINT
 };
 
 class AP_MotorsHeli_RSC {
@@ -86,7 +87,7 @@ public:
 
     // functions for autothrottle, throttle curve, governor, idle speed, output to servo
     void        set_governor_output(float governor_output) {_governor_output = governor_output; }
-    float       get_governor_output() const { return _governor_output; }
+    float       get_governor_output() const;
     void        governor_reset();
     float       get_control_output() const { return _control_output; }
     void        set_idle_output(float idle_output) { _idle_output.set(idle_output); }
@@ -125,6 +126,9 @@ public:
     // output - update value to send to ESC/Servo
     void        output(RotorControlState state);
 
+    // Get target RPM for external governor
+    float get_target_rpm() const { return _RPM_target; }
+
     // var_info for holding Parameter information
     static const struct AP_Param::GroupInfo var_info[];
 
@@ -150,6 +154,7 @@ private:
     RotorControlMode _control_mode = ROTOR_CONTROL_MODE_DISABLED;   // motor control mode, Passthrough or Setpoint
     float           _desired_speed;               // latest desired rotor speed from pilot
     float           _control_output;              // latest logic controlled output
+    float           _RPM_target;                  // RPM target for external governor
     float           _rotor_ramp_output;           // scalar used to ramp rotor speed between _rsc_idle_output and full speed (0.0-1.0f)
     float           _rotor_runup_output;          // scalar used to store status of rotor run-up time (0.0-1.0f)
     bool            _runup_complete;              // flag for determining if runup is complete

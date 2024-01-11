@@ -162,6 +162,9 @@ public:
     // Run arming checks
     bool arming_checks(size_t buflen, char *buffer) const override;
 
+    // Get target RPM for external governor
+    float get_target_rpm() const override { return _main_rotor.get_target_rpm(); }
+
     // var_info for holding Parameter information
     static const struct AP_Param::GroupInfo var_info[];
 

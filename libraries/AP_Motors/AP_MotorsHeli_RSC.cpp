@@ -35,7 +35,7 @@ const AP_Param::GroupInfo AP_MotorsHeli_RSC::var_info[] = {
     // @Param: MODE
     // @DisplayName: Rotor Speed Control Mode
     // @Description: Selects the type of rotor speed control used to determine throttle output to the HeliRSC servo channel when motor interlock is enabled (throttle hold off). RC Passthrough sends the input from the RC Motor Interlock channel as throttle output.  External Gov SetPoint sends the RSC SetPoint parameter value as throttle output.  Throttle Curve uses the 5 point throttle curve to determine throttle output based on the collective output.  AutoThrottle requires a rotor speed sensor, contains an advanced autothrottle governor and is primarily for piston and turbine engines. WARNING: Throttle ramp time and throttle curve MUST be tuned properly using Throttle Curve mode before using AutoThrottle
-    // @Values: 1:RC Passthrough, 2:External Gov SetPoint, 3:Throttle Curve, 4:AutoThrottle
+    // @Values: 1:RC Passthrough, 2:External Gov SetPoint, 3:Throttle Curve, 4:AutoThrottle, 5: External Gov RPM command
     // @User: Standard
     AP_GROUPINFO("MODE", 2, AP_MotorsHeli_RSC, _rsc_mode, (int8_t)ROTOR_CONTROL_MODE_PASSTHROUGH),
 
@@ -281,6 +281,7 @@ void AP_MotorsHeli_RSC::output(RotorControlState state)
 
         // control output forced to zero
         _control_output = 0.0f;
+        _RPM_target = 0.0;
 
         // governor is forced to disengage status and reset outputs
         governor_reset();
@@ -346,6 +347,7 @@ void AP_MotorsHeli_RSC::output(RotorControlState state)
             _gov_bailing_out = false;
         }
         _control_output = _idle_throttle;
+        _RPM_target = 0.0;
         break;
 
     case ROTOR_CONTROL_ACTIVE:
@@ -369,6 +371,8 @@ void AP_MotorsHeli_RSC::output(RotorControlState state)
             _control_output = _idle_throttle + (_rotor_ramp_output * (throttlecurve - _idle_throttle));
         } else if (_control_mode == ROTOR_CONTROL_MODE_AUTOTHROTTLE) {
             autothrottle_run();
+        } else if (_control_mode == ROTOR_CONTROL_MODE_RPM_SETPOINT) {
+            _RPM_target = _rotor_ramp_output * _governor_rpm;
         }
         break;
     }
@@ -607,3 +611,13 @@ void AP_MotorsHeli_RSC::governor_reset()
     _governor_engage = false;
     _governor_fault_count = 0;   // reset fault count when governor reset
 }
+
+// Get governor output, throttle level or RPM set point depending on mode
+float AP_MotorsHeli_RSC::get_governor_output() const 
+{
+    if (_control_mode == ROTOR_CONTROL_MODE_RPM_SETPOINT) {
+        return _RPM_target;
+    }
+    return _governor_output;
+}
+
