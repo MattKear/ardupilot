@@ -255,6 +255,7 @@ private:
 #if AP_DRONECAN_HIMARK_SERVO_ENABLED
     void SRV_send_himark();
 #endif
+    void send_rpm_cmd();
 
     ///// LED /////
     void led_out_send();
@@ -302,6 +303,7 @@ private:
     AP_Int16 _options;
     AP_Int16 _notify_state_hz;
     AP_Int16 _pool_size;
+    AP_Int32 _heli_rpm_bm;
 
     AP_PoolAllocator *_allocator;
     AP_UAVCAN_DNA_Server *_dna_server;
@@ -319,6 +321,7 @@ private:
         bool esc_pending;
         bool servo_pending;
     } _SRV_conf[UAVCAN_SRV_NUMBER];
+    bool _rpm_pending;
 
     uint32_t _esc_send_count;
     uint32_t _srv_send_count;

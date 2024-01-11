@@ -32,6 +32,7 @@
 #include <uavcan/equipment/actuator/Status.hpp>
 
 #include <uavcan/equipment/esc/RawCommand.hpp>
+#include <uavcan/equipment/esc/RPMCommand.hpp>
 #include <uavcan/equipment/esc/Status.hpp>
 #include <uavcan/equipment/indication/LightsCommand.hpp>
 #include <uavcan/equipment/indication/SingleLightCommand.hpp>
@@ -81,6 +82,7 @@
 #include <AP_OpenDroneID/AP_OpenDroneID.h>
 #include "AP_UAVCAN_pool.h"
 #include <AP_Proximity/AP_Proximity_DroneCAN.h>
+#include <AP_Motors/AP_Motors.h>
 
 #define LED_DELAY_US 50000
 
@@ -176,7 +178,14 @@ const AP_Param::GroupInfo AP_UAVCAN::var_info[] = {
     // @Range: 1024 16384
     // @User: Advanced
     AP_GROUPINFO("POOL", 8, AP_UAVCAN, _pool_size, UAVCAN_NODE_POOL_SIZE),
-    
+
+    // @Param: RPM_BM
+    // @DisplayName: Output channels to be transmitted as ESC with RPM command
+    // @Description: Bitmask with one set for channel to be transmitted as a ESC RPM command over UAVCAN
+    // @Bitmask: 0: ESC 1, 1: ESC 2, 2: ESC 3, 3: ESC 4, 4: ESC 5, 5: ESC 6, 6: ESC 7, 7: ESC 8, 8: ESC 9, 9: ESC 10, 10: ESC 11, 11: ESC 12, 12: ESC 13, 13: ESC 14, 14: ESC 15, 15: ESC 16, 16: ESC 17, 17: ESC 18, 18: ESC 19, 19: ESC 20, 20: ESC 21, 21: ESC 22, 22: ESC 23, 23: ESC 24, 24: ESC 25, 25: ESC 26, 26: ESC 27, 27: ESC 28, 28: ESC 29, 29: ESC 30, 30: ESC 31, 31: ESC 32
+    // @User: Advanced
+    AP_GROUPINFO("RPM_BM", 9, AP_UAVCAN, _heli_rpm_bm, 0),
+
     AP_GROUPEND
 };
 
@@ -187,6 +196,7 @@ const AP_Param::GroupInfo AP_UAVCAN::var_info[] = {
 // publisher interfaces
 static uavcan::Publisher<uavcan::equipment::actuator::ArrayCommand>* act_out_array[HAL_MAX_CAN_PROTOCOL_DRIVERS];
 static uavcan::Publisher<uavcan::equipment::esc::RawCommand>* esc_raw[HAL_MAX_CAN_PROTOCOL_DRIVERS];
+static uavcan::Publisher<uavcan::equipment::esc::RPMCommand>* esc_rpm[HAL_MAX_CAN_PROTOCOL_DRIVERS];
 static uavcan::Publisher<uavcan::equipment::indication::LightsCommand>* rgb_led[HAL_MAX_CAN_PROTOCOL_DRIVERS];
 static uavcan::Publisher<uavcan::equipment::indication::BeepCommand>* buzzer[HAL_MAX_CAN_PROTOCOL_DRIVERS];
 static uavcan::Publisher<ardupilot::indication::SafetyState>* safety_state[HAL_MAX_CAN_PROTOCOL_DRIVERS];
@@ -441,6 +451,10 @@ void AP_UAVCAN::init(uint8_t driver_index, bool enable_filters)
     esc_raw[driver_index]->setTxTimeout(uavcan::MonotonicDuration::fromMSec(2));
     esc_raw[driver_index]->setPriority(uavcan::TransferPriority::OneLowerThanHighest);
 
+    esc_rpm[driver_index] = new uavcan::Publisher<uavcan::equipment::esc::RPMCommand>(*_node);
+    esc_rpm[driver_index]->setTxTimeout(uavcan::MonotonicDuration::fromMSec(2));
+    esc_rpm[driver_index]->setPriority(uavcan::TransferPriority::OneLowerThanHighest);
+
 #if AP_DRONECAN_HOBBYWING_ESC_ENABLED
     hobbywing.enabled = option_is_set(Options::USE_HOBBYWING_ESC);
     if (hobbywing.enabled) {
@@ -625,6 +639,8 @@ void AP_UAVCAN::loop(void)
             for (uint8_t i = 0; i < UAVCAN_SRV_NUMBER; i++) {
                 _SRV_conf[i].esc_pending = false;
             }
+
+            send_rpm_cmd();
         }
 
         led_out_send();
@@ -794,6 +810,57 @@ void AP_UAVCAN::SRV_send_esc(void)
     }
 }
 
+void AP_UAVCAN::send_rpm_cmd(void)
+{
+    WITH_SEMAPHORE(SRV_sem);
+
+    if (!_rpm_pending) {
+        return;
+    }
+    _rpm_pending = false;
+
+    static const int cmd_max = uavcan::equipment::esc::RPMCommand::FieldTypes::rpm::RawValueType::max();
+    uavcan::equipment::esc::RPMCommand esc_msg;
+
+    uint8_t active_esc_num = 0, max_esc_num = 0;
+
+    // find out how many esc we have enabled and if they are active at all
+    for (uint8_t i = 0; i < UAVCAN_SRV_NUMBER; i++) {
+        if ((((uint32_t) 1) << i) & _heli_rpm_bm) {
+            max_esc_num = i + 1;
+            active_esc_num++;
+        }
+    }
+
+    // if at least one is active (update) we need to send to all
+    if (active_esc_num > 0) {
+
+        float rpm = 0;
+        AP_Motors *motors = AP::motors();
+        if (motors != nullptr) {
+            rpm = motors->get_target_rpm();
+        }
+        rpm = constrain_float(rpm, 0, cmd_max);
+
+
+        uint8_t k = 0;
+        for (uint8_t i = 0; i < max_esc_num && k < 20; i++) {
+            if ((((uint32_t) 1) << i) & _heli_rpm_bm) {
+                esc_msg.rpm.push_back(static_cast<int>(rpm));
+            } else {
+                esc_msg.rpm.push_back(static_cast<unsigned>(0));
+            }
+            k++;
+        }
+
+        if (esc_rpm[_driver_index]->broadcast(esc_msg) > 0) {
+            _esc_send_count++;
+        } else {
+            _fail_send_count++;
+        }
+    }
+}
+
 #if AP_DRONECAN_HOBBYWING_ESC_ENABLED
 /*
   send HobbyWing version of ESC RawCommand
@@ -860,6 +927,7 @@ void AP_UAVCAN::SRV_push_servos()
             _SRV_conf[i].servo_pending = true;
         }
     }
+    _rpm_pending = true;
 
     _SRV_armed = hal.util->safety_switch_state() != AP_HAL::Util::SAFETY_DISARMED;
 }
