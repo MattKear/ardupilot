@@ -333,6 +333,7 @@ void AP_ESC_Telem::send_esc_telemetry_mavlink(uint8_t mav_chan)
             continue;
         }
 
+        const mavlink_channel_t chan = (mavlink_channel_t)mav_chan;
 
         // arrays to hold output
         mavlink_esc_telemetry_1_to_4_t s {};
@@ -353,6 +354,13 @@ void AP_ESC_Telem::send_esc_telemetry_mavlink(uint8_t mav_chan)
                 s.rpm[j] = constrain_float(rpmf, 0, UINT16_MAX);
             }
             s.count[j] = _telem_data[esc_id].count;
+
+            int16_t mot_temp;
+            if (get_motor_temperature(esc_id, mot_temp)) {
+                char float_name[MAVLINK_MSG_NAMED_VALUE_FLOAT_FIELD_NAME_LEN+1] {};
+                hal.util->snprintf(float_name, sizeof(float_name), "MOT%i_TEMP", esc_id);
+                mavlink_msg_named_value_float_send(chan, now, float_name, mot_temp * 0.01);
+            }
         }
 
         // make sure a msg hasn't been extended
@@ -366,7 +374,6 @@ void AP_ESC_Telem::send_esc_telemetry_mavlink(uint8_t mav_chan)
                       MAVLINK_MSG_ID_ESC_TELEMETRY_1_TO_4_LEN == MAVLINK_MSG_ID_ESC_TELEMETRY_29_TO_32_LEN,
                       "telem messages not compatible");
 
-        const mavlink_channel_t chan = (mavlink_channel_t)mav_chan;
         // send messages
         switch (i) {
             case 0:
