@@ -650,6 +650,16 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     GOBJECT(relay,                 "RELAY", AP_Relay),
 #endif
 
+#if AP_TEMPERATURE_SENSOR_ENABLED
+    // @Param: TEMP_MAX_RATE
+    // @DisplayName: Temprature Sensor max rate
+    // @Description: This is the maximum rate we send Temprature Sensor data in Hz. Zero means no send.
+    // @Units: Hz
+    // @Range: 0 200
+    // @Increment: 1
+    GSCALAR(temperature_max_rate, "TEMP_MAX_RATE", 0),
+#endif
+
     AP_VAREND
 };
 
