@@ -410,13 +410,21 @@ void UARTDriver::_tcp_start_client(const char *address, uint16_t port)
     /* we want to be able to re-use ports quickly */
     setsockopt(_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
 
-    ret = connect(_fd, (struct sockaddr *)&sockaddr, sizeof(sockaddr));
-    if (ret == -1) {
-        fprintf(stderr, "connect failed on port %u - %s\n",
-                (unsigned)ntohs(sockaddr.sin_port),
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        ret = connect(_fd, (struct sockaddr *)&sockaddr, sizeof(sockaddr));
+        if (ret == 0) {
+            break;
+        }
+        fprintf(stderr, "connect failed on port %u - %s retrying\n",
+                (unsigned) ntohs(sockaddr.sin_port),
                 strerror(errno));
+        // If connection failed, wait for a bit before retrying
+        sleep(1);
+    }
+    if (ret == -1) {
         exit(1);
     }
+
 
     setsockopt(_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
     setsockopt(_fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
