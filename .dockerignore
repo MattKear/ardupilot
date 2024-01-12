@@ -14,8 +14,13 @@ tests
 test.*
 terrain
 logs
+.github/
+FCU1/
+FCU2/
+FCU3/
 # mavproxy stuff
 mav.*
+
 
 **/.mypy_cache
 cmake-build-*/

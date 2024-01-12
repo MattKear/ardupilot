@@ -1,5 +1,12 @@
 # syntax=docker/dockerfile:1
+FROM alpine as FS_ARDU
+# Trick to copy the source code into a directory and remove docker things from it to have faster rebuild
+
+COPY . /ardupilot
+RUN rm -rf /ardupilot/ardupilot_docker
+
 FROM public.ecr.aws/docker/library/python:3.10-slim AS builder
+# cannot use python 3.11 with copter 4.2
 
 # Make a working directory
 WORKDIR /ardupilot
@@ -16,17 +23,17 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
-
-COPY . /ardupilot
-RUN /ardupilot/Tools/gittools/submodule-sync.sh
-
 ENV DISABLE_MAVNATIVE=True
 RUN python3 -m pip install --user --no-deps --no-cache-dir future pymavlink empy pexpect ptyprocess
+
+COPY --from=FS_ARDU /ardupilot /ardupilot
+# RUN /ardupilot/Tools/gittools/submodule-sync.sh
 
 COPY ardupilot_docker/MNA383.json /ardupilot/Tools/autotest/models/MNA383.json
 
 # Build binary
-RUN ./waf configure --board sitl --disable-scripting --no-submodule-update \
+RUN ./waf distclean \
+    && ./waf configure --board sitl --disable-scripting --no-submodule-update \
     && ./waf copter
 
 # Second stage build
