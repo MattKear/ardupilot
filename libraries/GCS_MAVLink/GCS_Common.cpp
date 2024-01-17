@@ -80,7 +80,6 @@
 #include <AP_BattMonitor/AP_BattMonitor.h>
 #endif
 #include <AP_GPS/AP_GPS.h>
-#include <AP_ExternalAHRS/AP_ExternalAHRS.h>
 
 #include <ctype.h>
 
@@ -3864,10 +3863,15 @@ void GCS_MAVLINK::handle_send_autopilot_version(const mavlink_message_t &msg)
 
 void GCS_MAVLINK::send_ccdl_status()
 {
-    auto &ccdl_routing_current_sysid = GCS_MAVLINK::ccdl_routing_tables[mavlink_system.sysid - 1];
+    const auto mysysid = mavlink_system.sysid - 1;
+    const bool valid_sysid = mysysid > 0 && mysysid < 4;
+    if (!valid_sysid) {
+        return;
+    }
+    auto &ccdl_routing_current_sysid = GCS_MAVLINK::ccdl_routing_tables[mysysid];
     mavlink_ccdl_status_t msg;
     msg.time_usec = AP_HAL::micros64();
-    for (auto i=0; i<2; i++) {
+    for (auto i=0; i<MAX_CCDL; i++) {
         msg.mavlink_channel[i] = ccdl_routing_current_sysid.ccdl[i].mavlink_channel;
         msg.serial_port[i] = ccdl_routing_current_sysid.ccdl[i].serial_port;
         msg.primary_target[i] = ccdl_routing_current_sysid.ccdl[i].primary_route_sysid_target;
@@ -4688,7 +4692,8 @@ void GCS_MAVLINK::handle_command_long(const mavlink_message_t &msg)
         break;
     case MAV_CMD_GET_CCDL_STATUS:
         ccdl_status_msg_target = msg.sysid;
-        FALLTHROUGH;
+        result = handle_command_get_ccdl_status(packet);
+        break;
     default:
          result = handle_command_long_packet(packet);
          break;
