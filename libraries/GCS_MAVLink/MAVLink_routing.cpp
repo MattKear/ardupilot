@@ -133,16 +133,19 @@ bool MAVLink_routing::check_and_forward(mavlink_channel_t in_channel, const mavl
     get_targets(msg, target_system, target_component);
 
     std::array<bool, MAVLINK_COMM_NUM_BUFFERS> skip_channels {false};
-    auto skip_channel = check_ccdl_forward(in_channel, msg, 0, 1);
-    if (skip_channel == DROP_MAVLINK_MSG) {
-        return true;
+    const auto ccdl_enabled = GCS_MAVLINK::ccdl_routing_tables[mavlink_system.sysid - 1].enabled;
+    if (ccdl_enabled) {
+        auto skip_channel = check_ccdl_forward(in_channel, msg, 0, 1);
+        if (skip_channel == DROP_MAVLINK_MSG) {
+            return true;
+        }
+        skip_channels[skip_channel] = true;
+        skip_channel = check_ccdl_forward(in_channel, msg, 1, 0);
+        if (skip_channel == DROP_MAVLINK_MSG) {
+            return true;
+        }
+        skip_channels[skip_channel] = true;
     }
-    skip_channels[skip_channel] = true;
-    skip_channel = check_ccdl_forward(in_channel, msg, 1, 0);
-    if (skip_channel == DROP_MAVLINK_MSG) {
-        return true;
-    }
-    skip_channels[skip_channel] = true;
 
     bool broadcast_system = (target_system == 0 || target_system == -1);
     bool broadcast_component = (target_component == 0 || target_component == -1);
@@ -169,15 +172,18 @@ bool MAVLink_routing::check_and_forward(mavlink_channel_t in_channel, const mavl
              target_component != routes[i].compid)) {
             continue;
         }
-        if (skip_channels[routes[i].channel]) {
-            continue;
-        }
 
-        if (broadcast_system && in_channel == ccdl0.mavlink_channel && routes[i].channel != ccdl1.mavlink_channel) {
-            continue;
-        }
-        if (broadcast_system && in_channel == ccdl1.mavlink_channel && routes[i].channel != ccdl0.mavlink_channel) {
-            continue;
+        if (ccdl_enabled) {
+            if (skip_channels[routes[i].channel]) {
+                continue;
+            }
+
+            if (broadcast_system && in_channel == ccdl0.mavlink_channel && routes[i].channel != ccdl1.mavlink_channel) {
+                continue;
+            }
+            if (broadcast_system && in_channel == ccdl1.mavlink_channel && routes[i].channel != ccdl0.mavlink_channel) {
+                continue;
+            }
         }
 
         if (broadcast_system || (target_system == routes[i].sysid &&
@@ -395,13 +401,11 @@ void MAVLink_routing::handle_heartbeat(mavlink_channel_t in_channel, const mavli
     
     // mask out channels that do not want the heartbeat to be forwarded
     mask &= ~no_route_mask;
-
-    update_ccdl_routing(in_channel, msg);
-
     const auto& ccdl_routing_current_sysid = GCS_MAVLINK::ccdl_routing_tables[mavlink_system.sysid - 1];
-
+    if (ccdl_routing_current_sysid.enabled) {
+        update_ccdl_routing(in_channel, msg);
 #if ROUTING_DEBUG
-    ::printf("HB from chan %u from sysid=%u compid=%u\n",
+        ::printf("HB from chan %u from sysid=%u compid=%u\n",
                      (unsigned)in_channel,
                      (unsigned)msg.sysid,
                      (unsigned)msg.compid);
@@ -412,16 +416,17 @@ void MAVLink_routing::handle_heartbeat(mavlink_channel_t in_channel, const mavli
                      (unsigned)ccdl_routing_current_sysid.ccdl[1].backup_route_last_hb);
 #endif
 
-    for (auto i = 0; i < GCS_MAVLINK::MAX_CCDL; i++ ) {
-        if (in_channel == ccdl_routing_current_sysid.ccdl[i].mavlink_channel && ccdl_routing_current_sysid.ccdl[i].backup_route_sysid_target == msg.sysid) {
-            if (i == 0) {
-                if (ccdl_routing_current_sysid.ccdl[1].primary_route_working) {
-                    return; // don't forward hb from indirect route if direct is working
+        for (auto i = 0; i < GCS_MAVLINK::MAX_CCDL; i++ ) {
+            if (in_channel == ccdl_routing_current_sysid.ccdl[i].mavlink_channel && ccdl_routing_current_sysid.ccdl[i].backup_route_sysid_target == msg.sysid) {
+                if (i == 0) {
+                    if (ccdl_routing_current_sysid.ccdl[1].primary_route_working) {
+                        return; // don't forward hb from indirect route if direct is working
+                    }
                 }
-            }
-            if (i == 1) {
-                if (ccdl_routing_current_sysid.ccdl[0].primary_route_working) {
-                    return; // don't forward hb from indirect route if direct is working
+                if (i == 1) {
+                    if (ccdl_routing_current_sysid.ccdl[0].primary_route_working) {
+                        return; // don't forward hb from indirect route if direct is working
+                    }
                 }
             }
         }
@@ -432,9 +437,11 @@ void MAVLink_routing::handle_heartbeat(mavlink_channel_t in_channel, const mavli
         if (routes[i].sysid == msg.sysid && routes[i].compid == msg.compid) {
             // make heartbeat always pass on CCDL to have decay on the second route
             bool mask_ccdl = true;
-            for (auto & j : ccdl_routing_current_sysid.ccdl) {
-                if (routes[i].channel != in_channel && routes[i].channel == j.mavlink_channel && (routes[i].sysid == j.backup_route_sysid_target || (routes[i].sysid != j.primary_route_sysid_target && !j.backup_route_working && j.primary_route_working))) {
-                    mask_ccdl = false;
+            if (ccdl_routing_current_sysid.enabled) {
+                for (auto & j : ccdl_routing_current_sysid.ccdl) {
+                    if (routes[i].channel != in_channel && routes[i].channel == j.mavlink_channel && (routes[i].sysid == j.backup_route_sysid_target || (routes[i].sysid != j.primary_route_sysid_target && !j.backup_route_working && j.primary_route_working))) {
+                        mask_ccdl = false;
+                    }
                 }
             }
             if (mask_ccdl) {

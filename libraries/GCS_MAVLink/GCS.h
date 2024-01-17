@@ -414,6 +414,7 @@ public:
 
     struct ccdl_routing_table {
         std::array<CCDLInfo, MAX_CCDL> ccdl;
+        bool enabled{};
     };
     uint8_t ccdl_status_msg_target;
 

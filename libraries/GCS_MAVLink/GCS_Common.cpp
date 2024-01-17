@@ -176,6 +176,11 @@ bool GCS_MAVLINK::init(uint8_t instance, bool eahrs, uint8_t eahrs_instance)
             ccdl_routing_tablei.ccdl[eahrs_instance].mavlink_channel = chan;
             ccdl_routing_tablei.ccdl[eahrs_instance].serial_port = serial_manager.find_portnum(AP_SerialManager::SerialProtocol_AHRSMAVLINK, eahrs_instance);
         }
+        const auto mysysid = mavlink_system.sysid - 1;
+        const bool valid_sysid = mysysid > 0 && mysysid < 4;
+        if (valid_sysid && ccdl_routing_tables[mysysid].ccdl[0].serial_port != UINT8_MAX && ccdl_routing_tables[mysysid].ccdl[1].serial_port != UINT8_MAX) {
+            ccdl_routing_tables[mysysid].enabled = true;
+        }
     }
 
     return true;
