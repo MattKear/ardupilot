@@ -61,6 +61,7 @@ void run_command_on_ownpid(const char *commandname)
         "Tools/scripts/%s",
         "APM/Tools/scripts/%s", // for autotest server
         "../Tools/scripts/%s", // when run from e.g. ArduCopter subdirectory
+        "/ardupilot/%s",       // when run from docker
     };
     char buffer[60];
     for (uint8_t i=0; i<ARRAY_SIZE(paths); i++) {
