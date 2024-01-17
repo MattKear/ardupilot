@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM alpine as FS_ARDU
+FROM public.ecr.aws/docker/library/alpine:latest as FS_ARDU
 # Trick to copy the source code into a directory and remove docker things from it to have faster rebuild
 
 COPY . /ardupilot
