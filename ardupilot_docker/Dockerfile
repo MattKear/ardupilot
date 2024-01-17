@@ -14,30 +14,45 @@ WORKDIR /ardupilot
 ################################################################################
 ### Install minimal build tools and remove cache. Don't do any update
 
-RUN apt-get update && apt-get install --no-install-recommends -y \
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get update && apt-get install --no-install-recommends -y \
     g++ \
     git \
     libxml2-dev \
     libxslt-dev \
     ssh \
+    ccache \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+#RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
 ENV DISABLE_MAVNATIVE=True
 RUN python3 -m pip install --user --no-deps --no-cache-dir future pymavlink empy pexpect ptyprocess
 
 COPY --from=FS_ARDU /ardupilot /ardupilot
 # RUN /ardupilot/Tools/gittools/submodule-sync.sh
 
+# Build binary
+ENV PATH="/usr/lib/ccache:${PATH}"
+ENV CCACHE_DIR=/tmp/ccache
+RUN --mount=type=cache,target=/tmp/ccache \
+    ./waf distclean \
+    && ./waf configure --board sitl --disable-scripting --no-submodule-update \
+    && ./waf copter \
+    && ccache -s
+
 COPY ardupilot_docker/MNA383.json /ardupilot/Tools/autotest/models/MNA383.json
 
-# Build binary
-RUN ./waf distclean \
-    && ./waf configure --board sitl --disable-scripting --no-submodule-update \
+# REBUILD to get the new model embeded
+RUN --mount=type=cache,target=/tmp/ccache \
+    ./waf configure --board sitl --disable-scripting --no-submodule-update \
     && ./waf copter
 
 # Second stage build
 FROM public.ecr.aws/docker/library/python:3.11-slim AS runner
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get update && apt-get install --no-install-recommends -y \
+    gdb \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 WORKDIR /ardupilot
 
@@ -49,6 +64,8 @@ COPY --from=builder /root/.local /root/.local
 COPY --from=builder /ardupilot/build/sitl/bin/arducopter .
 COPY --from=builder /ardupilot/Tools/autotest/default_params/copter.parm .
 COPY --from=builder /ardupilot/Tools/autotest/default_params/copter-octaquad.parm .
+COPY --from=builder /ardupilot/Tools/scripts/dumpstack.sh .
+COPY --from=builder /ardupilot/Tools/scripts/dumpcore.sh .
 COPY ardupilot_docker/sitl_launch.bash /ardupilot/sitl_launch.bash
 COPY ardupilot_docker/383.parm /ardupilot/383.parm
 COPY ardupilot_docker/ccdl.parm /ardupilot/ccdl.parm
