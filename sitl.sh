@@ -28,32 +28,32 @@ case $1 in
         ;;
     'build' )
         # build
-        sudo docker build . -f ardupilot_docker/Dockerfile -t ardupilot_manna
+        sudo docker build --progress plain . -f ardupilot_docker/Dockerfile -t ardupilot_manna
         ;;
     'run' )
         # run
-        sudo docker run -it --rm -p5760-5790:5760-5790 -p14550:14550 -p9001:9001 -p5501:5501 --env SITL_LAT='52.252628' --env SITL_LON='-10.022269' --env SITL_ALT='64.8' --env SITL_HEADING='0' --name "${INSTANCE_NAME}" ardupilot_manna:latest bash
+        sudo docker run -it --rm --cap-add=SYS_PTRACE -p5760-5790:5760-5790 -p14550:14550 -p9001:9001 -p5501:5501 --env SITL_LAT='52.252628' --env SITL_LON='-10.022269' --env SITL_ALT='64.8' --env SITL_HEADING='0' --name "${INSTANCE_NAME}" ardupilot_manna:latest bash
         ;;
 
     'ardu' )
         # run ardupilot kerry pad a
-        sudo docker run --rm -p5760-5790:5760-5790 -p14550:14550 -p9001:9001 -p5501:5501 --env SITL_LAT='52.252628' --env SITL_LON='-10.022269' --env SITL_ALT='64.8' --env SITL_HEADING='0' --name "${INSTANCE_NAME}" ardupilot_manna:latest
+        sudo docker run --rm --cap-add=SYS_PTRACE -p5760-5790:5760-5790 -p14550:14550 -p9001:9001 -p5501:5501 --env SITL_LAT='52.252628' --env SITL_LON='-10.022269' --env SITL_ALT='64.8' --env SITL_HEADING='0' --name "${INSTANCE_NAME}" ardupilot_manna:latest
         ;;
     'ardu_moorock' )
         # run ardupilot moorock pad d
-        sudo docker run --rm -p5760-5790:5760-5790 -p14550:14550 -p9001:9001 -p5501:5501 --env SITL_LAT='53.346248' --env SITL_LON='-7.715564' --env SITL_ALT='64.8' --env SITL_HEADING='0' --name "${INSTANCE_NAME}" ardupilot_manna:latest
+        sudo docker run --rm --cap-add=SYS_PTRACE -p5760-5790:5760-5790 -p14550:14550 -p9001:9001 -p5501:5501 --env SITL_LAT='53.346248' --env SITL_LON='-7.715564' --env SITL_ALT='64.8' --env SITL_HEADING='0' --name "${INSTANCE_NAME}" ardupilot_manna:latest
         ;;
     'ardu_opsim_a' )
         # run ardupilot ops sim pad b
-        sudo docker run --rm -p5760-5790:5760-5790 -p14550:14550 -p9001:9001 -p5501:5501 --env SITL_LAT='53.345948' --env SITL_LON='-7.715352' --env SITL_ALT='64.8' --env SITL_HEADING='0' --name "${INSTANCE_NAME}" ardupilot_manna:latest
+        sudo docker run --rm --cap-add=SYS_PTRACE -p5760-5790:5760-5790 -p14550:14550 -p9001:9001 -p5501:5501 --env SITL_LAT='53.345948' --env SITL_LON='-7.715352' --env SITL_ALT='64.8' --env SITL_HEADING='0' --name "${INSTANCE_NAME}" ardupilot_manna:latest
         ;;
     'ardu_bb_a' )
         # run ardupilot bb pad a
-        sudo docker run --rm -p5760-5790:5760-5790 -p14550:14550 -p9001:9001 -p5501:5501 --env SITL_LAT='53.606374' --env SITL_LON='-6.196679' --env SITL_ALT='64.8' --env SITL_HEADING='0' --name "${INSTANCE_NAME}" ardupilot_manna:latest
+        sudo docker run --rm --cap-add=SYS_PTRACE -p5760-5790:5760-5790 -p14550:14550 -p9001:9001 -p5501:5501 --env SITL_LAT='53.606374' --env SITL_LON='-6.196679' --env SITL_ALT='64.8' --env SITL_HEADING='0' --name "${INSTANCE_NAME}" ardupilot_manna:latest
         ;;
     'ardu_kerry_a' )
         # run ardupilot
-        sudo docker run --rm -p5760-5790:5760-5790 -p14550:14550 -p9001:9001 -p5501:5501 --env SITL_LAT='52.252628' --env SITL_LON='-10.022269' --env SITL_ALT='64.8' --env SITL_HEADING='0' --env NOLOGS="1" --name "${INSTANCE_NAME}" ardupilot_manna:latest
+        sudo docker run --rm --cap-add=SYS_PTRACE -p5760-5790:5760-5790 -p14550:14550 -p9001:9001 -p5501:5501 --env SITL_LAT='52.252628' --env SITL_LON='-10.022269' --env SITL_ALT='64.8' --env SITL_HEADING='0' --env NOLOGS="1" --name "${INSTANCE_NAME}" ardupilot_manna:latest
         ;;
 
 esac
