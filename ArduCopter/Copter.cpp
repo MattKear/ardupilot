@@ -471,7 +471,8 @@ void Copter::ccdl_failover_send()
         const auto my_id = g.sysid_this_mav - 1;
         // Forget ccdl route after timeout.
         auto &ccdl_routing_current_sysid = GCS_MAVLINK::ccdl_routing_tables[my_id];
-        if (ccdl_routing_current_sysid.ccdl[0].serial_port == UINT8_MAX || ccdl_routing_current_sysid.ccdl[1].serial_port == UINT8_MAX) {
+
+        if (!ccdl_routing_current_sysid.enabled) {
             // unconfigured ccdl, skip
             return;
         }
