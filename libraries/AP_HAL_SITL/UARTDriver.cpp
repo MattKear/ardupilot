@@ -373,9 +373,6 @@ void UARTDriver::_tcp_start_connection(uint16_t port, bool wait_for_connection)
  */
 void UARTDriver::_tcp_start_client(const char *address, uint16_t port)
 {
-    int one=1;
-    struct sockaddr_in sockaddr;
-    int ret;
 
     if (_connected) {
         return;
@@ -387,6 +384,7 @@ void UARTDriver::_tcp_start_client(const char *address, uint16_t port)
         close(_fd);
     }
 
+    struct sockaddr_in sockaddr;
     memset(&sockaddr,0,sizeof(sockaddr));
 
 #ifdef HAVE_SOCK_SIN_LEN
@@ -396,40 +394,44 @@ void UARTDriver::_tcp_start_client(const char *address, uint16_t port)
     sockaddr.sin_family = AF_INET;
     sockaddr.sin_addr.s_addr = inet_addr(address);
 
-    _fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (_fd == -1) {
-        fprintf(stderr, "socket failed - %s\n", strerror(errno));
-        exit(1);
-    }
-    ret = fcntl(_fd, F_SETFD, FD_CLOEXEC);
-    if (ret == -1) {
-        fprintf(stderr, "fcntl failed on setting FD_CLOEXEC - %s\n", strerror(errno));
-        exit(1);
-    }
-
-    /* we want to be able to re-use ports quickly */
-    setsockopt(_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
-
+    constexpr auto one=1;
+    int ret;
     for (int attempt = 0; attempt < 3; ++attempt) {
+        _fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (_fd == -1) {
+            fprintf(stderr, "socket failed - %s\n", strerror(errno));
+            exit(1);
+        }
+        ret = fcntl(_fd, F_SETFD, FD_CLOEXEC);
+        if (ret == -1) {
+            fprintf(stderr, "fcntl failed on setting FD_CLOEXEC - %s\n", strerror(errno));
+            exit(1);
+        }
+
+        /* we want to be able to re-use ports quickly */
+        setsockopt(_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+
         ret = connect(_fd, (struct sockaddr *)&sockaddr, sizeof(sockaddr));
         if (ret == 0) {
             break;
         }
-        fprintf(stderr, "connect failed on port %u - %s retrying\n",
-                (unsigned) ntohs(sockaddr.sin_port),
-                strerror(errno));
+        fprintf(stderr, "connect failed on port %u - %s at %d retrying\n",
+                (unsigned) ntohs(sockaddr.sin_port), strerror(errno), AP_HAL::millis());
+        close(_fd);
         // If connection failed, wait for a bit before retrying
         sleep(1);
     }
+
     if (ret == -1) {
+        close(_fd);
         exit(1);
     }
-
 
     setsockopt(_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
     setsockopt(_fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
     fcntl(_fd, F_SETFD, FD_CLOEXEC);
     _connected = true;
+    fprintf(stdout, "New remote connection on serial port %u, p %u at %d\n", _portNumber, (unsigned) ntohs(sockaddr.sin_port), AP_HAL::millis());
 }
 
 
@@ -624,7 +626,7 @@ void UARTDriver::_check_connection(void)
             setsockopt(_fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
             setsockopt(_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
             fcntl(_fd, F_SETFD, FD_CLOEXEC);
-            fprintf(stdout, "New connection on serial port %u\n", _portNumber);
+            fprintf(stdout, "New connection on serial port %u at %d\n", _portNumber, AP_HAL::millis());
         }
     }
 }
