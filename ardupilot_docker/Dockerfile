@@ -20,7 +20,6 @@ RUN --mount=type=cache,target=/var/cache/apt \
     git \
     libxml2-dev \
     libxslt-dev \
-    ssh \
     ccache \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
@@ -127,5 +126,6 @@ ENV SITL_HEADING=${SITL_HEADING}
 
 # Expose Port (Note: if you change it do it as well in surpervisord.conf)
 EXPOSE 9001
+
 HEALTHCHECK --interval=15s CMD supervisorctl status | grep -q "RUNNING" || exit 1
 CMD ["/usr/local/bin/supervisord"]

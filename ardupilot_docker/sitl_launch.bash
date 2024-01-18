@@ -24,12 +24,12 @@ if [ "${INSTANCE}" -eq 0 ];then
 fi
 if [ "${INSTANCE}" -eq 1 ];then
     SITL_MODEL="json:0.0.0.0"
-    CCDL_PORTS="--serial1=tcp:5771 --serial4=tcpclient:127.0.0.1:5761"
+    CCDL_PORTS="--serial1=tcp:5771 --serial4=tcpclient:0.0.0.0:5761"
     SYSID=2
 fi
 if [ "${INSTANCE}" -eq 2 ];then
     SITL_MODEL="json:0.0.0.0"
-    CCDL_PORTS="--serial1=tcpclient:127.0.0.1:5764 --serial4=tcpclient:127.0.0.1:5771"
+    CCDL_PORTS="--serial1=tcpclient:0.0.0.0:5764 --serial4=tcpclient:0.0.0.0:5771"
     SYSID=3
 fi
 
