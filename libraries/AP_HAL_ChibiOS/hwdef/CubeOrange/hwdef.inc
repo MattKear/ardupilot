@@ -30,9 +30,6 @@ SERIAL_ORDER OTG1 USART2 USART3 UART4 UART8 UART7 OTG2
 # default the 2nd interface to MAVLink2
 define HAL_OTG2_PROTOCOL SerialProtocol_MAVLink2
 
-# default to all pins low to avoid ESD issues
-DEFAULTGPIO OUTPUT LOW PULLDOWN
-
 # If the board has an IOMCU connected via a UART then this defines the
 # UART to talk to that MCU. Leave it out for boards with no IOMCU.
 
