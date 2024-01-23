@@ -199,6 +199,8 @@ void AP_Parachute::release(release_reason reason)
 void AP_Parachute::send_chute_msg(mavlink_command_long_t &pkt_msg)
 {
     pkt_msg.command = MAV_CMD_USER_1;
+    pkt_msg.target_system = 255;
+    pkt_msg.target_component = MAV_COMP_ID_ONBOARD_COMPUTER;
     pkt_msg.param1 = _release_reasons; // bitmask of reason to release, see release_reason enum
     pkt_msg.param2 = ((_cancel_timeout_ms == 0) || _release_initiated) ? -1.0f : (_cancel_timeout_ms - AP_HAL::millis()); // ms until release
     pkt_msg.param3 = AP::vehicle()->get_standby(); // standby states
