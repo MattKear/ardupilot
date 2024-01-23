@@ -28,7 +28,6 @@ ENV DISABLE_MAVNATIVE=True
 RUN python3 -m pip install --user --no-deps --no-cache-dir future pymavlink empy pexpect ptyprocess
 
 COPY --from=FS_ARDU /ardupilot /ardupilot
-# RUN /ardupilot/Tools/gittools/submodule-sync.sh
 
 # Build binary
 ENV PATH="/usr/lib/ccache:${PATH}"

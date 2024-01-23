@@ -13,6 +13,14 @@
 //      and landing detection is disabled.
 void Copter::standby_update()
 {
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    if (AP::sitl()->ride_along_master.get() == (copter.g.sysid_this_mav - 1)) {
+        standby_active = false;
+    } else {
+        standby_active = true;
+    }
+#endif
+
     if (!standby_active) {
         return;
     }
