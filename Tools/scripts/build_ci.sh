@@ -242,9 +242,7 @@ for t in $CI_BUILD_TARGET; do
 
     if [ "$t" == "CubeOrange-bootloader" ]; then
         echo "Building CubeOrange bootloader"
-        $waf configure --board CubeOrange --bootloader
-        $waf clean
-        $waf bootloader
+        Tools/scripts/build_bootloaders.py CubeOrange
         continue
     fi
 

@@ -30,6 +30,20 @@ def get_board_list():
             board_list.append(d)
     return board_list
 
+
+def pathching_uavcan():
+    print("Pathching uavcan for python3")
+    with open("modules/DroneCAN/libcanard/dsdl_compiler/pyuavcan/uavcan/transport.py", "r") as file:
+        lines = file.readlines()
+
+    for i, line in enumerate(lines):
+        if line.strip() == "class ArrayValue(BaseValue, collections.MutableSequence):":
+            lines[i] = "class ArrayValue(BaseValue, collections.abc.MutableSequence):\n"
+
+    with open("modules/DroneCAN/libcanard/dsdl_compiler/pyuavcan/uavcan/transport.py", "w") as file:
+        file.writelines(lines)
+
+
 def run_program(cmd_list):
     print("Running (%s)" % " ".join(cmd_list))
     retcode = subprocess.call(cmd_list)
@@ -51,6 +65,7 @@ for board in get_board_list():
     if not fnmatch.fnmatch(board, board_pattern):
         continue
     print("Building for %s" % board)
+    pathching_uavcan()
     if not build_board(board):
         failed_boards.add(board)
         continue
