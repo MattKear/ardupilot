@@ -47,10 +47,10 @@ RUN --mount=type=cache,target=/tmp/ccache \
 
 # Second stage build
 FROM public.ecr.aws/docker/library/python:3.11-slim AS runner
-RUN --mount=type=cache,target=/var/cache/apt \
-    apt-get update && apt-get install --no-install-recommends -y \
-    gdb \
-    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+#RUN --mount=type=cache,target=/var/cache/apt \
+#    apt-get update && apt-get install --no-install-recommends -y \
+#    gdb \
+#    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 WORKDIR /ardupilot
 
