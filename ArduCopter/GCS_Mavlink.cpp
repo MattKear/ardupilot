@@ -340,11 +340,7 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
     case MSG_CHUTE: {
 #if PARACHUTE == ENABLED
         CHECK_PAYLOAD_SIZE(COMMAND_LONG);
-        mavlink_command_long_t pkt_msg{};
-        copter.parachute.send_chute_msg(pkt_msg);
-        pkt_msg.target_system = copter.g.sysid_my_gcs;
-        pkt_msg.target_component = MAV_COMP_ID_ONBOARD_COMPUTER;
-        mavlink_msg_command_long_send_struct(chan, &pkt_msg);
+        copter.parachute.send_chute_msg(chan, copter.g.sysid_my_gcs);
         break;
 #endif
     }
