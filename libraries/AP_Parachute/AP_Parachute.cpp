@@ -196,20 +196,27 @@ void AP_Parachute::release(release_reason reason)
 }
 
 // send user command long updating the parchute status
-void AP_Parachute::send_chute_msg(mavlink_command_long_t &pkt_msg)
+void AP_Parachute::send_chute_msg(mavlink_channel_t chan, uint8_t gcs_sysid)
 {
-    pkt_msg.command = MAV_CMD_USER_1;
-    pkt_msg.param1 = _release_reasons; // bitmask of reason to release, see release_reason enum
-    pkt_msg.param2 = ((_cancel_timeout_ms == 0) || _release_initiated) ? -1.0f : (_cancel_timeout_ms - AP_HAL::millis()); // ms until release
-    pkt_msg.param3 = AP::vehicle()->get_standby(); // standby states
+    int8_t enabled = 0;
     if (_enabled > 0 && _options.get() & uint32_t(OPTIONS::NOTIFY_ONLY)) {
-        pkt_msg.param4 = -1; // parachute enabled, but in notify only
+        enabled = -1; // parachute enabled, but in notify only
     } else if (_enabled > 0) {
-        pkt_msg.param4 = 1; // parachute enabled
+        enabled = 1; // parachute enabled
     } else {
-        pkt_msg.param4 = 0; // parachute disabled
+        enabled = 0; // parachute disabled
     }
-    pkt_msg.param5 = _release_initiated; // 0 for not, 1 if released or relasing
+
+    mavlink_msg_mna_chute_status_send(
+            chan,
+            AP_HAL::micros64(), // time since boot in microseconds
+            _release_reasons, // bitmask of reason to release, see release_reason enum
+            ((_cancel_timeout_ms == 0) || _release_initiated) ? -1.0f : (_cancel_timeout_ms - AP_HAL::millis()), // ms until release
+            AP::vehicle()->get_standby(), // standby states
+            enabled, // 0 or less for disabled, otherwise enabled
+            _release_initiated,
+            gcs_sysid,
+            MAV_COMP_ID_ONBOARD_COMPUTER); // 0 for not, 1 if released or relasing
 }
 
 MAV_RESULT AP_Parachute::handle_cmd(const mavlink_command_long_t &packet)

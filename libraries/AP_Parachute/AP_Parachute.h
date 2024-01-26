@@ -83,7 +83,7 @@ public:
     void update();
 
     /// send user command long updating the parchute status
-    void send_chute_msg(mavlink_command_long_t &pkg_msg);
+    void send_chute_msg(mavlink_channel_t chan, uint8_t gcs_sysid);
 
     /// alt_min - returns the min altitude above home the vehicle should have before parachute is released
     ///   0 = altitude check disabled
