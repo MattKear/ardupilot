@@ -1121,6 +1121,13 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("CCDL_TOUT_ENABLE", 58, ParametersG2, ccdl_timeout_enabled, 0),
 
+    // @Param: FCU_VOTE_ENABLE
+    // @DisplayName: Enable fcu switch
+    // @Description: Enable fcu switch
+    // @Values: 0:Disabled, 1:Enabled
+    // @User: Standard
+    AP_GROUPINFO("FCU_VOTE_ENABLE", 59, ParametersG2, fcu_vote_enabled, 0),
+
     AP_GROUPEND
 };
 

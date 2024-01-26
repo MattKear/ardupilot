@@ -641,6 +641,8 @@ private:
     } ccdl_timeout[3];
     static constexpr uint8_t CCLD_TIMEOUT_ERR_MAX_DROPPED_PACKETS = 3;
 
+    bool fcu_vote_override;
+
     // AP_State.cpp
     void set_auto_armed(bool b);
     void set_simple_mode(SimpleMode b);

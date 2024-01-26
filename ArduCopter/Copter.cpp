@@ -571,6 +571,7 @@ void Copter::ccdl_failover_check()
                         ccdl_timeout[target].last_timeout = tnow;
                     }
                     // vote GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].sysid_target_my
+//                    copter.fcu_vote_override
                 }
             }
         }

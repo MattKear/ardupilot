@@ -680,6 +680,7 @@ public:
     AP_Int8 auto_rtl_type;
 #endif
     AP_Int8 ccdl_timeout_enabled;
+    AP_Int8 fcu_vote_enabled;
 };
 
 extern const AP_Param::Info        var_info[];
