@@ -626,6 +626,40 @@ bool AP_Arming_Copter::winch_checks(bool display_failure) const
     return true;
 }
 
+bool AP_Arming_Copter::vote_checks(bool display_failure)
+{
+    if (((checks_to_perform & ARMING_CHECK_ALL) == 0) && ((checks_to_perform & ARMING_CHECK_VOTE_FCU) == 0)) {
+        return true;
+    }
+
+    if (copter.fcu1_parachute_released) {
+        check_failed(display_failure, "Parachute released");
+        return false;
+    }
+
+    if (SRV_Channels::channel_function(13) != SRV_Channel::k_GPIO) {
+        check_failed(display_failure, "Channel 13 not configured as GPIO");
+        return false;
+    }
+
+    if (SRV_Channels::channel_function(14) != SRV_Channel::k_GPIO) {
+        check_failed(display_failure, "Channel 14 not configured as GPIO");
+        return false;
+    }
+
+    if (!copter.relay.enabled(1)) {
+        check_failed(display_failure, "Relay 1 disabled");
+        return false;
+    }
+
+    if (!copter.button.enabled(1)) {
+        check_failed(display_failure, "Button 1 not configured");
+        return false;
+    }
+
+    return true;
+}
+
 bool AP_Arming_Copter::ccdl_checks(bool display_failure)
 {
     if (copter.g2.ccdl_timeout_enabled == 0) {
