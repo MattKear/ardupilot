@@ -24,6 +24,7 @@
 
 #include <AP_HAL/AP_HAL.h>
 #include <AP_Param/AP_Param.h>
+#include <RC_Channel/RC_Channel.h>
 
 // allow buttons for up to 4 pins
 #define AP_BUTTON_NUM_PINS 4
@@ -55,6 +56,8 @@ public:
 
     // check settings are valid
     bool arming_checks(size_t buflen, char *buffer) const;
+
+    bool enabled(uint8_t instance) { return enable && instance < AP_BUTTON_NUM_PINS && pin[instance] != -1 && pin_func[instance] == static_cast<uint16_t >(RC_Channel::AUX_FUNC::STANDBY); }
     
 private:
 
