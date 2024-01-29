@@ -570,15 +570,130 @@ void Copter::ccdl_failover_check()
                         }
                         ccdl_timeout[target].last_timeout = tnow;
                     }
-                    // vote GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].sysid_target_my
-//                    copter.fcu_vote_override
                 }
             }
         }
+        const auto new_vote = vote_failover();
+        if (new_vote != copter.fcu_vote_current) {
+            copter.fcu_vote_current = new_vote;
+            gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: Vote %u", g.sysid_this_mav.get(), static_cast<uint8_t>(copter.fcu_vote_current));
+        }
+        vote_fcu(new_vote);
+        update_standby(new_vote);
+
         if (should_log(MASK_LOG_CCDL)) {
             Log_Write_CCDL_Timeout();
         }
     }
+}
+
+void Copter::vote_fcu(Copter::FCU_Vote vote)
+{
+    if (vote == Copter::FCU_Vote::FCU2) {
+        copter.relay.off(1);
+    } else {
+        copter.relay.on(1);
+    }
+}
+
+void Copter::update_standby(Copter::FCU_Vote vote)
+{
+    const auto my_id = g.sysid_this_mav;
+    if (my_id < 1 || my_id > 3) {
+        return;
+    }
+    switch(my_id) {
+        case 1:
+        {
+            if (vote == Copter::FCU_Vote::FCU1) {
+                standby_active = false;
+            } else {
+                standby_active = true;
+            }
+            break;
+        }
+        case 2:
+        {
+            if (vote == Copter::FCU_Vote::FCU1) {
+                standby_active = true;
+            } else {
+                standby_active = false;
+            }
+            break;
+        }
+        case 3:
+        {
+            standby_active = true;
+            break;
+        }
+        default:
+            gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: Invalid standby target", g.sysid_this_mav.get());
+            break;
+    }
+    return;
+}
+
+Copter::FCU_Vote Copter::vote_failover()
+{
+    const auto my_id = g.sysid_this_mav;
+    if (my_id < 1 || my_id > 3) {
+        return Copter::FCU_Vote::FCU1; // only accept from 1-3
+    }
+    if (my_id == 1) {
+        return Copter::FCU_Vote::FCU1;
+    }
+
+    if (copter.fcu_vote_override) {
+        switch (copter.fcu_vote_override_target) {
+            case 1:
+                return Copter::FCU_Vote::FCU1;
+            case 2:
+                return Copter::FCU_Vote::FCU2;
+            default:
+                gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: Invalid override target %d", g.sysid_this_mav.get(), copter.fcu_vote_override_target);
+                return Copter::FCU_Vote::FCU1; // TODO ???
+        }
+    }
+    if (!copter.g2.fcu_vote_enabled) {
+        return Copter::FCU_Vote::FCU1;
+    }
+
+    if (copter.fcu1_parachute_released) {
+        return Copter::FCU_Vote::FCU1;
+    }
+
+    if (copter.fcu_vote_current == Copter::FCU_Vote::FCU2) {
+        return Copter::FCU_Vote::FCU2;
+    }
+
+    // Check fcu1 is communicating
+    if (GCS_MAVLINK::ccdl_routing_tables[my_id - 1].ccdl[0].primary_route_sysid_target == 1) {
+        if (!ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id - 1].ccdl[0].primary_route_sysid_target - 1].timeout_ccdl) {
+            return Copter::FCU_Vote::FCU1;
+        }
+    } else {
+        if (!ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id - 1].ccdl[1].primary_route_sysid_target - 1].timeout_ccdl) {
+            return Copter::FCU_Vote::FCU1;
+        }
+    }
+
+
+    if (my_id == 2) {
+        return Copter::FCU_Vote::FCU1;
+    }
+    // Check fcu2 is communicating
+    if (GCS_MAVLINK::ccdl_routing_tables[my_id - 1].ccdl[0].primary_route_sysid_target == 2) {
+        if (!ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id - 1].ccdl[0].primary_route_sysid_target - 1].timeout_ccdl) {
+            return Copter::FCU_Vote::FCU2;
+        }
+    } else {
+        if (!ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id - 1].ccdl[1].primary_route_sysid_target - 1].timeout_ccdl) {
+            return Copter::FCU_Vote::FCU2;
+        }
+    }
+
+    gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: reach end of voting without decision", g.sysid_this_mav.get());
+    return Copter::FCU_Vote::FCU1;
 }
 
 // rc_loops - reads user input from transmitter/receiver

@@ -641,7 +641,15 @@ private:
     } ccdl_timeout[3];
     static constexpr uint8_t CCLD_TIMEOUT_ERR_MAX_DROPPED_PACKETS = 3;
 
+    enum class FCU_Vote: uint8_t {
+        FCU1 = 1,
+        FCU2 = 2,
+    };
+
     bool fcu_vote_override;
+    FCU_Vote fcu_vote_current;
+    uint8_t fcu_vote_override_target;
+    bool fcu1_parachute_released;
 
     // AP_State.cpp
     void set_auto_armed(bool b);
@@ -673,6 +681,9 @@ private:
 #endif // AP_SCRIPTING_ENABLED
     void ccdl_failover_check();
     void ccdl_failover_send();
+    void vote_fcu(FCU_Vote vote);
+    void update_standby(FCU_Vote vote);
+    FCU_Vote vote_failover();
     void rc_loop();
     void throttle_loop();
     void update_batt_compass(void);

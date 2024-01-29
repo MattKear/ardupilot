@@ -1072,13 +1072,14 @@ void GCS_MAVLINK_Copter::handleMessage(const mavlink_message_t &msg)
         POSITION_TARGET_TYPEMASK_FORCE_SET;
 
     switch (msg.msgid) {
-        case MAVLINK_MSG_MNA_SET_OVERRIDE_VOTE:
-        {
-            mavlink_mna_set_override_vote_t packet;
-            mavlink_msg_mna_set_override_vote_decode(&msg, &packet);
-            copter.fcu_vote_override = static_cast<bool>(packet.override);
-            break;
-        }
+    case MAVLINK_MSG_MNA_SET_OVERRIDE_VOTE:
+    {
+        mavlink_mna_set_override_vote_t packet;
+        mavlink_msg_mna_set_override_vote_decode(&msg, &packet);
+        copter.fcu_vote_override = static_cast<bool>(packet.override);
+        copter.fcu_vote_override_target = packet.vote_target;
+        break;
+    }
 
     case MAVLINK_MSG_ID_CCDL_TIMEOUT:
     {

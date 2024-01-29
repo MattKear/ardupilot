@@ -96,7 +96,7 @@ void Copter::init_ardupilot()
     // motors initialised so parameters can be sent
     ap.initialised_params = true;
 
-    relay.init();
+    relay.init(); // TODO check to set relay 1 and relay2 earlier : pin 54 and 51
 
     /*
      *  setup the 'main loop is dead' check. Note that this relies on
