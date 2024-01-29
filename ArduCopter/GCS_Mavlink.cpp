@@ -1090,6 +1090,9 @@ void GCS_MAVLINK_Copter::handleMessage(const mavlink_message_t &msg)
     {
         mavlink_mna_chute_status_t packet;
         mavlink_msg_mna_chute_status_decode(&msg, &packet);
+        if (msg.sysid != 1) {
+            break; // only accept from fcu1
+        }
         copter.fcu1_parachute_released = (static_cast<bool>(packet.enabled) && static_cast<bool>(packet.release_initiated));
         break;
     }
