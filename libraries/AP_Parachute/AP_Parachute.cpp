@@ -207,16 +207,18 @@ void AP_Parachute::send_chute_msg(mavlink_channel_t chan, uint8_t gcs_sysid)
         enabled = 0; // parachute disabled
     }
 
-    mavlink_msg_mna_chute_status_send(
-            chan,
-            AP_HAL::micros64(), // time since boot in microseconds
-            _release_reasons, // bitmask of reason to release, see release_reason enum
-            ((_cancel_timeout_ms == 0) || _release_initiated) ? -1.0f : (_cancel_timeout_ms - AP_HAL::millis()), // ms until release
-            AP::vehicle()->get_standby(), // standby states
-            enabled, // 0 or less for disabled, otherwise enabled
-            _release_initiated, // 0 for not, 1 if released or relasing
-            gcs_sysid,
-            MAV_COMP_ID_ONBOARD_COMPUTER);
+    mavlink_mna_chute_status_t packet {
+        .time_usec = AP_HAL::micros64(), // time since boot in microseconds
+        .release_timer_ms = ((_cancel_timeout_ms == 0) || _release_initiated) ? 0 : (_cancel_timeout_ms - AP_HAL::millis()), // ms until release
+        .target_system = gcs_sysid,
+        .target_component = MAV_COMP_ID_ONBOARD_COMPUTER,
+        .release_reason = _release_reasons, // bitmask of reason to release, see release_reason enum
+        .standby_state = AP::vehicle()->get_standby(), // standby states
+        .enabled =  enabled, // 0 or less for disabled, otherwise enabled
+        .release_initiated = _release_initiated, // 0 for not, 1 if released or relasing
+    };
+
+    mavlink_msg_mna_chute_status_send_struct(chan, &packet);
 }
 
 MAV_RESULT AP_Parachute::handle_cmd(const mavlink_command_long_t &packet)
@@ -317,18 +319,6 @@ void AP_Parachute::update()
                 _relay.on(_release_type);
             }
             _release_in_progress = true;
-            // on release send chute status to all FCU's
-            for (auto j = 0; j < 3; j++) {
-                if (!GCS_MAVLINK::ccdl_routing_tables[j].enabled) {
-                    continue;
-                }
-                for (auto i = 0; i < 2; i++) {
-                    send_chute_msg(GCS_MAVLINK::ccdl_routing_tables[j].ccdl[i].mavlink_channel,
-                                   GCS_MAVLINK::ccdl_routing_tables[j].ccdl[i].primary_route_sysid_target);
-                    send_chute_msg(GCS_MAVLINK::ccdl_routing_tables[j].ccdl[i].mavlink_channel,
-                                   GCS_MAVLINK::ccdl_routing_tables[j].ccdl[i].backup_route_sysid_target);
-                }
-            }
         }
     } else if (!hold_forever && time_diff >= delay_ms + AP_PARACHUTE_RELEASE_DURATION_MS) {
         release_off();
@@ -341,6 +331,21 @@ void AP_Parachute::update()
 
         // update AP_Notify
         AP_Notify::flags.parachute_release = 0;
+    }
+    // send parachute status to all FCU's during release duration
+    if (_release_in_progress && time_diff <= delay_ms + AP_PARACHUTE_RELEASE_DURATION_MS) {
+        // on release send chute status to all FCU's
+        for (auto j = 0; j < 3; j++) {
+            if (!GCS_MAVLINK::ccdl_routing_tables[j].enabled) {
+                continue;
+            }
+            for (auto i = 0; i < 2; i++) {
+                send_chute_msg(GCS_MAVLINK::ccdl_routing_tables[j].ccdl[i].mavlink_channel,
+                               GCS_MAVLINK::ccdl_routing_tables[j].ccdl[i].primary_route_sysid_target);
+                send_chute_msg(GCS_MAVLINK::ccdl_routing_tables[j].ccdl[i].mavlink_channel,
+                               GCS_MAVLINK::ccdl_routing_tables[j].ccdl[i].backup_route_sysid_target);
+            }
+        }
     }
 }
 
