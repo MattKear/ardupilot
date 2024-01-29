@@ -682,7 +682,6 @@ private:
     void ccdl_failover_check();
     void ccdl_failover_send();
     void vote_fcu(FCU_Vote vote);
-    void update_standby(FCU_Vote vote);
     FCU_Vote vote_failover();
     void rc_loop();
     void throttle_loop();

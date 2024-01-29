@@ -580,8 +580,6 @@ void Copter::ccdl_failover_check()
             gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: Vote %u", g.sysid_this_mav.get(), static_cast<uint8_t>(copter.fcu_vote_current));
         }
         vote_fcu(new_vote);
-        update_standby(new_vote);
-
         if (should_log(MASK_LOG_CCDL)) {
             Log_Write_CCDL_Timeout();
         }
@@ -595,43 +593,6 @@ void Copter::vote_fcu(Copter::FCU_Vote vote)
     } else {
         copter.relay.on(1);
     }
-}
-
-void Copter::update_standby(Copter::FCU_Vote vote)
-{
-    const auto my_id = g.sysid_this_mav;
-    if (my_id < 1 || my_id > 3) {
-        return;
-    }
-    switch(my_id) {
-        case 1:
-        {
-            if (vote == Copter::FCU_Vote::FCU1) {
-                standby_active = false;
-            } else {
-                standby_active = true;
-            }
-            break;
-        }
-        case 2:
-        {
-            if (vote == Copter::FCU_Vote::FCU1) {
-                standby_active = true;
-            } else {
-                standby_active = false;
-            }
-            break;
-        }
-        case 3:
-        {
-            standby_active = true;
-            break;
-        }
-        default:
-            gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: Invalid standby target", g.sysid_this_mav.get());
-            break;
-    }
-    return;
 }
 
 Copter::FCU_Vote Copter::vote_failover()
