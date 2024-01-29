@@ -5,24 +5,24 @@
 #include "AP_BattMonitor_Backend.h"
 #include <utility>
 
-#define HAL_BATTMON_LTC2946_ENABLED defined(HAL_BATTMON_LTC2946_BUS) && defined(HAL_BATTMON_LTC2946_ADDR)
-
-#if HAL_BATTMON_LTC2946_ENABLED
+#if AP_BATTERY_LTC2946_ENABLED
 
 class AP_BattMonitor_LTC2946 : public AP_BattMonitor_Backend
 {
 public:
-    // inherit constructor
-    using AP_BattMonitor_Backend::AP_BattMonitor_Backend;
+    /// Constructor
+    AP_BattMonitor_LTC2946(AP_BattMonitor &mon,
+                          AP_BattMonitor::BattMonitor_State &mon_state,
+                          AP_BattMonitor_Params &params);
 
     bool has_cell_voltages() const override { return false; }
     bool has_temperature() const override { return false; }
     bool has_current() const override { return true; }
-    bool reset_remaining(float percentage) override { return false; }
     bool get_cycle_count(uint16_t &cycles) const override { return false; }
 
     virtual void init(void) override;
     virtual void read() override;
+    static const struct AP_Param::GroupInfo var_info[];
     
 private:
     AP_HAL::OwnPtr<AP_HAL::I2CDevice> dev;
@@ -38,6 +38,7 @@ private:
     } accumulate;
     float current_LSB;
     float voltage_LSB;
+    AP_Float rShunt;
 };
 
-#endif // HAL_BATTMON_LTC2946_ENABLED
+#endif // AP_BATTERY_LTC2946_ENABLED

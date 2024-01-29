@@ -1,8 +1,11 @@
-#include "AP_BattMonitor_LTC2946.h"
+#include "AP_BattMonitor_config.h"
+
+#if AP_BATTERY_LTC2946_ENABLED
+
 #include <GCS_MAVLink/GCS.h>
 #include <AP_HAL/utility/sparse-endian.h>
 
-#if HAL_BATTMON_LTC2946_ENABLED
+#include "AP_BattMonitor_LTC2946.h"
 
 extern const AP_HAL::HAL& hal;
 
@@ -19,6 +22,33 @@ extern const AP_HAL::HAL& hal;
 
 #define REGA_CONF 0x18 // sense, alternate
 #define REGB_CONF 0x01 // auto-reset
+
+
+#ifndef DEFAULT_BATTMON_LTC_2946_SHUNT
+#define DEFAULT_BATTMON_LTC_2946_SHUNT 0.0005
+#endif
+
+const AP_Param::GroupInfo AP_BattMonitor_LTC2946::var_info[] = {
+
+    // @Param: SHUNT
+    // @DisplayName: Battery monitor shunt resistor
+    // @Description: This sets the shunt resistor used in the device
+    // @Range: 0.0001 0.01
+    // @Units: Ohm
+    // @User: Advanced
+    AP_GROUPINFO("SHUNT", 28, AP_BattMonitor_LTC2946, rShunt, DEFAULT_BATTMON_LTC_2946_SHUNT),
+    
+    AP_GROUPEND
+};
+
+AP_BattMonitor_LTC2946::AP_BattMonitor_LTC2946(AP_BattMonitor &mon,
+                                             AP_BattMonitor::BattMonitor_State &mon_state,
+                                             AP_BattMonitor_Params &params)
+        : AP_BattMonitor_Backend(mon, mon_state, params)
+{
+    AP_Param::setup_object_defaults(this, var_info);
+    _state.var_info = var_info;
+}
 
 void AP_BattMonitor_LTC2946::init(void)
 {
@@ -42,7 +72,7 @@ void AP_BattMonitor_LTC2946::init(void)
 
     // use datasheet typical values
     voltage_LSB = 102.4 / 4095.0;
-    current_LSB = (0.1024/0.0005) / 4095.0;
+    current_LSB = (0.1024/rShunt) / 4095.0;
 
     GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "LTC2946: found monitor on bus %u", HAL_BATTMON_LTC2946_BUS);
 
@@ -107,4 +137,4 @@ void AP_BattMonitor_LTC2946::timer(void)
     accumulate.count++;
 }
 
-#endif // HAL_BATTMON_LTC2946_ENABLED
+#endif // AP_BATTERY_LTC2946_ENABLED
