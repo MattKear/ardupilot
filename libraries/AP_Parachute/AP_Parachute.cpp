@@ -214,9 +214,9 @@ void AP_Parachute::send_chute_msg(mavlink_channel_t chan, uint8_t gcs_sysid)
             ((_cancel_timeout_ms == 0) || _release_initiated) ? -1.0f : (_cancel_timeout_ms - AP_HAL::millis()), // ms until release
             AP::vehicle()->get_standby(), // standby states
             enabled, // 0 or less for disabled, otherwise enabled
-            _release_initiated,
+            _release_initiated, // 0 for not, 1 if released or relasing
             gcs_sysid,
-            MAV_COMP_ID_ONBOARD_COMPUTER); // 0 for not, 1 if released or relasing
+            MAV_COMP_ID_ONBOARD_COMPUTER);
 }
 
 MAV_RESULT AP_Parachute::handle_cmd(const mavlink_command_long_t &packet)
