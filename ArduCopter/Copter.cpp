@@ -533,15 +533,16 @@ void Copter::ccdl_failover_check()
                     i.backup_route_working = false;
                 }
             } else {
-                if (tnow_ms - i.backup_route_last_hb > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_MS) {
+                // primary route is not working, we need to check if a ccdl comes from the backup route. Issue is ccdl msg path through the backup route only when primary is broken.
+                // thus we raise the timeout on the backup route to let another CCDL_FAILOVER_TIMEOUT_US pass.
+                if (tnow - ccdl_timeout[i.primary_route_sysid_target - 1].last_seen_time > GCS_MAVLINK::DOUBLEX_CCDL_FAILOVER_TIMEOUT_US) {
                     i.backup_route_working = false;
+                    ccdl_timeout[i.primary_route_sysid_target - 1].timeout_ccdl = true;
+                } else {
+                    ccdl_timeout[i.primary_route_sysid_target - 1].timeout_ccdl = false;
                 }
             }
-            if (tnow - ccdl_timeout[i.primary_route_sysid_target - 1].last_seen_time > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_US) {
-                ccdl_timeout[i.primary_route_sysid_target - 1].timeout_ccdl = true;
-            } else {
-                ccdl_timeout[i.primary_route_sysid_target - 1].timeout_ccdl = false;
-            }
+
         }
 
         const auto ccdl0 = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[0].primary_route_sysid_target - 1;
