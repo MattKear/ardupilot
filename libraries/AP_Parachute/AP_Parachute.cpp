@@ -317,6 +317,18 @@ void AP_Parachute::update()
                 _relay.on(_release_type);
             }
             _release_in_progress = true;
+            // on release send chute status to all FCU's
+            for (auto j = 0; j < 3; j++) {
+                if (!GCS_MAVLINK::ccdl_routing_tables[j].enabled) {
+                    continue;
+                }
+                for (auto i = 0; i < 2; i++) {
+                    send_chute_msg(GCS_MAVLINK::ccdl_routing_tables[j].ccdl[i].mavlink_channel,
+                                   GCS_MAVLINK::ccdl_routing_tables[j].ccdl[i].primary_route_sysid_target);
+                    send_chute_msg(GCS_MAVLINK::ccdl_routing_tables[j].ccdl[i].mavlink_channel,
+                                   GCS_MAVLINK::ccdl_routing_tables[j].ccdl[i].backup_route_sysid_target);
+                }
+            }
         }
     } else if (!hold_forever && time_diff >= delay_ms + AP_PARACHUTE_RELEASE_DURATION_MS) {
         release_off();
