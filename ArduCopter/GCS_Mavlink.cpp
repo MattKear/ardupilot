@@ -1000,6 +1000,20 @@ MAV_RESULT GCS_MAVLINK_Copter::handle_command_long_packet(const mavlink_command_
         GCS_MAVLINK_Copter::convert_COMMAND_LONG_to_COMMAND_INT(packet, packet_int);
         return handle_command_pause_continue(packet_int);
     }
+
+    case MAV_CMD_MNA_SET_OVERRIDE_VOTE:
+    {
+        if (packet.param1 < 0.0f || packet.param1 > 1.0f) {
+            return MAV_RESULT_FAILED;
+        }
+        if (packet.param2 < 0.0f || packet.param2 > 3.0f) {
+            return MAV_RESULT_FAILED;
+        }
+        copter.fcu_vote_override = is_zero(packet.param1) ? false : true;
+        copter.fcu_vote_override_target = static_cast<uint8_t>(packet.param2);
+        return MAV_RESULT_ACCEPTED;
+    }
+
     default:
         return GCS_MAVLINK::handle_command_long_packet(packet);
     }
