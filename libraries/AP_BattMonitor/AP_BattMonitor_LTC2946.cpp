@@ -1,11 +1,9 @@
-#include "AP_BattMonitor_config.h"
-
-#if AP_BATTERY_LTC2946_ENABLED
-
+#include "AP_BattMonitor_LTC2946.h"
 #include <GCS_MAVLink/GCS.h>
 #include <AP_HAL/utility/sparse-endian.h>
 
-#include "AP_BattMonitor_LTC2946.h"
+
+#if HAL_BATTMON_LTC2946_ENABLED
 
 extern const AP_HAL::HAL& hal;
 
@@ -23,6 +21,12 @@ extern const AP_HAL::HAL& hal;
 #define REGA_CONF 0x18 // sense, alternate
 #define REGB_CONF 0x01 // auto-reset
 
+#ifndef HAL_BATTMON_LTC2946_BUS
+#define HAL_BATTMON_LTC2946_BUS 0
+#endif
+#ifndef HAL_BATTMON_LTC2946_ADDR
+#define HAL_BATTMON_LTC2946_ADDR 0x67
+#endif
 
 #ifndef DEFAULT_BATTMON_LTC_2946_SHUNT
 #define DEFAULT_BATTMON_LTC_2946_SHUNT 0.0005
@@ -36,7 +40,8 @@ const AP_Param::GroupInfo AP_BattMonitor_LTC2946::var_info[] = {
     // @Range: 0.0001 0.01
     // @Units: Ohm
     // @User: Advanced
-    AP_GROUPINFO("SHUNT", 28, AP_BattMonitor_LTC2946, rShunt, DEFAULT_BATTMON_LTC_2946_SHUNT),
+    // @RebootRequired: True
+    AP_GROUPINFO("SHUNT", 40, AP_BattMonitor_LTC2946, rshunt, DEFAULT_BATTMON_LTC_2946_SHUNT),
     
     AP_GROUPEND
 };
@@ -72,7 +77,7 @@ void AP_BattMonitor_LTC2946::init(void)
 
     // use datasheet typical values
     voltage_LSB = 102.4 / 4095.0;
-    current_LSB = (0.1024/rShunt) / 4095.0;
+    current_LSB = (0.1024/rshunt) / 4095.0;
 
     GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "LTC2946: found monitor on bus %u", HAL_BATTMON_LTC2946_BUS);
 
@@ -137,4 +142,4 @@ void AP_BattMonitor_LTC2946::timer(void)
     accumulate.count++;
 }
 
-#endif // AP_BATTERY_LTC2946_ENABLED
+#endif // HAL_BATTMON_LTC2946_ENABLED

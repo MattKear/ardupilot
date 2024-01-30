@@ -5,8 +5,11 @@
 #include "AP_BattMonitor_Backend.h"
 #include <utility>
 
-#if AP_BATTERY_LTC2946_ENABLED
+#ifndef HAL_BATTMON_LTC2946_ENABLED
+#define HAL_BATTMON_LTC2946_ENABLED (BOARD_FLASH_SIZE > 1024)
+#endif
 
+#if HAL_BATTMON_LTC2946_ENABLED
 class AP_BattMonitor_LTC2946 : public AP_BattMonitor_Backend
 {
 public:
@@ -18,10 +21,12 @@ public:
     bool has_cell_voltages() const override { return false; }
     bool has_temperature() const override { return false; }
     bool has_current() const override { return true; }
+    bool reset_remaining(float percentage) override { return false; }
     bool get_cycle_count(uint16_t &cycles) const override { return false; }
 
-    virtual void init(void) override;
-    virtual void read() override;
+    void init(void) override;
+    void read() override;
+
     static const struct AP_Param::GroupInfo var_info[];
     
 private:
@@ -38,7 +43,7 @@ private:
     } accumulate;
     float current_LSB;
     float voltage_LSB;
-    AP_Float rShunt;
+    AP_Float rshunt;
 };
 
-#endif // AP_BATTERY_LTC2946_ENABLED
+#endif // HAL_BATTMON_LTC2946_ENABLED
