@@ -614,7 +614,7 @@ Copter::FCU_Vote Copter::vote_failover()
             case 2:
                 return Copter::FCU_Vote::FCU2;
             default:
-                gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: Invalid override target %d", g.sysid_this_mav.get(), copter.fcu_vote_override_target);
+                gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV %d: Invalid override target %d", g.sysid_this_mav.get(), copter.fcu_vote_override_target);
                 return Copter::FCU_Vote::FCU1; // TODO ???
         }
     }

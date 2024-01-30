@@ -647,8 +647,8 @@ private:
     };
 
     bool fcu_vote_override;
-    FCU_Vote fcu_vote_current;
-    uint8_t fcu_vote_override_target;
+    FCU_Vote fcu_vote_current{Copter::FCU_Vote::FCU1};
+    uint8_t fcu_vote_override_target{1};
     bool fcu1_parachute_released;
 
     // AP_State.cpp

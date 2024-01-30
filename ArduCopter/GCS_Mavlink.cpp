@@ -1009,7 +1009,7 @@ MAV_RESULT GCS_MAVLINK_Copter::handle_command_long_packet(const mavlink_command_
         if (packet.param2 < 0.0f || packet.param2 > 3.0f) {
             return MAV_RESULT_FAILED;
         }
-        copter.fcu_vote_override = is_zero(packet.param1) ? false : true;
+        copter.fcu_vote_override = !is_zero(packet.param1);
         copter.fcu_vote_override_target = static_cast<uint8_t>(packet.param2);
         return MAV_RESULT_ACCEPTED;
     }
