@@ -578,8 +578,9 @@ void Copter::ccdl_failover_check()
         if (new_vote != copter.fcu_vote_current) {
             copter.fcu_vote_current = new_vote;
             gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: Vote %u", g.sysid_this_mav.get(), static_cast<uint8_t>(copter.fcu_vote_current));
+            vote_fcu(new_vote);
         }
-        vote_fcu(new_vote);
+
         if (should_log(MASK_LOG_CCDL)) {
             Log_Write_CCDL_Timeout();
         }
