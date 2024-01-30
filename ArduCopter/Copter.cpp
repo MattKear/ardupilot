@@ -590,9 +590,9 @@ void Copter::ccdl_failover_check()
 void Copter::vote_fcu(Copter::FCU_Vote vote)
 {
     if (vote == Copter::FCU_Vote::FCU2) {
-        copter.relay.off(1);
+        copter.relay.off(0);
     } else {
-        copter.relay.on(1);
+        copter.relay.on(0);
     }
 }
 
