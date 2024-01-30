@@ -164,11 +164,22 @@ void AP_Relay::init()
         if (default_val == -1) {
             default_val = _default[0];
         }
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+        sitl_aux_offset(i);
+#endif
         if ((default_val == 0) || (default_val == 1)) {
             set(i, default_val);
         }
     }
 }
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+void AP_Relay::sitl_aux_offset(uint8_t instance) {
+    const auto pin = _pin[instance].get();
+    if (pin >= 50 && pin <= 55) {
+        _pin[instance] = (pin - 50);
+    }
+}
+#endif
 
 void AP_Relay::set(const uint8_t instance, const bool value)
 {
@@ -178,6 +189,9 @@ void AP_Relay::set(const uint8_t instance, const bool value)
     if (_pin[instance] == -1) {
         return;
     }
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    sitl_aux_offset(instance);
+#endif
     hal.gpio->pinMode(_pin[instance], HAL_GPIO_OUTPUT);
     hal.gpio->write(_pin[instance], value);
 }
@@ -185,6 +199,9 @@ void AP_Relay::set(const uint8_t instance, const bool value)
 void AP_Relay::toggle(uint8_t instance)
 {
     if (instance < AP_RELAY_NUM_RELAYS && _pin[instance] != -1) {
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+        sitl_aux_offset(instance);
+#endif
         bool ison = hal.gpio->read(_pin[instance]);
         set(instance, !ison);
     }

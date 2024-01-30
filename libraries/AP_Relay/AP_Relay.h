@@ -52,6 +52,9 @@ private:
     AP_Int8 _default[AP_RELAY_NUM_RELAYS];
 
     void set(uint8_t instance, bool value);
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    void sitl_aux_offset(uint8_t instance);
+#endif
 };
 
 namespace AP {
