@@ -170,6 +170,7 @@ private:
     uint32_t    _last_msg_send_ms;
     uint32_t    _abs_sink_time_ms;       // system time that the vehicle exceeded critical sink rate
     uint32_t    _last_log_ms;
+    uint32_t    _last_chute_msg_ms;
 
 };
 

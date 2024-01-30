@@ -334,16 +334,21 @@ void AP_Parachute::update()
     }
     // send parachute status to all FCU's during release duration
     if (_release_in_progress && time_diff <= delay_ms + AP_PARACHUTE_RELEASE_DURATION_MS) {
-        // on release send chute status to all FCU's
-        for (auto j = 0; j < 3; j++) {
-            if (!GCS_MAVLINK::ccdl_routing_tables[j].enabled) {
-                continue;
-            }
-            for (auto i = 0; i < 2; i++) {
-                send_chute_msg(GCS_MAVLINK::ccdl_routing_tables[j].ccdl[i].mavlink_channel,
-                               GCS_MAVLINK::ccdl_routing_tables[j].ccdl[i].primary_route_sysid_target);
-                send_chute_msg(GCS_MAVLINK::ccdl_routing_tables[j].ccdl[i].mavlink_channel,
-                               GCS_MAVLINK::ccdl_routing_tables[j].ccdl[i].backup_route_sysid_target);
+        // send the send_chute_msg every 100ms
+        if ((now - _last_chute_msg_ms) > 100) {
+            _last_chute_msg_ms = now;
+
+            // on release send chute status to all FCU's
+            for (auto j = 0; j < 3; j++) {
+                if (!GCS_MAVLINK::ccdl_routing_tables[j].enabled) {
+                    continue;
+                }
+                for (auto i = 0; i < 2; i++) {
+                    send_chute_msg(GCS_MAVLINK::ccdl_routing_tables[j].ccdl[i].mavlink_channel,
+                                   GCS_MAVLINK::ccdl_routing_tables[j].ccdl[i].primary_route_sysid_target);
+                    send_chute_msg(GCS_MAVLINK::ccdl_routing_tables[j].ccdl[i].mavlink_channel,
+                                   GCS_MAVLINK::ccdl_routing_tables[j].ccdl[i].backup_route_sysid_target);
+                }
             }
         }
     }
