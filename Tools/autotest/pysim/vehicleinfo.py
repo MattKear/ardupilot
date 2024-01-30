@@ -183,6 +183,13 @@ class VehicleInfo(object):
                 "default_params_filename": ["default_params/copter.parm",
                                             "models/Callisto.param"],
             },
+            "MNA383": {
+                "model": "octa-quad:@ROMFS/models/MNA383.json",
+                "waf_target": "bin/arducopter",
+                "default_params_filename": ["default_params/copter.parm",
+                                            "default_params/copter-octaquad.parm",
+                                            "models/MNA383.param"],
+            },
         },
     },
     "Helicopter": {
