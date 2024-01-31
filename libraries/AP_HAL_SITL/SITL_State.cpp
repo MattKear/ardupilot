@@ -508,12 +508,72 @@ void SITL_State::_output_to_flightgear(void)
     fg_socket.send(&fdm, sizeof(fdm));
 }
 
+void SITL_State::update_vote_output(struct sitl_input &input)
+{
+//    AUX5 vote (gpio) (high = fcu1 in ctrl, low = fcu2)
+//    AUX6 standby input (gpio) [vote passthrough] (low = fcu1, high = fcu2, fcu3 standby all the time)
+//
+//    Pins:
+//    Aux Output 1= Output Chan 9= Processor Pin 50
+//    Aux Output 2=Output Chan 10= Processor Pin 51
+//    Aux Output 3= Output Chan 11= Processor Pin 52
+//    Aux Output 4=Output Chan 12= Processor Pin 53
+//    Aux Output 5= Output Chan 13= Processor Pin 54
+//    Aux Output 6=Output Chan 14= Processor Pin 55
+// master
+// we receive slave pins from ridealong flight controllers.
+// we compute vote_output from them with addition of our own pin
+// we update the standby pin from the vote_output.
+// we send back vote output to ridealong flight controllers with sitl state.
+
+// slave
+// we send the pins to master.
+// we receive vote_output from master.
+// we update the standby pin from the vote_output.
+
+
+// MASTER
+
+    if (ride_along.is_master()) {
+        uint8_t new_vote = input.my_vote_pin;
+        for (uint8_t i : input.vote_pin) {
+            new_vote += i;
+        }
+        if (new_vote > 1) { // vote fcu1 == standby pin low
+            _sitl->state.vote_output = 1;
+        } else {  // vote fcu2 == standby pin high
+            _sitl->state.vote_output = 0;
+        }
+    }
+    const auto current_pin_mask = static_cast<uint16_t>(_sitl->pin_mask.get());
+    const auto STANDBY_PIN = 5;
+    uint16_t new_mask = current_pin_mask;
+
+    const uint8_t new_vote = !static_cast<uint8_t>(_sitl->state.vote_output);
+  // TODO fcu3 stay on standby whatever the vote
+    if (new_vote) {
+        new_mask |= (1U << STANDBY_PIN);
+    } else {
+        new_mask &= ~(1U << STANDBY_PIN);
+    }
+    if (current_pin_mask != new_mask) {
+        _sitl->pin_mask.set_and_notify(new_mask);
+    }
+}
+
+void SITL_State::get_vote_pin_output(struct sitl_input &input)
+{
+    const auto current_pin_mask = static_cast<uint16_t>(_sitl->pin_mask.get());
+    const auto VOTE_PIN = 4;
+    input.my_vote_pin = (current_pin_mask >> VOTE_PIN) & 1U;
+}
+
 /*
   get FDM input from a local model
  */
 void SITL_State::_fdm_input_local(void)
 {
-    struct sitl_input input;
+    struct sitl_input input{};
 
     // check for direct RC input
     if (_sitl != nullptr) {
@@ -522,7 +582,7 @@ void SITL_State::_fdm_input_local(void)
 
     // construct servos structure for FDM
     _simulator_servos(input);
-
+    get_vote_pin_output(input);
 #if HAL_SIM_JSON_MASTER_ENABLED
     // read servo inputs from ride along flight controllers
     ride_along.receive(input);
@@ -541,7 +601,7 @@ void SITL_State::_fdm_input_local(void)
             }
         }
     }
-
+    update_vote_output(input);
 #if HAL_SIM_JSON_MASTER_ENABLED
     // output JSON state to ride along flight controllers
     ride_along.send(_sitl->state,sitl_model->get_position_relhome());

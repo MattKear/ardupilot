@@ -89,6 +89,8 @@ struct sitl_fdm {
 
     // earthframe wind, from backends that know it
     Vector3f wind_ef;
+
+    float vote_output;  // multifcu selection vote output cumputed by master ridealong
 };
 
 // number of rc output channels

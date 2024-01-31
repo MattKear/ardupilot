@@ -146,6 +146,8 @@ private:
     void _check_rc_input(void);
     bool _read_rc_sitl_input();
     void _fdm_input_local(void);
+    void update_vote_output(struct sitl_input &input);
+    void get_vote_pin_output(struct sitl_input &input);
     void _output_to_flightgear(void);
     void _simulator_servos(struct sitl_input &input);
     void _fdm_input_step(void);

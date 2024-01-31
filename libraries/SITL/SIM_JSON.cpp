@@ -106,6 +106,7 @@ void JSON::output_servos(const struct sitl_input &input)
     for (uint8_t i=0; i<16; i++) {
         pkt.pwm[i] = input.servos[i];
     }
+    pkt.vote_pin = input.my_vote_pin;
 
     size_t send_ret = sock.sendto(&pkt, sizeof(pkt), target_ip, control_port);
     if (send_ret != sizeof(pkt)) {
@@ -336,6 +337,7 @@ void JSON::recv_fdm(const struct sitl_input &input)
     if ((received_bitmask & WIND_SPD) != 0) {
         wind_vane_apparent.speed = state.wind_vane_apparent.speed;
     }
+    vote_output = state.vote_output;
 
     double deltat;
     if (state.timestamp_s < last_timestamp_s) {

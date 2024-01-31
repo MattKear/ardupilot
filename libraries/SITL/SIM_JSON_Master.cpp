@@ -51,6 +51,7 @@ void JSON_Master::init(const int32_t num_slaves)
         list = list->next;
 
         initialized = true;
+        _is_master = true;
     }
 }
 
@@ -70,6 +71,7 @@ void JSON_Master::receive(struct sitl_input &input)
             uint16_t frame_rate;
             uint32_t frame_count;
             uint16_t pwm[16];
+            uint8_t vote_pin;
         } buffer{};
 
         while (true) {
@@ -161,6 +163,7 @@ void JSON_Master::receive(struct sitl_input &input)
             // Use the servo outs from this instance
             memcpy(input.servos,buffer.pwm,sizeof(input.servos));
         }
+        input.vote_pin[list->instance] = buffer.vote_pin;
     }
 }
 
@@ -172,13 +175,14 @@ void JSON_Master::send(const struct sitl_fdm &output, const Vector3d &position)
     }
 
     // message is the same to all slaves
-    int length = asprintf(&json_out,"\n{\"timestamp\":%f,\"imu\":{\"gyro\":[%f,%f,%f],\"accel_body\":[%f,%f,%f]},\"position\":[%f,%f,%f],\"quaternion\":[%f,%f,%f,%f],\"velocity\":[%f,%f,%f],\"no_time_sync\":1}\n",
+    int length = asprintf(&json_out,"\n{\"timestamp\":%f,\"imu\":{\"gyro\":[%f,%f,%f],\"accel_body\":[%f,%f,%f]},\"position\":[%f,%f,%f],\"quaternion\":[%f,%f,%f,%f],\"velocity\":[%f,%f,%f],\"vote_output\":%f,\"no_time_sync\":1}\n",
                             output.timestamp_us * 1e-6,
                             radians(output.rollRate), radians(output.pitchRate), radians(output.yawRate),
                             output.xAccel, output.yAccel, output.zAccel,
                             position.x, position.y, position.z,
                             output.quaternion.q1, output.quaternion.q2, output.quaternion.q3, output.quaternion.q4,
-                            output.speedN, output.speedE, output.speedD);
+                            output.speedN, output.speedE, output.speedD,
+                            output.vote_output);
 
     for (socket_list *list = &_list; list->next; list=list->next) {
         list->sock_out.send(json_out,length);

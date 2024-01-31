@@ -49,6 +49,7 @@ private:
         uint16_t frame_rate;
         uint32_t frame_count;
         uint16_t pwm[16];
+        uint8_t vote_pin;
     };
 
     // default connection_info_.ip_address
@@ -98,6 +99,7 @@ private:
         } wind_vane_apparent;
         float airspeed;
         bool no_time_sync;
+        float vote_output;
     } state;
 
     // table to aid parsing of JSON sensor data
@@ -107,7 +109,7 @@ private:
         void *ptr;
         enum data_type type;
         bool required;
-    } keytable[17] = {
+    } keytable[18] = {
         { "", "timestamp", &state.timestamp_s, DATA_DOUBLE, true },
         { "imu", "gyro",    &state.imu.gyro, DATA_VECTOR3F, true },
         { "imu", "accel_body", &state.imu.accel_body, DATA_VECTOR3F, true },
@@ -125,6 +127,7 @@ private:
         {"windvane","speed", &state.wind_vane_apparent.speed, DATA_FLOAT, false},
         {"", "airspeed", &state.airspeed, DATA_FLOAT, false},
         {"", "no_time_sync", &state.no_time_sync, BOOLEAN, false},
+        {"", "vote_output", &state.vote_output, DATA_FLOAT, false},
     };
 
     // Enum coresponding to the ordering of keys in the keytable.
@@ -146,6 +149,7 @@ private:
         WIND_SPD    = 1U << 14,
         AIRSPEED    = 1U << 15,
         TIME_SYNC   = 1U << 16,
+        VOTE_OUTPUT = 1U << 17,
     };
     uint32_t last_received_bitmask;
 };

@@ -183,6 +183,7 @@ protected:
     float local_ground_level;            // ground level at local position
     bool lock_step_scheduled;
     uint32_t last_one_hz_ms;
+    float vote_output;
 
     // battery model
     Battery battery;

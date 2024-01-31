@@ -45,6 +45,8 @@ public:
     // send vehicle state to ride along controlers
     void send(const struct sitl_fdm &output, const Vector3d &position);
 
+    bool is_master() const { return _is_master; }
+
 private:
 
     struct socket_list {
@@ -58,6 +60,7 @@ private:
     char *json_out;
 
     bool initialized;
+    bool _is_master;
 
 };
 
