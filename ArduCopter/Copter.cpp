@@ -623,6 +623,9 @@ Copter::FCU_Vote Copter::vote_failover()
     }
 
     if (copter.fcu1_parachute_released) {
+        if (copter.fcu_vote_current != Copter::FCU_Vote::FCU1) {
+            gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV %d: FCU1 parachute trigged, vote FCU1", g.sysid_this_mav.get());
+        }
         return Copter::FCU_Vote::FCU1;
     }
 
