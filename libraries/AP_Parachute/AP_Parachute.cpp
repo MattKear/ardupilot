@@ -202,7 +202,13 @@ void AP_Parachute::send_chute_msg(mavlink_command_long_t &pkt_msg)
     pkt_msg.param1 = _release_reasons; // bitmask of reason to release, see release_reason enum
     pkt_msg.param2 = ((_cancel_timeout_ms == 0) || _release_initiated) ? -1.0f : (_cancel_timeout_ms - AP_HAL::millis()); // ms until release
     pkt_msg.param3 = AP::vehicle()->get_standby(); // standby states
-    pkt_msg.param4 = _enabled; // 0 or less for disabled, otherwise enabled
+    if (_enabled > 0 && _options.get() & uint32_t(OPTIONS::NOTIFY_ONLY)) {
+        pkt_msg.param4 = -1; // parachute enabled, but in notify only
+    } else if (_enabled > 0) {
+        pkt_msg.param4 = 1; // parachute enabled
+    } else {
+        pkt_msg.param4 = 0; // parachute disabled
+    }
     pkt_msg.param5 = _release_initiated; // 0 for not, 1 if released or relasing
 }
 
