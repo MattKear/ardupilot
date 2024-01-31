@@ -14,6 +14,7 @@ void GPIO::init()
 
 void GPIO::pinMode(uint8_t pin, uint8_t output)
 {
+    pin = sitl_aux_offset(pin);
     if (pin > 7) {
         return;
     }
@@ -29,13 +30,13 @@ uint8_t GPIO::read(uint8_t pin)
     if (!_sitlState->_sitl) {
         return 0;
     }
-    
+    pin = sitl_aux_offset(pin);
     // weight on wheels pin support
     if (pin == _sitlState->_sitl->wow_pin.get()) {
         return _sitlState->_sitl->state.altitude < SITL_WOW_ALTITUDE ? 1 : 0;
     }
     
-    uint16_t mask = static_cast<uint16_t>(_sitlState->_sitl->pin_mask.get());
+    const auto mask = static_cast<uint16_t>(_sitlState->_sitl->pin_mask.get());
     return static_cast<uint16_t>((mask & (1U << pin)) ? 1 : 0);
 }
 
@@ -44,14 +45,14 @@ void GPIO::write(uint8_t pin, uint8_t value)
     if (!_sitlState->_sitl) {
         return;
     }
-
+    pin = sitl_aux_offset(pin);
     if (pin < 8) {
         if (!(pin_mode_is_write & (1U<<pin))) {
             // ignore setting of pull-up resistors
             return;
         }
     }
-    uint16_t mask = static_cast<uint16_t>(_sitlState->_sitl->pin_mask.get());
+    const auto mask = static_cast<uint16_t>(_sitlState->_sitl->pin_mask.get());
     uint16_t new_mask = mask;
 
     if (pin == _sitlState->_sitl->wow_pin.get()) {
@@ -86,6 +87,13 @@ AP_HAL::DigitalSource* GPIO::channel(uint16_t n) {
 bool GPIO::usb_connected(void)
 {
     return false;
+}
+
+uint8_t GPIO::sitl_aux_offset(uint8_t pin) const {
+    if (pin >= 50 && pin <= 55) {
+        pin = (pin - 50);
+    }
+    return pin;
 }
 
 DigitalSource::DigitalSource(uint8_t pin) :

@@ -16,14 +16,17 @@ public:
     AP_HAL::DigitalSource* channel(uint16_t n) override;
 
     /* return true if USB cable is connected */
-    bool usb_connected(void) override;
+    bool usb_connected() override;
 
-    bool valid_pin(uint8_t pin) const override { return pin < 16; }
+    bool valid_pin(uint8_t pin) const override { return sitl_aux_offset(pin) < 16; }
     
 private:
     SITL_State *_sitlState;
 
     uint8_t pin_mode_is_write;
+
+    uint8_t sitl_aux_offset(uint8_t pin) const;
+
 };
 
 class HALSITL::DigitalSource : public AP_HAL::DigitalSource {
