@@ -387,12 +387,6 @@ void AP_Button::send_report(void) const
 void AP_Button::setup_pins(void)
 {
     for (uint8_t i=0; i<AP_BUTTON_NUM_PINS; i++) {
-#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-        const auto spin = pin[i].get();
-        if (spin >= 50 && spin <= 55) {
-            pin[i].set(spin - 50);
-        }
-#endif
         if (is_pwm_input(i)) {
             pwm_pin_source[i].set_pin(pin[i], "Button");
             continue;
