@@ -553,11 +553,20 @@ void SITL_State::update_vote_output(struct sitl_input &input)
   // TODO fcu3 stay on standby whatever the vote
     if (new_vote) {
         new_mask |= (1U << STANDBY_PIN);
+        if (ride_along.is_master() && AP::sitl()->ride_along_master.get() != 1) {
+            AP::sitl()->ride_along_master.set_and_notify(1);
+            gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV %d: Changing ride_along_master", mavlink_system.sysid);
+        }
     } else {
         new_mask &= ~(1U << STANDBY_PIN);
+        if (ride_along.is_master() && AP::sitl()->ride_along_master.get() != 0) {
+            AP::sitl()->ride_along_master.set_and_notify(0);
+            gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV %d: Changing ride_along_master", mavlink_system.sysid);
+        }
     }
     if (current_pin_mask != new_mask) {
         _sitl->pin_mask.set_and_notify(new_mask);
+
     }
 }
 
