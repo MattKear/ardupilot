@@ -14,22 +14,8 @@
 void Copter::standby_update()
 {
     if (!standby_active) {
-#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-        if (copter.g.sysid_this_mav == 1 && AP::sitl()->ride_along_master.get() != 0) {
-            AP::sitl()->ride_along_master.set_and_notify(0);
-            gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV %d: Changing ride_along_master", g.sysid_this_mav.get());
-        }
-#endif
         return;
     }
-
-#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-    if (copter.g.sysid_this_mav == 1 && AP::sitl()->ride_along_master.get() != 1) {
-        AP::sitl()->ride_along_master.set_and_notify(1);
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV %d: Changing ride_along_master", g.sysid_this_mav.get());
-    }
-#endif
-
 
     attitude_control->reset_rate_controller_I_terms();
     attitude_control->reset_yaw_target_and_rate();
