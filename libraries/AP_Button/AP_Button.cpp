@@ -373,6 +373,9 @@ void AP_Button::send_report(void) const
             last_change_ms: uint32_t(last_debounce_ms),
             state: mask,
     };
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV %d: Changing button to %d", mavlink_system.sysid, mask);
+#endif
     gcs().send_to_active_channels(MAVLINK_MSG_ID_BUTTON_CHANGE,
                                   (const char *)&packet);
 }
