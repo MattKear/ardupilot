@@ -1093,7 +1093,10 @@ void GCS_MAVLINK_Copter::handleMessage(const mavlink_message_t &msg)
         if (msg.sysid != 1) {
             break; // only accept from fcu1
         }
-        copter.fcu1_parachute_released = (static_cast<bool>(packet.enabled) && static_cast<bool>(packet.release_initiated));
+        copter.fcu1_parachute_released = (packet.enabled == 1) && static_cast<bool>(packet.release_initiated);
+        if (copter.fcu1_parachute_released) {
+            AP::arming().disarm(AP_Arming::Method::PARACHUTE_RELEASE, false);
+        }
         break;
     }
 
