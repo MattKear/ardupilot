@@ -347,7 +347,11 @@ void AP_MotorsHeli_RSC::output(RotorControlState state)
             _gov_bailing_out = false;
         }
         _control_output = _idle_throttle;
-        _RPM_target = 0.0;
+        if (_control_mode == ROTOR_CONTROL_MODE_RPM_SETPOINT) {
+            _RPM_target = _rotor_runup_output * _governor_rpm;
+        } else {
+            _RPM_target = 0.0;
+        }
         break;
 
     case ROTOR_CONTROL_ACTIVE:
@@ -372,7 +376,7 @@ void AP_MotorsHeli_RSC::output(RotorControlState state)
         } else if (_control_mode == ROTOR_CONTROL_MODE_AUTOTHROTTLE) {
             autothrottle_run();
         } else if (_control_mode == ROTOR_CONTROL_MODE_RPM_SETPOINT) {
-            _RPM_target = _rotor_ramp_output * _governor_rpm;
+            _RPM_target = _rotor_runup_output * _governor_rpm;
         }
         break;
     }
