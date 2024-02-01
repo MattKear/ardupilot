@@ -484,6 +484,7 @@ void Copter::ccdl_failover_send()
                     .time_usec = ccdl_timeout[my_id].err[0].time_usec,
                     .seq = ccdl_timeout[my_id].err[0].seq,
                     .type = 0,
+                    .backup_working = static_cast<uint8_t>(ccdl_routing_current_sysid.ccdl[1 - i].primary_route_working),
                     .target_system = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target,
                     .target_component = 0,
 
@@ -522,38 +523,76 @@ void Copter::ccdl_failover_check()
             // unconfigured ccdl, skip
             return;
         }
+        for (uint8_t i = 0; i < 2; ++i) {
+            if (ccdl_timeout[ccdl_routing_current_sysid.ccdl[i].primary_route_sysid_target - 1].last_seen_time == 0) {
+                // no ccdl message received yet
+                return;
+            }
+        }
         const auto tnow = AP_HAL::micros64();
         const auto tnow_ms = tnow / 1000;
-        for (auto &i: ccdl_routing_current_sysid.ccdl) {
-            if (tnow_ms - i.primary_route_last_hb > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_MS) {
-                i.primary_route_working = false;
-            }
-            if (i.primary_route_working) {
-                if (tnow_ms - i.backup_route_last_hb > GCS_MAVLINK::CCDL_FAILOVER_BACKUP_TIMEOUT_MS) {
-                    i.backup_route_working = false;
+        // On a ccdl port, we expect to receive ccdl from primary target and hearbeat from backup target.
+        // if we don't receive ccdl from the primary target, we expect it to comes from the other ccdl port.
+        for (int8_t i = 0; i < 2; ++i) {
+            // do we received ccdl from the primary target ?
+            const auto tdiff_p = tnow_ms - ccdl_routing_current_sysid.ccdl[i].primary_route_last_hb;
+            if (tdiff_p > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_MS) {
+                if (ccdl_routing_current_sysid.ccdl[i].primary_route_working) {
+                    gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d:CCDL_FAILOVER_TIMEOUT_MS : %ld", g.sysid_this_mav.get(), tdiff_p);
                 }
-            } else {
+                ccdl_routing_current_sysid.ccdl[i].primary_route_working = false;
+            }
+            // do we received ccdl or hearbeat from the backupt target ?
+            const auto tdiff_b = tnow_ms - ccdl_routing_current_sysid.ccdl[i].backup_route_last_hb;
+            if (tdiff_b > GCS_MAVLINK::CCDL_FAILOVER_BACKUP_TIMEOUT_MS) {
+                if (ccdl_routing_current_sysid.ccdl[i].backup_route_working) {
+                    gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV %d:CCDL_FAILOVER_BACKUP_TIMEOUT_MS : %ld", g.sysid_this_mav.get(), tdiff_b);
+                }
+                ccdl_routing_current_sysid.ccdl[i].backup_route_working = false;
+            }
+            // primary route target said that its backup route is broken, so we can disable it too.
+            if (!ccdl_timeout[ccdl_routing_current_sysid.ccdl[i].primary_route_sysid_target - 1].backup_working) {
+                if (ccdl_routing_current_sysid.ccdl[1 - i].backup_route_working) {
+                    gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV %d: not backup_working", g.sysid_this_mav.get());
+                }
+                ccdl_routing_current_sysid.ccdl[1 - i].backup_route_working = false;
+            }
+            // pb: on the other fcu, both primary routes are working. But it will lost backup routes but only after 1s timeout. How to speed this up ?
+            if (!ccdl_routing_current_sysid.ccdl[i].primary_route_working) {
                 // primary route is not working, we need to check if a ccdl comes from the backup route. Issue is ccdl msg path through the backup route only when primary is broken.
                 // thus we raise the timeout on the backup route to let another CCDL_FAILOVER_TIMEOUT_US pass.
-                if (tnow - ccdl_timeout[i.primary_route_sysid_target - 1].last_seen_time > GCS_MAVLINK::DOUBLEX_CCDL_FAILOVER_TIMEOUT_US) {
-                    i.backup_route_working = false;
+                const auto tdiff = tnow - ccdl_timeout[ccdl_routing_current_sysid.ccdl[i].primary_route_sysid_target - 1].last_seen_time;
+                if (tdiff > GCS_MAVLINK::DOUBLEX_CCDL_FAILOVER_TIMEOUT_US) {
+                    if (ccdl_routing_current_sysid.ccdl[1 - i].backup_route_working ) {
+                        gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: DOUBLEX_CCDL_FAILOVER_TIMEOUT_US : %ld", g.sysid_this_mav.get(), tdiff);
+                    }
+                    ccdl_routing_current_sysid.ccdl[1 - i].backup_route_working = false;
                 }
-            }
-            if (!i.primary_route_working && !i.backup_route_working) {
-                ccdl_timeout[i.primary_route_sysid_target - 1].timeout_ccdl = true;
-            } else {
-                ccdl_timeout[i.primary_route_sysid_target - 1].timeout_ccdl = false;
             }
         }
 
-        const auto ccdl0 = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[0].primary_route_sysid_target - 1;
-        const auto ccdl1 = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].primary_route_sysid_target - 1;
-        if (ccdl_timeout[ccdl0].timeout_ccdl && ccdl_timeout[ccdl1].timeout_ccdl) {
+        const auto &ccdl0 = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[0];
+        const auto &ccdl1 = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1];
+
+        if (!ccdl0.primary_route_working && !ccdl1.backup_route_working) {
+            ccdl_timeout[ccdl0.primary_route_sysid_target - 1].timeout_ccdl = true;
+        } else {
+            ccdl_timeout[ccdl0.primary_route_sysid_target - 1].timeout_ccdl = false;
+        }
+        if (!ccdl1.primary_route_working && !ccdl0.backup_route_working) {
+            ccdl_timeout[ccdl1.primary_route_sysid_target - 1].timeout_ccdl = true;
+        } else {
+            ccdl_timeout[ccdl1.primary_route_sysid_target - 1].timeout_ccdl = false;
+        }
+
+        const auto ccdl0_target = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[0].primary_route_sysid_target - 1;
+        const auto ccdl1_target = GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[1].primary_route_sysid_target - 1;
+        if (ccdl_timeout[ccdl0_target].timeout_ccdl && ccdl_timeout[ccdl1_target].timeout_ccdl) {
             // we are the culprit, don't vote
-            if (tnow - ccdl_timeout[ccdl0].last_timeout >= 1000000U) {
+            if (tnow - ccdl_timeout[ccdl0_target].last_timeout >= 1000000U) {
                 gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: Double timeout", g.sysid_this_mav.get());
-                ccdl_timeout[ccdl0].last_timeout = tnow;
-                ccdl_timeout[ccdl1].last_timeout = tnow;
+                ccdl_timeout[ccdl0_target].last_timeout = tnow;
+                ccdl_timeout[ccdl1_target].last_timeout = tnow;
             }
         } else {
             for (uint8_t i = 0; i < 2; i++) {
@@ -584,6 +623,12 @@ void Copter::ccdl_failover_check()
 
         if (should_log(MASK_LOG_CCDL)) {
             Log_Write_CCDL_Timeout();
+        }
+    } else {
+        if (copter.fcu_vote_current != Copter::FCU_Vote::FCU1) {
+            copter.fcu_vote_current = Copter::FCU_Vote::FCU1;
+            gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: Vote %u", g.sysid_this_mav.get(), static_cast<uint8_t>(Copter::FCU_Vote::FCU1));
+            vote_fcu(Copter::FCU_Vote::FCU1);
         }
     }
 }
@@ -634,6 +679,7 @@ Copter::FCU_Vote Copter::vote_failover()
     }
 
     // Check fcu1 is communicating
+    // check on ccdl table what is the ccdl channel for fcu1.
     if (GCS_MAVLINK::ccdl_routing_tables[my_id - 1].ccdl[0].primary_route_sysid_target == 1) {
         if (!ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id - 1].ccdl[0].primary_route_sysid_target - 1].timeout_ccdl) {
             return Copter::FCU_Vote::FCU1;
@@ -646,7 +692,7 @@ Copter::FCU_Vote Copter::vote_failover()
 
 
     if (my_id == 2) {
-        return Copter::FCU_Vote::FCU1;
+        return Copter::FCU_Vote::FCU2;
     }
     // Check fcu2 is communicating
     if (GCS_MAVLINK::ccdl_routing_tables[my_id - 1].ccdl[0].primary_route_sysid_target == 2) {
@@ -657,6 +703,10 @@ Copter::FCU_Vote Copter::vote_failover()
         if (!ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id - 1].ccdl[1].primary_route_sysid_target - 1].timeout_ccdl) {
             return Copter::FCU_Vote::FCU2;
         }
+    }
+
+    if (my_id == 3) {
+        return Copter::FCU_Vote::FCU1;
     }
 
     gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: reach end of voting without decision", g.sysid_this_mav.get());

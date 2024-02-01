@@ -1140,6 +1140,9 @@ void GCS_MAVLINK_Copter::handleMessage(const mavlink_message_t &msg)
             copter.ccdl_timeout[sender_id].err[packet.type].time_usec_err = 0;
             copter.ccdl_timeout[sender_id].err[packet.type].time_usec = packet.time_usec;
         }
+        if (packet.type == 0) { // only use the backup_working for the primary route targetting.
+            copter.ccdl_timeout[sender_id].backup_working = static_cast<bool>(packet.backup_working);
+        }
         copter.ccdl_timeout[sender_id].last_seen_time = AP_HAL::micros64();
 
         break;
