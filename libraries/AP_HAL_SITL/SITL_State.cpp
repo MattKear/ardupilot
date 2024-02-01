@@ -535,6 +535,7 @@ void SITL_State::update_vote_output(struct sitl_input &input)
 // MASTER
 
     if (ride_along.is_master()) {
+        // mimic the MVB vote
         uint8_t new_vote = input.my_vote_pin;
         for (uint8_t i : input.vote_pin) {
             new_vote += i;
@@ -549,9 +550,9 @@ void SITL_State::update_vote_output(struct sitl_input &input)
     const auto STANDBY_PIN = 5;
     uint16_t new_mask = current_pin_mask;
 
-    const uint8_t new_vote = !static_cast<uint8_t>(_sitl->state.vote_output);
-  // TODO fcu3 stay on standby whatever the vote
-    if (new_vote) {
+    const uint8_t new_standby_vote = !static_cast<uint8_t>(_sitl->state.vote_output);
+
+    if (new_standby_vote) {
         new_mask |= (1U << STANDBY_PIN);
         if (ride_along.is_master() && AP::sitl()->ride_along_master.get() != 1) {
             AP::sitl()->ride_along_master.set_and_notify(1);
@@ -566,7 +567,6 @@ void SITL_State::update_vote_output(struct sitl_input &input)
     }
     if (current_pin_mask != new_mask) {
         _sitl->pin_mask.set_and_notify(new_mask);
-
     }
 }
 
