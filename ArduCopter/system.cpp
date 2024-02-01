@@ -212,6 +212,11 @@ void Copter::init_ardupilot()
         set_mode(Mode::Number::STABILIZE, ModeReason::UNAVAILABLE);
     }
 
+    if (g.sysid_this_mav == 3) {
+        standby_active = true;
+        gcs().send_text(MAV_SEVERITY_INFO, "STANDBY MODE ACTIVE");
+    }
+
     // flag that initialisation has completed
     ap.initialised = true;
 }
