@@ -339,7 +339,7 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
 
     case MSG_CHUTE: {
 #if PARACHUTE == ENABLED
-        CHECK_PAYLOAD_SIZE(COMMAND_LONG);
+        CHECK_PAYLOAD_SIZE(MNA_CHUTE_STATUS);
         copter.parachute.send_chute_msg(chan, copter.g.sysid_my_gcs);
         break;
 #endif
