@@ -125,7 +125,7 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
     SCHED_TASK(auto_disarm_check,     10,     50,  27),
     SCHED_TASK(auto_trim,             10,     75,  30),
     SCHED_TASK(ccdl_failover_send,    25,    150,  31),
-    SCHED_TASK(ccdl_failover_check,   15,    150,  32),
+    SCHED_TASK(ccdl_failover_check,   25,    150,  32),
 #if RANGEFINDER_ENABLED == ENABLED
     SCHED_TASK(read_rangefinder,      20,    100,  33),
 #endif
