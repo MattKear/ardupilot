@@ -329,3 +329,6 @@ DMA_NOSHARE SPI1* SPI4* USART6*
 # for users who have replaced their CubeSolo with a CubeOrange:
 define HAL_OREO_LED_ENABLED 1
 define HAL_SOLO_GIMBAL_ENABLED HAL_MOUNT_ENABLED
+
+# CCDL FAILURE TESTING
+# define AP_CONFIG_CCDL_FAILURE 1

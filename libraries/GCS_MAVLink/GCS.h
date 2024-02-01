@@ -46,6 +46,10 @@
 #define HAL_MAVLINK_INTERVALS_FROM_FILES_ENABLED 0
 #endif
 
+#ifndef AP_CONFIG_CCDL_FAILURE
+#define AP_CONFIG_CCDL_FAILURE 0
+#endif
+
 // macros used to determine if a message will fit in the space available.
 
 void gcs_out_of_space_to_send_count(mavlink_channel_t chan);

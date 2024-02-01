@@ -882,7 +882,7 @@ void Copter::one_hz_loop()
         // set all throttle channel settings
         motors->update_throttle_range();
 #endif
-#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL || AP_CONFIG_CCDL_FAILURE == ENABLED
         // Try updating the serial options.
         for (auto i=0; i<2; i++) {
             AP_HAL::UARTDriver *uart = AP::serialmanager().find_serial(AP_SerialManager::SerialProtocol_AHRSMAVLINK, i);

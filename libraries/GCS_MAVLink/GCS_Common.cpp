@@ -1478,7 +1478,7 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us, bool timesync)
 
     status.packet_rx_drop_count = 0;
 
-#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL || AP_CONFIG_CCDL_FAILURE == 1
     if ((_port->get_options() & AP_HAL::UARTDriver::OPTION_DISABLE_RX) == AP_HAL::UARTDriver::OPTION_DISABLE_RX) {
         return;
     }
