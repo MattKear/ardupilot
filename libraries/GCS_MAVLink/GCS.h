@@ -430,7 +430,7 @@ public:
     static constexpr auto CCDL_FAILOVER_TIMEOUT_MS = 100;
     static constexpr auto CCDL_FAILOVER_BACKUP_TIMEOUT_MS = 1025;
     static constexpr auto CCDL_FAILOVER_TIMEOUT_US = CCDL_FAILOVER_TIMEOUT_MS * 1000;
-    static constexpr auto DOUBLEX_CCDL_FAILOVER_TIMEOUT_US = 2 * CCDL_FAILOVER_TIMEOUT_MS * 1000;
+    static constexpr auto DOUBLEX_CCDL_FAILOVER_TIMEOUT_US = (3 * CCDL_FAILOVER_TIMEOUT_MS) * 1000;
 protected:
 
     bool mavlink_coordinate_frame_to_location_alt_frame(MAV_FRAME coordinate_frame,
