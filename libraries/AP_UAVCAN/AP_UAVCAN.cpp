@@ -83,6 +83,7 @@
 #include "AP_UAVCAN_pool.h"
 #include <AP_Proximity/AP_Proximity_DroneCAN.h>
 #include <AP_Motors/AP_Motors.h>
+#include <AP_TemperatureSensor/AP_TemperatureSensor_DroneCAN.h>
 
 #define LED_DELAY_US 50000
 
@@ -427,6 +428,9 @@ void AP_UAVCAN::init(uint8_t driver_index, bool enable_filters)
 
 #if AP_PROXIMITY_DRONECAN_ENABLED
     AP_Proximity_DroneCAN::subscribe_msgs(this);
+#endif
+#if AP_TEMPERATURE_SENSOR_DRONECAN_ENABLED
+    AP_TemperatureSensor_DroneCAN::subscribe_msgs(this);
 #endif
 
     act_out_array[driver_index] = new uavcan::Publisher<uavcan::equipment::actuator::ArrayCommand>(*_node);
