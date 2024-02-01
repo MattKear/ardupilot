@@ -63,6 +63,7 @@ bool AP_Arming_Copter::run_pre_arm_checks(bool display_failure)
         & winch_checks(display_failure)
         & alt_checks(display_failure)
         & ccdl_checks(display_failure)
+        & vote_checks(display_failure)
 #if AP_AIRSPEED_ENABLED
         & AP_Arming::airspeed_checks(display_failure)
 #endif
@@ -637,23 +638,23 @@ bool AP_Arming_Copter::vote_checks(bool display_failure)
         return false;
     }
 
-    if (SRV_Channels::channel_function(13) != SRV_Channel::k_GPIO) {
+    if (SRV_Channels::channel_function(12) != SRV_Channel::k_GPIO) {
         check_failed(display_failure, "Channel 13 not configured as GPIO");
         return false;
     }
 
-    if (SRV_Channels::channel_function(14) != SRV_Channel::k_GPIO) {
+    if (SRV_Channels::channel_function(13) != SRV_Channel::k_GPIO) {
         check_failed(display_failure, "Channel 14 not configured as GPIO");
         return false;
     }
 
-    if (!copter.relay.enabled(1)) {
-        check_failed(display_failure, "Relay 1 disabled");
+    if (!copter.relay.enabled(0)) {
+        check_failed(display_failure, "Relay 1 disabled: vote pin");
         return false;
     }
 
-    if (!copter.button.enabled(1)) {
-        check_failed(display_failure, "Button 1 not configured");
+    if (copter.g.sysid_this_mav != 3 && !copter.button.enabled(0)) {
+        check_failed(display_failure, "Button 1 not configured: standby pin");
         return false;
     }
 
@@ -681,6 +682,10 @@ bool AP_Arming_Copter::ccdl_checks(bool display_failure)
     }
     const auto tnow = AP_HAL::micros64();
     for (auto i=0; i<2; i++) {
+        if (copter.ccdl_timeout[ccdl_routing_current_sysid.ccdl[i].primary_route_sysid_target - 1].last_seen_time == 0) {
+            check_failed(display_failure, "CCDL %u not seen", i);
+            return false;
+        }
         if (!GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_working) {
             check_failed(display_failure, "CCDL %u primary route broken", i);
             return false;
@@ -689,7 +694,7 @@ bool AP_Arming_Copter::ccdl_checks(bool display_failure)
             check_failed(display_failure, "CCDL %u backup route broken", i);
             return false;
         }
-        if (tnow - copter.ccdl_timeout[GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_sysid_target - 1].last_timeout < 5000000U) {
+        if (tnow - copter.ccdl_timeout[ccdl_routing_current_sysid.ccdl[i].primary_route_sysid_target - 1].last_timeout < 5000000U) {
             check_failed(display_failure, "Waiting CCDL %u sync", i);
             return false;
         }
