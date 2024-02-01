@@ -337,7 +337,29 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
 #endif
         break;
 
-    case MSG_CHUTE: {
+    case MSG_VOTE_STATUS: {
+        CHECK_PAYLOAD_SIZE(MNA_VOTE_STATUS);
+        mavlink_mna_vote_status_t packet {
+            .time_usec = AP_HAL::micros64(),
+            .target_system = static_cast<uint8_t>(copter.g.sysid_my_gcs),
+            .target_component = static_cast<uint8_t>(copter.g.sysid_my_gcs),
+            .fcu_vote = static_cast<uint8_t>(copter.fcu_vote_current)
+        };
+        mavlink_msg_mna_vote_status_send_struct(chan, &packet);
+        break;
+    }
+    case MSG_STANDBY_STATUS: {
+        CHECK_PAYLOAD_SIZE(MNA_STANDBY_STATUS);
+        mavlink_mna_standby_status_t packet {
+            .time_usec = AP_HAL::micros64(),
+            .target_system = static_cast<uint8_t>(copter.g.sysid_my_gcs),
+            .target_component = static_cast<uint8_t>(copter.g.sysid_my_gcs),
+            .standby_state = static_cast<uint8_t>(copter.standby_active)
+        };
+        mavlink_msg_mna_standby_status_send_struct(chan, &packet);
+        break;
+    }
+    case MSG_CHUTE_STATUS: {
 #if PARACHUTE == ENABLED
         CHECK_PAYLOAD_SIZE(MNA_CHUTE_STATUS);
         copter.parachute.send_chute_msg(chan, copter.g.sysid_my_gcs);
@@ -495,6 +517,9 @@ static const ap_message STREAM_EXTENDED_STATUS_msgs[] = {
     MSG_NAV_CONTROLLER_OUTPUT,
     MSG_FENCE_STATUS,
     MSG_POSITION_TARGET_GLOBAL_INT,
+    MSG_VOTE_STATUS,
+    MSG_STANDBY_STATUS,
+
 };
 static const ap_message STREAM_POSITION_msgs[] = {
     MSG_LOCATION,
@@ -537,7 +562,7 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_ESC_TELEMETRY,
     MSG_GENERATOR_STATUS,
     MSG_WINCH_STATUS,
-    MSG_CHUTE,
+    MSG_CHUTE_STATUS,
 };
 static const ap_message STREAM_PARAMS_msgs[] = {
     MSG_NEXT_PARAM
