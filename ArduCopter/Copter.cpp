@@ -538,7 +538,7 @@ void Copter::ccdl_failover_check()
             const auto tdiff_p = tnow_ms - ccdl_routing_current_sysid.ccdl[i].primary_route_last_hb;
             if (tdiff_p > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_MS) {
                 if (ccdl_routing_current_sysid.ccdl[i].primary_route_working) {
-                    gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d:CCDL_FAILOVER_TIMEOUT_MS : %ld", g.sysid_this_mav.get(), tdiff_p);
+                    gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: CCDL_FAILOVER_TIMEOUT_MS : %" PRIu64, g.sysid_this_mav.get(), tdiff_p);
                 }
                 ccdl_routing_current_sysid.ccdl[i].primary_route_working = false;
             }
@@ -546,14 +546,14 @@ void Copter::ccdl_failover_check()
             const auto tdiff_b = tnow_ms - ccdl_routing_current_sysid.ccdl[i].backup_route_last_hb;
             if (tdiff_b > GCS_MAVLINK::CCDL_FAILOVER_BACKUP_TIMEOUT_MS) {
                 if (ccdl_routing_current_sysid.ccdl[i].backup_route_working) {
-                    gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV %d:CCDL_FAILOVER_BACKUP_TIMEOUT_MS : %ld", g.sysid_this_mav.get(), tdiff_b);
+                    gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV %d: CCDL_FAILOVER_BACKUP_TIMEOUT_MS : %" PRIu64, g.sysid_this_mav.get(), tdiff_b);
                 }
                 ccdl_routing_current_sysid.ccdl[i].backup_route_working = false;
             }
             // primary route target said that its backup route is broken, so we can disable it too.
             if (!ccdl_timeout[ccdl_routing_current_sysid.ccdl[i].primary_route_sysid_target - 1].backup_working) {
                 if (ccdl_routing_current_sysid.ccdl[1 - i].backup_route_working) {
-                    gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV %d: not backup_working", g.sysid_this_mav.get());
+                    gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV %d: ccdl %d not backup_working", g.sysid_this_mav.get(), 1 - i);
                 }
                 ccdl_routing_current_sysid.ccdl[1 - i].backup_route_working = false;
             }
@@ -564,7 +564,7 @@ void Copter::ccdl_failover_check()
                 const auto tdiff = tnow - ccdl_timeout[ccdl_routing_current_sysid.ccdl[i].primary_route_sysid_target - 1].last_seen_time;
                 if (tdiff > GCS_MAVLINK::DOUBLEX_CCDL_FAILOVER_TIMEOUT_US) {
                     if (ccdl_routing_current_sysid.ccdl[1 - i].backup_route_working ) {
-                        gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: DOUBLEX_CCDL_FAILOVER_TIMEOUT_US : %ld", g.sysid_this_mav.get(), tdiff);
+                        gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: DOUBLEX_CCDL_FAILOVER_TIMEOUT_US : %" PRIu64, g.sysid_this_mav.get(), tdiff);
                     }
                     ccdl_routing_current_sysid.ccdl[1 - i].backup_route_working = false;
                 }
