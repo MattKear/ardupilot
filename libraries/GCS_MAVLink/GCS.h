@@ -410,9 +410,9 @@ public:
         uint8_t primary_route_sysid_target;
         uint8_t backup_route_sysid_target;
         uint32_t primary_route_last_hb;
-        bool primary_route_working;
+        bool primary_route_working{true};
         uint32_t backup_route_last_hb;
-        bool backup_route_working;
+        bool backup_route_working{true};
         explicit CCDLInfo(mavlink_channel_t channel = MAVLINK_COMM_0, uint8_t target_my = 0, uint8_t target_other = 0, uint32_t lastSeen = 0, bool isWorking = false) :
                 mavlink_channel(channel), primary_route_sysid_target(target_my), backup_route_sysid_target(target_other), primary_route_last_hb(lastSeen), primary_route_working(isWorking), backup_route_last_hb(lastSeen), backup_route_working(isWorking) {}    };
 

@@ -374,14 +374,21 @@ void MAVLink_routing::learn_route(mavlink_channel_t in_channel, const mavlink_me
 void MAVLink_routing::update_ccdl_routing(mavlink_channel_t in_channel, const mavlink_message_t &msg) {
     const auto tnow = AP_HAL::millis();
     auto &ccdl_routing_current_sysid = GCS_MAVLINK::ccdl_routing_tables[mavlink_system.sysid - 1];
-    for (auto &i: ccdl_routing_current_sysid.ccdl) {
-        if (in_channel == i.mavlink_channel) {
-            if (i.primary_route_sysid_target == msg.sysid) {
-                i.primary_route_last_hb = tnow;
-                i.primary_route_working = true;
-            } else if (i.backup_route_sysid_target == msg.sysid) {
-                i.backup_route_last_hb = tnow;
-                i.backup_route_working = true;
+    for (int8_t i = 0; i < 2; ++i) {
+        if (in_channel == ccdl_routing_current_sysid.ccdl[i].mavlink_channel) {
+            if (ccdl_routing_current_sysid.ccdl[i].primary_route_sysid_target == msg.sysid && msg.msgid != MAVLINK_MSG_ID_HEARTBEAT) {
+                ccdl_routing_current_sysid.ccdl[i].primary_route_last_hb = tnow;
+                ccdl_routing_current_sysid.ccdl[i].primary_route_working = true;
+            } else if (ccdl_routing_current_sysid.ccdl[i].backup_route_sysid_target == msg.sysid) {
+                if (msg.msgid == MAVLINK_MSG_ID_HEARTBEAT) {
+                    if (ccdl_routing_current_sysid.ccdl[1 - i].primary_route_working) {
+                        ccdl_routing_current_sysid.ccdl[i].backup_route_last_hb = tnow;
+                        ccdl_routing_current_sysid.ccdl[i].backup_route_working = true;
+                    }
+                } else {
+                    ccdl_routing_current_sysid.ccdl[i].backup_route_last_hb = tnow;
+                    ccdl_routing_current_sysid.ccdl[i].backup_route_working = true;
+                }
             }
         }
     }
