@@ -3,7 +3,7 @@ FROM public.ecr.aws/docker/library/alpine:latest as FS_ARDU
 # Trick to copy the source code into a directory and remove docker things from it to have faster rebuild
 
 COPY . /ardupilot
-RUN rm -rf /ardupilot/ardupilot_docker
+RUN rm -rf /ardupilot/ardupilot_docker && rm /ardupilot/Tools/autotest/models/MNA383.json && rm /ardupilot/Tools/autotest/models/MNA383.param
 
 FROM public.ecr.aws/docker/library/python:3.10-slim AS builder
 # cannot use python 3.11 with copter 4.2
@@ -39,6 +39,7 @@ RUN --mount=type=cache,target=/tmp/ccache \
     && ccache -s
 
 COPY ardupilot_docker/MNA383.json /ardupilot/Tools/autotest/models/MNA383.json
+COPY ardupilot_docker/383.parm /ardupilot/Tools/autotest/models/MNA383.param
 
 # REBUILD to get the new model embeded
 RUN --mount=type=cache,target=/tmp/ccache \
