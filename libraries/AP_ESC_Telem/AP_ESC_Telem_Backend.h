@@ -16,6 +16,7 @@ public:
         float consumption_mah;      // milli-Ampere.hours
         uint32_t usage_s;           // usage seconds
         int16_t  motor_temp_cdeg;   // centi-degrees C, negative values allowed
+        uint8_t power_percentage;   // Percentage of output power
         uint32_t last_update_ms;    // last update time in milliseconds, determines whether active
         uint16_t types;             // telemetry types present
         uint16_t count;             // number of times updated
@@ -38,6 +39,7 @@ public:
         USAGE       = 1 << 5,
         TEMPERATURE_EXTERNAL = 1 << 6,
         MOTOR_TEMPERATURE_EXTERNAL  = 1 << 7,
+        POWER_PERCENTAGE = 1 << 8, 
     };
 
 
