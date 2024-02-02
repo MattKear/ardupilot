@@ -1438,13 +1438,15 @@ void AP_DroneCAN::handle_ESC_status(const CanardRxTransfer& transfer, const uavc
         .temperature_cdeg = int16_t((KELVIN_TO_C(msg.temperature)) * 100),
         .voltage = msg.voltage,
         .current = msg.current,
+        .power_percentage = msg.power_rating_pct,
     };
 
     update_rpm(esc_index, msg.rpm, msg.error_count);
     update_telem_data(esc_index, t,
         (isnan(msg.current) ? 0 : AP_ESC_Telem_Backend::TelemetryType::CURRENT)
             | (isnan(msg.voltage) ? 0 : AP_ESC_Telem_Backend::TelemetryType::VOLTAGE)
-            | (isnan(msg.temperature) ? 0 : AP_ESC_Telem_Backend::TelemetryType::TEMPERATURE));
+            | (isnan(msg.temperature) ? 0 : AP_ESC_Telem_Backend::TelemetryType::TEMPERATURE)
+            | (isnan(msg.power_rating_pct) ? 0 : AP_ESC_Telem_Backend::TelemetryType::POWER_PERCENTAGE));
 #endif
 }
 
