@@ -519,7 +519,7 @@ void Copter::ccdl_failover_check()
         const auto my_id = g.sysid_this_mav - 1;
         // Forget ccdl route after timeout.
         auto &ccdl_routing_current_sysid = GCS_MAVLINK::ccdl_routing_tables[my_id];
-        if (ccdl_routing_current_sysid.ccdl[0].serial_port == UINT8_MAX || ccdl_routing_current_sysid.ccdl[1].serial_port == UINT8_MAX) {
+        if (!ccdl_routing_current_sysid.enabled) {
             // unconfigured ccdl, skip
             return;
         }
@@ -530,30 +530,30 @@ void Copter::ccdl_failover_check()
             }
         }
         const auto tnow = AP_HAL::micros64();
-        const auto tnow_ms = tnow / 1000;
+        const uint32_t tnow_ms = tnow / 1000;
         // On a ccdl port, we expect to receive ccdl from primary target and hearbeat from backup target.
         // if we don't receive ccdl from the primary target, we expect it to comes from the other ccdl port.
         for (int8_t i = 0; i < 2; ++i) {
             // do we received ccdl from the primary target ?
-            const auto tdiff_p = tnow_ms - ccdl_routing_current_sysid.ccdl[i].primary_route_last_hb;
+            const uint32_t tdiff_p = tnow_ms - ccdl_routing_current_sysid.ccdl[i].primary_route_last_hb;
             if (tdiff_p > GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_MS) {
                 if (ccdl_routing_current_sysid.ccdl[i].primary_route_working) {
-                    gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: CCDL_FAILOVER_TIMEOUT_MS : %" PRIu64, g.sysid_this_mav.get(), tdiff_p);
+                    gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: ccdl %d CCDL_FAILOVER_TIMEOUT_MS : %" PRIu32, g.sysid_this_mav.get(), i, tdiff_p);
                 }
                 ccdl_routing_current_sysid.ccdl[i].primary_route_working = false;
             }
             // do we received ccdl or hearbeat from the backupt target ?
-            const auto tdiff_b = tnow_ms - ccdl_routing_current_sysid.ccdl[i].backup_route_last_hb;
+            const uint32_t tdiff_b = tnow_ms - ccdl_routing_current_sysid.ccdl[i].backup_route_last_hb;
             if (tdiff_b > GCS_MAVLINK::CCDL_FAILOVER_BACKUP_TIMEOUT_MS) {
                 if (ccdl_routing_current_sysid.ccdl[i].backup_route_working) {
-                    gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV %d: CCDL_FAILOVER_BACKUP_TIMEOUT_MS : %" PRIu64, g.sysid_this_mav.get(), tdiff_b);
+                    gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV %d: ccdl %d CCDL_FAILOVER_BACKUP_TIMEOUT_MS : %" PRIu32, g.sysid_this_mav.get(), i, tdiff_b);
                 }
                 ccdl_routing_current_sysid.ccdl[i].backup_route_working = false;
             }
             // primary route target said that its backup route is broken, so we can disable it too.
             if (!ccdl_timeout[ccdl_routing_current_sysid.ccdl[i].primary_route_sysid_target - 1].backup_working) {
                 if (ccdl_routing_current_sysid.ccdl[1 - i].backup_route_working) {
-                    gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV %d: ccdl %d not backup_working", g.sysid_this_mav.get(), 1 - i);
+                    gcs().send_text(MAV_SEVERITY_CRITICAL, "MAV %d: received ccdl %d no backup_working", g.sysid_this_mav.get(), 1 - i);
                 }
                 ccdl_routing_current_sysid.ccdl[1 - i].backup_route_working = false;
             }
@@ -561,10 +561,10 @@ void Copter::ccdl_failover_check()
             if (!ccdl_routing_current_sysid.ccdl[i].primary_route_working) {
                 // primary route is not working, we need to check if a ccdl comes from the backup route. Issue is ccdl msg path through the backup route only when primary is broken.
                 // thus we raise the timeout on the backup route to let another CCDL_FAILOVER_TIMEOUT_US pass.
-                const auto tdiff = tnow - ccdl_timeout[ccdl_routing_current_sysid.ccdl[i].primary_route_sysid_target - 1].last_seen_time;
+                const uint32_t tdiff = tnow - ccdl_timeout[ccdl_routing_current_sysid.ccdl[i].primary_route_sysid_target - 1].last_seen_time;
                 if (tdiff > GCS_MAVLINK::DOUBLEX_CCDL_FAILOVER_TIMEOUT_US) {
-                    if (ccdl_routing_current_sysid.ccdl[1 - i].backup_route_working ) {
-                        gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: DOUBLEX_CCDL_FAILOVER_TIMEOUT_US : %" PRIu64, g.sysid_this_mav.get(), tdiff);
+                    if (ccdl_routing_current_sysid.ccdl[1 - i].backup_route_working) {
+                        gcs().send_text(MAV_SEVERITY_CRITICAL,"MAV %d: ccdl %d DOUBLEX_CCDL_FAILOVER_TIMEOUT_US : %" PRIu32, g.sysid_this_mav.get(), i, tdiff);
                     }
                     ccdl_routing_current_sysid.ccdl[1 - i].backup_route_working = false;
                 }
