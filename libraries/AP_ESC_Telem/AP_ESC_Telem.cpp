@@ -467,6 +467,9 @@ void AP_ESC_Telem::update_telem_data(const uint8_t esc_index, const AP_ESC_Telem
     if (data_mask & AP_ESC_Telem_Backend::TelemetryType::USAGE) {
         telemdata.usage_s = new_data.usage_s;
     }
+    if (data_mask & AP_ESC_Telem_Backend::TelemetryType::POWER_PERCENTAGE) {
+        _telem_data[esc_index].power_percentage = new_data.power_percentage;
+    }
 
     telemdata.count++;
     telemdata.types |= data_mask;
@@ -538,7 +541,8 @@ void AP_ESC_Telem::update()
                     esc_temp    : telemdata.temperature_cdeg,
                     current_tot : telemdata.consumption_mah,
                     motor_temp  : telemdata.motor_temp_cdeg,
-                    error_rate  : rpmdata.error_rate
+                    error_rate  : rpmdata.error_rate,
+                    power_percentage : _telem_data[i].power_percentage,
                 };
                 AP::logger().WriteBlock(&pkt, sizeof(pkt));
                 _last_telem_log_ms[i] = telemdata.last_update_ms;
