@@ -17,7 +17,7 @@
 */
 
 #include "SIM_RF_Wasp.h"
-
+#if 0
 #include <GCS_MAVLink/GCS.h>
 
 #include <stdio.h>
@@ -115,3 +115,4 @@ uint32_t RF_Wasp::packet_for_alt(uint16_t alt_cm, uint8_t *buffer, uint8_t bufle
 {
     return snprintf((char*)buffer, buflen, "%f\n", alt_cm/100.0f);
 }
+#endif

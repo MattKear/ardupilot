@@ -289,12 +289,14 @@ SITL::SerialDevice *SITL_State::create_serial_sim(const char *name, const char *
         }
         maxsonarseriallv = new SITL::RF_MaxsonarSerialLV();
         return maxsonarseriallv;
+#if 0
     } else if (streq(name, "wasp")) {
         if (wasp != nullptr) {
             AP_HAL::panic("Only one wasp at a time");
         }
         wasp = new SITL::RF_Wasp();
         return wasp;
+#endif
     } else if (streq(name, "nmea")) {
         if (nmea != nullptr) {
             AP_HAL::panic("Only one nmea at a time");
@@ -668,9 +670,11 @@ void SITL_State::_fdm_input_local(void)
     if (maxsonarseriallv != nullptr) {
         maxsonarseriallv->update(sitl_model->rangefinder_range());
     }
+#if 0
     if (wasp != nullptr) {
         wasp->update(sitl_model->rangefinder_range());
     }
+#endif
     if (nmea != nullptr) {
         nmea->update(sitl_model->rangefinder_range());
     }

@@ -30,7 +30,7 @@ rc 3 1600
 #pragma once
 
 #include "SIM_SerialRangeFinder.h"
-
+#if 0
 namespace SITL {
 
 class RF_Wasp : public SerialRangeFinder {
@@ -87,3 +87,5 @@ private:
 };
 
 }
+#endif
+
