@@ -503,9 +503,11 @@ void RangeFinder::detect_instance(uint8_t instance, uint8_t& serial_instance)
         }
         break;
     case Type::WASP:
+#if 0
         if (AP_RangeFinder_Wasp::detect(serial_instance)) {
             _add_backend(new AP_RangeFinder_Wasp(state[instance], params[instance]), instance, serial_instance++);
         }
+#endif
         break;
     case Type::BenewakeTF02:
         if (AP_RangeFinder_Benewake_TF02::detect(serial_instance)) {

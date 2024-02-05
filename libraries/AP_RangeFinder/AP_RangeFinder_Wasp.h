@@ -1,5 +1,6 @@
 #pragma once
 
+#if 0
 #include "AP_RangeFinder.h"
 #include "AP_RangeFinder_Backend_Serial.h"
 
@@ -59,3 +60,4 @@ private:
     AP_Int16 thr;
     AP_Int8  baud;
 };
+#endif
