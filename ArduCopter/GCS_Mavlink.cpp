@@ -1028,14 +1028,19 @@ MAV_RESULT GCS_MAVLINK_Copter::handle_command_long_packet(const mavlink_command_
 
     case MAV_CMD_MNA_SET_OVERRIDE_VOTE:
     {
+        if (copter.g.sysid_this_mav == 1) {
+            // reject vote on fcu1
+            return MAV_RESULT_DENIED;
+        }
         if (packet.param1 < 0.0f || packet.param1 > 1.0f) {
-            return MAV_RESULT_FAILED;
+            return MAV_RESULT_DENIED;
         }
         if (packet.param2 < 0.0f || packet.param2 > 3.0f) {
-            return MAV_RESULT_FAILED;
+            return MAV_RESULT_DENIED;
         }
         copter.fcu_vote_override = !is_zero(packet.param1);
         copter.fcu_vote_override_target = static_cast<uint8_t>(packet.param2);
+
         return MAV_RESULT_ACCEPTED;
     }
 
