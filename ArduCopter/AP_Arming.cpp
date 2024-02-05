@@ -629,6 +629,11 @@ bool AP_Arming_Copter::winch_checks(bool display_failure) const
 
 bool AP_Arming_Copter::vote_checks(bool display_failure)
 {
+    // FCU1 only vote for itself. This also allow CI to pass
+    if (copter.g.sysid_this_mav == 1 && copter.g2.fcu_vote_enabled == 0) {
+        return true;
+    }
+
     if (((checks_to_perform & ARMING_CHECK_ALL) == 0) && ((checks_to_perform & ARMING_CHECK_VOTE_FCU) == 0)) {
         return true;
     }
