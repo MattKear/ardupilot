@@ -2477,6 +2477,9 @@ class AutoTest(ABC):
     def default_parameter_list(self):
         ret = {
             'LOG_DISARMED': 1,
+            'BTN_ENABLE': 0,
+            'CHUTE_ENABLED': 0,
+            'GPS_AUTO_CONFIG': 1,
         }
         if self.force_ahrs_type is not None:
             if self.force_ahrs_type == 2:
