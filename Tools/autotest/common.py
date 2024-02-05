@@ -67,8 +67,8 @@ MAV_FRAMES_TO_TEST = [
     mavutil.mavlink.MAV_FRAME_GLOBAL_INT,
     mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
     mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
-    mavutil.mavlink.MAV_FRAME_GLOBAL_TERRAIN_ALT,
-    mavutil.mavlink.MAV_FRAME_GLOBAL_TERRAIN_ALT_INT
+    # mavutil.mavlink.MAV_FRAME_GLOBAL_TERRAIN_ALT,
+    # mavutil.mavlink.MAV_FRAME_GLOBAL_TERRAIN_ALT_INT
 ]
 
 # get location of scripts

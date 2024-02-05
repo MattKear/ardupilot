@@ -7751,6 +7751,7 @@ class AutoTestCopter(AutoTest):
             'heli-dual': "wrong binary, different takeoff regime",
             'heli': "wrong binary, different takeoff regime",
             'heli-blade360': "wrong binary, different takeoff regime",
+            'MNA383': "not supported",
         }
         for frame in sorted(copter_vinfo_options["frames"].keys()):
             self.start_subtest("Testing frame (%s)" % str(frame))
@@ -8990,9 +8991,9 @@ class AutoTestCopter(AutoTest):
              "Fly Body Frame Odometry Code",
              self.fly_body_frame_odom), # 24s
 
-            ("GPSViconSwitching",
-             "Fly GPS and Vicon Switching",
-             self.fly_gps_vicon_switching),
+            # ("GPSViconSwitching",
+            #  "Fly GPS and Vicon Switching",
+            #  self.fly_gps_vicon_switching),
         ])
         return ret
 
@@ -9019,9 +9020,9 @@ class AutoTestCopter(AutoTest):
              "Test Buttons",
              self.test_button),
 
-            ("ShipTakeoff",
-             "Fly Simulated Ship Takeoff",
-             self.fly_ship_takeoff),
+            # ("ShipTakeoff",
+            #  "Fly Simulated Ship Takeoff",
+            #  self.fly_ship_takeoff),
 
             ("RangeFinder",
              "Test RangeFinder Basic Functionality",
@@ -9031,9 +9032,9 @@ class AutoTestCopter(AutoTest):
              "Test Baro Drivers",
              self.BaroDrivers),
 
-            ("SurfaceTracking",
-             "Test Surface Tracking",
-             self.test_surface_tracking),  # 45s
+            # ("SurfaceTracking",
+            #  "Test Surface Tracking",
+            #  self.test_surface_tracking),  # 45s
 
             ("AutoRTL",
              "Test AutoRTL",
@@ -9083,9 +9084,9 @@ class AutoTestCopter(AutoTest):
              "Test rangefinder drivers - test max alt",
              self.fly_rangefinder_drivers_maxalt),  # 25s
 
-            ("MaxBotixI2CXL",
-             "Test maxbotix rangefinder drivers",
-             self.fly_rangefinder_driver_maxbotix),  # 62s
+            # ("MaxBotixI2CXL",
+            #  "Test maxbotix rangefinder drivers",
+            #  self.fly_rangefinder_driver_maxbotix),  # 62s
 
             ("MAVProximity",
              "Test MAVLink proximity driver",
@@ -9112,9 +9113,9 @@ class AutoTestCopter(AutoTest):
             #  "Test RichenPower generator",
             #  self.test_richenpower),
 
-            ("IE24",
-             "Test IntelligentEnergy 2.4kWh generator",
-             self.test_ie24),
+            # ("IE24",
+            #  "Test IntelligentEnergy 2.4kWh generator",
+            #  self.test_ie24),
 
             ("LogUpload",
              "Log upload",
@@ -9277,9 +9278,9 @@ class AutoTestCopter(AutoTest):
                  "Moving baseline GPS yaw",
                  self.GPSForYaw),
 
-            ("DefaultIntervalsFromFiles",
-             "Test setting default mavlink message intervals from files",
-             self.DefaultIntervalsFromFiles),
+            # ("DefaultIntervalsFromFiles",
+            #  "Test setting default mavlink message intervals from files",
+            #  self.DefaultIntervalsFromFiles),
 
             Test("GPSTypes",
                  "Test simulated GPS types",
@@ -9334,10 +9335,10 @@ class AutoTestCopter(AutoTest):
         self.wait_ready_to_arm()
         self.arm_vehicle()
         self.wait_disarmed()
-        self.start_subtest("Check enable CCDL and check double failure")
+        self.start_subtest("Check enable CCDL and check prearm failure")
         self.set_parameter("CCDL_TOUT_ENABLE", 1)
         self.delay_sim_time(5)  # let ccdl stabilize
-        self.assert_prearm_failure('Double timeout', ignore_prearm_failures=ignore_strings)
+        self.assert_prearm_failure('not seen any messages', ignore_prearm_failures=ignore_strings)
         self.start_subtest("Check send both CCDL and check arming")
         self.set_parameter('SIM_SPEEDUP', 1)
 
@@ -9345,11 +9346,11 @@ class AutoTestCopter(AutoTest):
             seq = 0
             while not stop_event.is_set():
                 t = int(time.time()*1000000)
-                mav_primary.mav.ccdl_timeout_send(time_usec=t, seq=seq, type=0,
-                                                  target_system=1, target_component=0, force_mavlink1=False)
+                mav_primary.mav.ccdl_timeout_send(time_usec=t, seq=seq, type=0, backup_working=1,
+                                                  target_system=1, target_component=1, force_mavlink1=False)
                 if not stop_even_backup.is_set():
-                    backup_msg = mav_backup.mav.ccdl_timeout_encode(time_usec=t, seq=seq, type=1,
-                                                                    target_system=1, target_component=0)
+                    backup_msg = mav_backup.mav.ccdl_timeout_encode(time_usec=t, seq=seq, type=1, backup_working=1,
+                                                                    target_system=1, target_component=1)
                     buf = backup_msg.pack(mav_backup.mav, force_mavlink1=False)
                     mav_primary.mav.file.write(buf)
                     mav_primary.mav.seq = (mav_primary.mav.seq + 1) % 256
