@@ -447,6 +447,26 @@ void Copter::Log_Write_CCDL_Timeout()
     }
 }
 
+// CCDL Timeout logging
+struct PACKED log_Vote_Status {
+    LOG_PACKET_HEADER;
+    uint64_t time_us;
+    uint8_t fcu_vote;
+    uint8_t standby_state;
+};
+
+void Copter::Log_Write_Vote_Status() {
+    const uint64_t time_us = AP_HAL::micros64();
+    const log_Vote_Status pkt {
+        LOG_PACKET_HEADER_INIT(LOG_VOTE_STATUS_MSG),
+        .time_us = time_us,
+        .fcu_vote = static_cast<uint8_t>(copter.fcu_vote_current),
+        .standby_state = static_cast<uint8_t>(copter.standby_active)
+    };
+    logger.WriteBlock(&pkt, sizeof(pkt));
+}
+
+
 // type and unit information can be found in
 // libraries/AP_Logger/Logstructure.h; search for "log_Units" for
 // units and "Format characters" for field type information
@@ -618,6 +638,15 @@ const struct LogStructure Copter::log_structure[] = {
     { LOG_CCDL_TIMEOUT_MSG, sizeof(log_CCDL_Timeout),
       "CCDT", "QBIBQBQBQ", "TimeUS,I,Seq,SErr,T,TErr,LastS,Tout,LTout", "s---s-s-s", "F---F-F-F", true },
 
+// @LoggerMessage: VOTE
+// @Description: VOTE output status
+// @Field: TimeUS: Time since system startup
+// @Field: Vote: Vote status
+// @Field: Standby: Standby status
+
+    { LOG_VOTE_STATUS_MSG, sizeof(log_Vote_Status),
+      "VOTE", "QBB", "TimeUS,Vote,Standby", "s--", "F--" , true },
+
 };
 
 void Copter::Log_Write_Vehicle_Startup_Messages()
@@ -654,6 +683,7 @@ void Copter::Log_Write_SysID_Setup(uint8_t systemID_axis, float waveform_magnitu
 void Copter::Log_Write_SysID_Data(float waveform_time, float waveform_sample, float waveform_freq, float angle_x, float angle_y, float angle_z, float accel_x, float accel_y, float accel_z) {}
 void Copter::Log_Write_Vehicle_Startup_Messages() {}
 void Copter::Log_Write_CCDL_Timeout() {}
+void Copter::Log_Write_Vote_Status() {
 
 #if FRAME_CONFIG == HELI_FRAME
 void Copter::Log_Write_Heli() {}

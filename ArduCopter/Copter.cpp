@@ -640,6 +640,9 @@ void Copter::vote_fcu(Copter::FCU_Vote vote)
     } else {
         copter.relay.on(0);
     }
+    if (should_log(MASK_LOG_VOTE_STATUS)) {
+        Log_Write_Vote_Status();
+    }
 }
 
 Copter::FCU_Vote Copter::vote_failover()
@@ -865,6 +868,9 @@ void Copter::one_hz_loop()
 {
     if (should_log(MASK_LOG_ANY)) {
         Log_Write_Data(LogDataID::AP_STATE, ap.value);
+    }
+    if (should_log(MASK_LOG_VOTE_STATUS)) {
+        Log_Write_Vote_Status();
     }
 
     arming.update();

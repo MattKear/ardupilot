@@ -124,6 +124,7 @@ enum LoggingParameters {
      LOG_SYSIDS_MSG,
      LOG_GUIDED_ATTITUDE_TARGET_MSG,
      LOG_CCDL_TIMEOUT_MSG,
+     LOG_VOTE_STATUS_MSG,
 };
 
 #define MASK_LOG_ATTITUDE_FAST          (1<<0)
@@ -147,6 +148,7 @@ enum LoggingParameters {
 #define MASK_LOG_IMU_RAW                (1UL<<19)
 #define MASK_LOG_VIDEO_STABILISATION    (1UL<<20)
 #define MASK_LOG_CCDL                   (1UL<<21)
+#define MASK_LOG_VOTE_STATUS            (1UL<<22)
 #define MASK_LOG_ANY                    0xFFFF
 
 // Radio failsafe definitions (FS_THR parameter)
