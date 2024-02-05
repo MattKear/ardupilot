@@ -342,7 +342,7 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
         mavlink_mna_vote_status_t packet {
             .time_usec = AP_HAL::micros64(),
             .target_system = static_cast<uint8_t>(copter.g.sysid_my_gcs),
-            .target_component = static_cast<uint8_t>(copter.g.sysid_my_gcs),
+            .target_component = static_cast<uint8_t>(0),
             .fcu_vote = static_cast<uint8_t>(copter.fcu_vote_current)
         };
         mavlink_msg_mna_vote_status_send_struct(chan, &packet);
@@ -353,7 +353,7 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
         mavlink_mna_standby_status_t packet {
             .time_usec = AP_HAL::micros64(),
             .target_system = static_cast<uint8_t>(copter.g.sysid_my_gcs),
-            .target_component = static_cast<uint8_t>(copter.g.sysid_my_gcs),
+            .target_component = static_cast<uint8_t>(0),
             .standby_state = static_cast<uint8_t>(copter.standby_active)
         };
         mavlink_msg_mna_standby_status_send_struct(chan, &packet);

@@ -683,7 +683,7 @@ bool AP_Arming_Copter::ccdl_checks(bool display_failure)
     const auto tnow = AP_HAL::micros64();
     for (auto i=0; i<2; i++) {
         if (copter.ccdl_timeout[ccdl_routing_current_sysid.ccdl[i].primary_route_sysid_target - 1].last_seen_time == 0) {
-            check_failed(display_failure, "CCDL %u not seen", i);
+            check_failed(display_failure, "CCDL %u not seen any messages to initialize", i);
             return false;
         }
         if (!GCS_MAVLINK::ccdl_routing_tables[my_id].ccdl[i].primary_route_working) {
