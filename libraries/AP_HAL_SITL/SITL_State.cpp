@@ -533,7 +533,10 @@ void SITL_State::update_vote_output(struct sitl_input &input)
 
 
 // MASTER
-
+    if (!ride_along.is_master() || _instance > 1) {
+        // only use on tri sitl for now
+        return;
+    }
     if (ride_along.is_master()) {
         // mimic the MVB vote
         uint8_t new_vote = input.my_vote_pin;
