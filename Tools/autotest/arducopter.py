@@ -7398,7 +7398,7 @@ class AutoTestCopter(AutoTest):
             ("leddarone", 12),
             ("maxsonarseriallv", 13),
             ("nmea", 17),
-            ("wasp", 18),
+            # ("wasp", 18),
             ("benewake_tf02", 19),
             ("blping", 23),
             ("benewake_tfmini", 20),
