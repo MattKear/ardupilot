@@ -1128,6 +1128,15 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("FCU_VOTE_ENABLE", 59, ParametersG2, fcu_vote_enabled, 0),
 
+    // @Param: SIREN_TIMEOUT
+    // @DisplayName: Siren timeout
+    // @Description: Siren timeout in ms
+    // @Units: ms
+    // @Range: 0 60000
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("SIREN_TIMEOUT", 60, ParametersG2, siren_timeout_ms, 30000),
+
     AP_GROUPEND
 };
 

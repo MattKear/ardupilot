@@ -651,6 +651,10 @@ private:
     FCU_Vote fcu_vote_current{Copter::FCU_Vote::FCU1};
     uint8_t fcu_vote_override_target{1};
     bool fcu1_parachute_released;
+    struct siren_struct {
+        bool enabled;
+        uint32_t last_siren_time;
+    } siren_status;
 
     // AP_State.cpp
     void set_auto_armed(bool b);
@@ -801,6 +805,7 @@ private:
 
     // landing_detector.cpp
     void update_land_and_crash_detectors();
+    void siren_check();
     void update_land_detector();
     void set_land_complete(bool b);
     void set_land_complete_maybe(bool b);

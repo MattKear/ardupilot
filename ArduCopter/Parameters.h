@@ -681,6 +681,7 @@ public:
 #endif
     AP_Int8 ccdl_timeout_enabled;
     AP_Int8 fcu_vote_enabled;
+    AP_Int32 siren_timeout_ms;
 };
 
 extern const AP_Param::Info        var_info[];

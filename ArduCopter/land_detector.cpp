@@ -24,10 +24,28 @@ void Copter::update_land_and_crash_detectors()
     // check parachute
     parachute_check();
 #endif
+    siren_check();
 
     crash_check();
     thrust_loss_check();
     yaw_imbalance_check();
+}
+
+void Copter::siren_check()
+{
+    if (parachute.release_initiated() || fcu1_parachute_released) {
+        if (!siren_status.enabled && siren_status.last_siren_time == 0) {
+            siren_status.enabled = true;
+            siren_status.last_siren_time = AP_HAL::millis();
+            relay.on(2);
+        }
+    }
+    if (siren_status.enabled) {
+        if (AP_HAL::millis() - siren_status.last_siren_time > static_cast<uint32_t>(g2.siren_timeout_ms.get())) {
+            siren_status.enabled = false;
+            relay.off(2);
+        }
+    }
 }
 
 // update_land_detector - checks if we have landed and updates the ap.land_complete flag
