@@ -7768,7 +7768,7 @@ class AutoTestCopter(AutoTest):
             # the model string for Callisto has crap in it.... we
             # should really have another entry in the vehicleinfo data
             # to carry the path to the JSON.
-            actual_model = model.split(":")[0]
+            actual_model = model.split("/")[-1].split('.')[0]
             defaults = self.model_defaults_filepath(actual_model)
             if type(defaults) != list:
                 defaults = [defaults]
