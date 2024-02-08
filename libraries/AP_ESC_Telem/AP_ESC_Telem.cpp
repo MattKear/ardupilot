@@ -293,6 +293,18 @@ bool AP_ESC_Telem::get_usage_seconds(uint8_t esc_index, uint32_t& usage_s) const
     return true;
 }
 
+// get an individual ESC's power percentage if available, returns true on success
+bool AP_ESC_Telem::get_power_percentage(uint8_t esc_index, float& power_percentage) const
+{
+    if (esc_index >= ESC_TELEM_MAX_ESCS
+        || AP_HAL::millis() - _telem_data[esc_index].last_update_ms > ESC_TELEM_DATA_TIMEOUT_MS
+        || !(_telem_data[esc_index].types & AP_ESC_Telem_Backend::TelemetryType::POWER_PERCENTAGE)) {
+        return false;
+    }
+    power_percentage = _telem_data[esc_index].power_percentage;
+    return true;
+}
+
 // send ESC telemetry messages over MAVLink
 void AP_ESC_Telem::send_esc_telemetry_mavlink(uint8_t mav_chan)
 {
@@ -358,8 +370,15 @@ void AP_ESC_Telem::send_esc_telemetry_mavlink(uint8_t mav_chan)
             int16_t mot_temp;
             if (get_motor_temperature(esc_id, mot_temp)) {
                 char float_name[MAVLINK_MSG_NAMED_VALUE_FLOAT_FIELD_NAME_LEN+1] {};
-                hal.util->snprintf(float_name, sizeof(float_name), "MOT%i_TEMP", esc_id);
+                hal.util->snprintf(float_name, sizeof(float_name), "MOT%i_TEMP", esc_id + 1);
                 mavlink_msg_named_value_float_send(chan, now, float_name, mot_temp * 0.01);
+            }
+
+            float power_percentage;
+            if (get_power_percentage(esc_id, power_percentage)) {
+                char float_name[MAVLINK_MSG_NAMED_VALUE_FLOAT_FIELD_NAME_LEN+1] {};
+                hal.util->snprintf(float_name, sizeof(float_name), "MOT%i_PWR", esc_id + 1);
+                mavlink_msg_named_value_float_send(chan, now, float_name, power_percentage);
             }
         }
 
