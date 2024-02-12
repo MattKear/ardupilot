@@ -102,7 +102,7 @@ public:
     HAL_Semaphore &get_semaphore(void) {
         return rsem;
     }
-    
+
     // GPS driver types
     enum GPS_Type {
         GPS_TYPE_NONE  = 0,
@@ -211,7 +211,7 @@ public:
         int32_t  rtk_baseline_z_mm;        ///< Current baseline in ECEF z or NED down component in mm
         uint32_t rtk_accuracy;             ///< Current estimate of 3D baseline accuracy (receiver dependent, typical 0 to 9999)
         int32_t  rtk_iar_num_hypotheses;   ///< Current number of integer ambiguity hypotheses
-        
+
         // UBX Relative Position and Heading message information
         float relPosHeading;               ///< Reported Heading in degrees
         float relPosLength;                ///< Reported Position horizontal distance in meters
@@ -451,7 +451,7 @@ public:
     bool have_gps_yaw_configured(uint8_t instance) const {
         return state[instance].gps_yaw_configured;
     }
-    
+
     // the expected lag (in seconds) in the position and velocity readings from the gps
     // return true if the GPS hardware configuration is known or the lag parameter has been set manually
     bool get_lag(uint8_t instance, float &lag_sec) const;
@@ -729,6 +729,7 @@ private:
         BLEND       = 2,
         //USE_SECOND  = 3, deprecated for new primary param
         USE_PRIMARY_IF_3D_FIX = 4,
+        USE_BEST_FIX = 5,
     };
 
     // used for flight testing with GPS loss

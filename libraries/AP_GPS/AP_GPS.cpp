@@ -110,7 +110,7 @@ const AP_Param::GroupInfo AP_GPS::var_info[] = {
     // @Param: _AUTO_SWITCH
     // @DisplayName: Automatic Switchover Setting
     // @Description: Automatic switchover to GPS reporting best lock, 1:UseBest selects the GPS with highest status, if both are equal the GPS with highest satellite count is used 4:Use primary if 3D fix or better, will revert to 'UseBest' behaviour if 3D fix is lost on primary
-    // @Values: 0:Use primary, 1:UseBest, 2:Blend, 4:Use primary if 3D fix or better
+    // @Values: 0:Use primary, 1:UseBest, 2:Blend, 4:Use primary if 3D fix or better, 5:Use best fix
     // @User: Advanced
     AP_GROUPINFO("_AUTO_SWITCH", 3, AP_GPS, _auto_switch, (int8_t)GPSAutoSwitch::USE_BEST),
 #endif
@@ -688,7 +688,7 @@ void AP_GPS::detect_instance(uint8_t instance)
 #if AP_GPS_NMEA_ENABLED
             } else if (_type[instance] == GPS_TYPE_HEMI) {
                 send_blob_start(instance, AP_GPS_NMEA_HEMISPHERE_INIT_STRING, strlen(AP_GPS_NMEA_HEMISPHERE_INIT_STRING));
-#endif // AP_GPS_NMEA_ENABLED        
+#endif // AP_GPS_NMEA_ENABLED
             } else {
                 send_blob_start(instance, _initialisation_blob, sizeof(_initialisation_blob));
             }
@@ -1164,6 +1164,11 @@ void AP_GPS::update_primary(void)
             // we have a higher status lock, or primary is set to the blended GPS, change GPS
             primary_instance = i;
             _last_instance_swap_ms = now;
+            continue;
+        }
+
+        if ((GPSAutoSwitch)_auto_switch.get() == GPSAutoSwitch::USE_BEST_FIX) {
+            // if only switching based upon fix status, then dont go further
             continue;
         }
 
