@@ -63,18 +63,16 @@ fi
 
 SITL_LOCATION="$SITL_LAT,$SITL_LON,$SITL_ALT,$SITL_HEADING"
 
-IDENTITY_FILE=identity${I_INSTANCE}.parm
-MASTER_FILE=master_param_fcu${I_INSTANCE}.param
-
-# RANGEFINDER CONFIG
-printf "RNGFND1_TYPE 8\nRNGFND1_SCALING 1\nRNGFND1_MIN_CM 5\nRNGFND1_MAX_CM 10000\nSERIAL6_PROTOCOL 9\nSERIAL6_BAUD 115\n" > "$IDENTITY_FILE"
-printf "SYSID_THISMAV %s\n%s\n" ${SYSID} "${SERIAL2_OPTIONS}" >> "$IDENTITY_FILE"
 echo "INSTANCE:"
 echo "$I_INSTANCE"
 
+IDENTITY_FILE=fcu${SYSID}.parm
+cp /ardupilot/fcu${SYSID}.parm ./"$IDENTITY_FILE"
+sed -i '/^[[:space:]]*$/d' "$IDENTITY_FILE"
 echo "${IDENTITY_FILE}:"
 cat "$IDENTITY_FILE"
 
+MASTER_FILE=master_param_fcu${I_INSTANCE}.param
 
 if [ -z "${NO_CCDL}" ]; then
     CCDL_FILE=ccdl.parm

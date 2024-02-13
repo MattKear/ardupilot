@@ -69,6 +69,9 @@ COPY ardupilot_docker/sitl_launch.bash /ardupilot/sitl_launch.bash
 COPY ardupilot_docker/383.parm /ardupilot/383.parm
 COPY ardupilot_docker/ccdl.parm /ardupilot/ccdl.parm
 COPY ardupilot_docker/no_ccdl.parm /ardupilot/no_ccdl.parm
+COPY ardupilot_docker/fcu1.parm /ardupilot/fcu1.parm
+COPY ardupilot_docker/fcu2.parm /ardupilot/fcu2.parm
+COPY ardupilot_docker/fcu3.parm /ardupilot/fcu3.parm
 COPY ardupilot_docker/terrain /ardupilot/terrain
 COPY ardupilot_docker/logs /ardupilot/logs
 
