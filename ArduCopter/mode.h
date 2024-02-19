@@ -1953,10 +1953,7 @@ private:
             bool flare_init             : 1;
             bool touch_down_init        : 1;
             bool bail_out_init          : 1;
-            bool bad_rpm                : 1;
     } _flags;
-
-    uint32_t _last_bad_rpm_ms;
 
 };
 #endif
