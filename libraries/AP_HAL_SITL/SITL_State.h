@@ -197,6 +197,7 @@ private:
 
     // internal SITL model
     SITL::Aircraft *sitl_model;
+    bool _is_json_model;
 
 #if HAL_SIM_GIMBAL_ENABLED
     // simulated gimbal
