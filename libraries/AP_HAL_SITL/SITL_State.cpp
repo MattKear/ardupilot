@@ -535,8 +535,8 @@ void SITL_State::update_vote_output(struct sitl_input &input)
 
 
 // MASTER
-    if (!ride_along.is_master() && !_is_json_model) {
-        // only use on tri sitl for now
+    if ((!ride_along.is_master() && !_is_json_model) || _instance > 1) {
+        // only use on tri sitl for now, disable on fcu > 2
         return;
     }
     if (ride_along.is_master()) {
