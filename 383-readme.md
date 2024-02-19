@@ -1,15 +1,15 @@
 ## FCU1 
 
-sim_vehicle.py -v ArduCopter -f MNA383 --slave 2 -I0 --auto-sysid -A "--serial2=udpclient:0.0.0.0:14552 --serial1=tcp:5764 --serial4=tcp:5765 --disable-fgview" --use-dir=FCU1 --add-param-file=$(pwd)/ardupilot_docker/fcu1.parm --add-param-file=$(pwd)/383.parm --debug --console --map
-sim_vehicle.py -v ArduCopter -f MNA383 -I0 --auto-sysid -A "--serial2=udpclient:0.0.0.0:14552 --serial1=tcp:5764 --serial4=tcp:5765 --disable-fgview" --use-dir=FCU1 --add-param-file=$(pwd)/383.parm --debug --console --map
+sim_vehicle.py -v ArduCopter -f MNA383 --slave 2 -I0 --auto-sysid -A "--serial2=tcp:5762 --serial1=tcp:5761 --serial4=tcp:5764 --disable-fgview" --use-dir=FCU1 --add-param-file=$(pwd)/ardupilot_docker/fcu1.parm --add-param-file=$(pwd)/383.parm --debug --console --map
+sim_vehicle.py -v ArduCopter -f MNA383 -I0 --auto-sysid -A "--serial2=udpclient:0.0.0.0:14552 --serial1=tcp:5761 --serial4=tcp:5764 --disable-fgview" --use-dir=FCU1 --add-param-file=$(pwd)/383.parm --debug --console --map
 
 ## FCU2
 
-sim_vehicle.py -v ArduCopter --model json:0.0.0.0 -I1 --auto-sysid --slave 0 -A "--serial1=tcp:5776 --serial4=tcpclient:127.0.0.1:5764 --disable-fgview" --use-dir=FCU2 --add-param-file=$(pwd)/ardupilot_docker/383.parm --add-param-file=$(pwd)/ardupilot_docker/fcu2.parm --add-param-file=$(pwd)/383.parm --debug --no-rebuild -m "--console --source-system 252"
+sim_vehicle.py -v ArduCopter --model json:0.0.0.0 -I1 --auto-sysid --slave 0 -A "--serial1=tcp:5771 --serial2=tcp:5772 --serial4=tcpclient:127.0.0.1:5761 --disable-fgview" --use-dir=FCU2 --add-param-file=$(pwd)/ardupilot_docker/383.parm --add-param-file=$(pwd)/ardupilot_docker/fcu2.parm --add-param-file=$(pwd)/383.parm --debug --no-rebuild -m "--console --source-system 252"
 
 ## FCU3
 
-sim_vehicle.py -v ArduCopter --model json:0.0.0.0 -I2 --auto-sysid --slave 0 -A "--serial1=tcpclient:127.0.0.1:5765 --serial4=tcpclient:127.0.0.1:5776 --disable-fgview" --use-dir=FCU3 --add-param-file=$(pwd)/ardupilot_docker/383.parm --add-param-file=$(pwd)/ardupilot_docker/fcu3.parm --add-param-file=$(pwd)/383.parm --debug --no-rebuild -m "--console --source-system 253"
+sim_vehicle.py -v ArduCopter --model json:0.0.0.0 -I2 --auto-sysid --slave 0 -A "--serial1=tcpclient:127.0.0.1:5764 --serial2=tcp:5782 --serial4=tcpclient:127.0.0.1:5771 --disable-fgview" --use-dir=FCU3 --add-param-file=$(pwd)/ardupilot_docker/383.parm --add-param-file=$(pwd)/ardupilot_docker/fcu3.parm --add-param-file=$(pwd)/383.parm --debug --no-rebuild -m "--console --source-system 253"
 
 
 # Testing 
