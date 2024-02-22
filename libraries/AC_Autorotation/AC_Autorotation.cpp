@@ -356,9 +356,15 @@ void AC_Autorotation::initial_flare_estimate(void)
 {
     // Estimate hover thrust
     float _col_hover_rad = radians(_motors_heli->get_hover_coll_ang());
+
+    // Ensure safe math operations below by constraining _col_hover_rad to be > 0.
+    // Assuming 0.1 deg will never be enough to blade pitch angle to maintain hover.
+    _col_hover_rad = MAX(_col_hover_rad, radians(0.1));
+
     float b = _param_solidity * M_2PI;
     _disc_area = M_PI * sq(_param_diameter * 0.5f);
-    float lambda = (-(b / 8.0f) + safe_sqrt((sq(b)) / 64.0f +((b / 3.0f) * _col_hover_rad))) * 0.5f;
+    float lambda = (-(b / 8.0f) + safe_sqrt((sq(b)) / 64.0f + ((b / 3.0f) * _col_hover_rad))) * 0.5f;
+    //TODO: remove the dependance on the governor param or make the governor param a more generic name.
     float freq = _motors_heli->get_rpm_setpoint() / 60.0f;
     float tip_speed= freq * M_2PI * _param_diameter * 0.5f;
     _lift_hover = ((SSL_AIR_DENSITY * sq(tip_speed) * (_param_solidity * _disc_area)) * ((_col_hover_rad / 3.0f) - (lambda / 2.0f)) * 5.8f) * 0.5f;
@@ -366,7 +372,7 @@ void AC_Autorotation::initial_flare_estimate(void)
     // Estimate rate of descent
     float omega_auto = (_param_head_speed_set_point / 60.0f) * M_2PI;
     float tip_speed_auto = omega_auto * _param_diameter * 0.5f;
-    float c_t = _lift_hover / (0.6125f * _disc_area * sq(tip_speed));
+    float c_t = _lift_hover / (0.5 * SSL_AIR_DENSITY * _disc_area * sq(tip_speed));
     _est_rod = ((0.25f * (_param_solidity * 0.011f / c_t) * tip_speed_auto) + ((sq(c_t) / (_param_solidity * 0.011f)) * tip_speed_auto));
 
     // Estimate rotor C_d
