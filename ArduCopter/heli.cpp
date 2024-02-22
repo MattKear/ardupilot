@@ -210,7 +210,7 @@ void Copter::heli_update_autorotation()
 #endif
 
     // check if flying and interlock disengaged
-    if (!ap.land_complete && !motors->get_interlock()) {
+    if (!ap.land_complete && !motors->get_interlock() && motors->armed()) {
 #if MODE_AUTOROTATE_ENABLED == ENABLED
         if (g2.arot.is_enable()) {
             if (!flightmode->has_manual_throttle()) {
