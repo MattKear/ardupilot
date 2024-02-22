@@ -1,6 +1,6 @@
 ## FCU1 
 
-sim_vehicle.py -v ArduCopter -f MNA383 --slave 2 -I0 --auto-sysid -A "--serial2=tcp:5762 --serial1=tcp:5761 --serial4=tcp:5764 --disable-fgview" --use-dir=FCU1 --add-param-file=$(pwd)/ardupilot_docker/fcu1.parm --add-param-file=$(pwd)/383.parm --debug --console --map
+sim_vehicle.py -v ArduCopter -f MNA383 --slave 2 -I0 --auto-sysid -A "--serial2=tcp:5762 --serial1=tcp:5761 --serial4=tcp:5764 --serial6=sim:lightwareserial --disable-fgview" --use-dir=FCU1 --add-param-file=$(pwd)/ardupilot_docker/fcu1.parm --add-param-file=$(pwd)/383.parm --debug --console --map
 sim_vehicle.py -v ArduCopter -f MNA383 -I0 --auto-sysid -A "--serial2=udpclient:0.0.0.0:14552 --serial1=tcp:5761 --serial4=tcp:5764 --disable-fgview" --use-dir=FCU1 --add-param-file=$(pwd)/383.parm --debug --console --map
 
 ## FCU2

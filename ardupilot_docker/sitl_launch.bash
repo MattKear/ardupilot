@@ -88,7 +88,7 @@ else
     cat "$CCDL_FILE"
 fi
 
-cp /ardupilot/383.parm ./"$MASTER_FILE"
+cp /ardupilot/common.parm ./"$MASTER_FILE"
 sed -i '/LOG_BACKEND_TYPE/d' "$MASTER_FILE"
 sed -i '/COMPASS_PRIO/d' "$MASTER_FILE"
 sed -i '/BATT_VOLT_PIN/d' "$MASTER_FILE"
@@ -96,7 +96,6 @@ sed -i '/BATT_CURR_PIN/d' "$MASTER_FILE"
 sed -i '/COMPASS_EXTERNAL/d' "$MASTER_FILE"
 sed -i '/COMPASS_SCALE/d' "$MASTER_FILE"
 sed -i '/COMPASS_USE/d' "$MASTER_FILE"
-sed -i '/^SERIAL/d' "$MASTER_FILE"
 sed -i '/^COMPASS_PRIO/d' "$MASTER_FILE"
 sed -i '/^AHRS_ORIENTATION/d' "$MASTER_FILE"
 sed -i '/^GPS_POS/d' "$MASTER_FILE"
