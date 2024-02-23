@@ -202,7 +202,7 @@ void Copter::heli_update_autorotation()
         // Get height above ground. If using a healthy LiDaR below func will return an interpolated
         // distance based on inertial measurement. If LiDaR is unhealthy and terrain is available
         // we will get a terrain database estimate. Otherwise we will get height above home.
-        int32_t gnd_dist = flightmode->get_alt_above_ground_cm(false);
+        int32_t gnd_dist = flightmode->get_alt_above_ground_cm();
 
         // set the height in the autorotation controller
         g2.arot.set_ground_distance(gnd_dist);
