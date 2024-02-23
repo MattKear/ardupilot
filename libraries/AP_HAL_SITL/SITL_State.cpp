@@ -413,6 +413,9 @@ SITL::SerialDevice *SITL_State::create_serial_sim(const char *name, const char *
             AP_HAL::panic("Bad GPS number %u", x);
         }
         gps[x-1] = new SITL::GPS(x-1);
+        if (gps[x-1] != nullptr) {
+            gps[x-1]->update();  // force an update to set something into the serial port buffer
+        }
         return gps[x-1];
     }
 
