@@ -13,10 +13,9 @@
 
 #if MODE_AUTOROTATE_ENABLED == ENABLED
 
-#define AUTOROTATE_ENTRY_TIME          2000    // (ms) Number of milliseconds that the entry phase operates for
+#define AUTOROTATE_ENTRY_TIME_MS       2000    // (ms) Number of milliseconds that the entry phase operates for
 #define BAILOUT_MOTOR_RAMP_TIME        1.0f    // (s) Time set on bailout ramp up timer for motors - See AC_MotorsHeli_Single
 #define HEAD_SPEED_TARGET_RATIO        1.0f    // Normalised target main rotor head speed
-#define MSG_TIMER                      7000    // (ms) time interval between sending repeat warning messages
 
 bool ModeAutorotate::init(bool ignore_checks)
 {
@@ -65,7 +64,7 @@ bool ModeAutorotate::init(bool ignore_checks)
     _entry_time_start_ms = millis();
 
     // The decay rate to reduce the head speed from the current to the target
-    _hs_decay = ((_initial_rpm/g2.arot.get_hs_set_point()) - HEAD_SPEED_TARGET_RATIO) / (AUTOROTATE_ENTRY_TIME*1e-3);
+    _hs_decay = ((_initial_rpm/g2.arot.get_hs_set_point()) - HEAD_SPEED_TARGET_RATIO) / (AUTOROTATE_ENTRY_TIME_MS*1e-3);
 
     return true;
 }
@@ -89,7 +88,7 @@ void ModeAutorotate::run()
     // More urgent phases (the ones closer to the ground) take precedence later in the if statements. Init
     // flags are used to prevent flight phase regression
 
-    if (!_hover_autorotation && !_flags.ss_glide_init && g2.arot.above_flare_height() && ((now - _entry_time_start_ms) > AUTOROTATE_ENTRY_TIME)) {
+    if (!_hover_autorotation && !_flags.ss_glide_init && g2.arot.above_flare_height() && ((now - _entry_time_start_ms) > AUTOROTATE_ENTRY_TIME_MS)) {
         // Flight phase can be progressed to steady state glide
         phase_switch = Autorotation_Phase::SS_GLIDE;
     }
@@ -300,7 +299,7 @@ void ModeAutorotate::run()
             _flags.bail_out_init = true;
         }
 
-        if ((now - _bail_time_start_ms)/1000.0f >= BAILOUT_MOTOR_RAMP_TIME) {
+        if ((now - _bail_time_start_ms)*1e-3 >= BAILOUT_MOTOR_RAMP_TIME) {
             // Update desired vertical speed and pitch target after the bailout motor ramp timer has completed
             _desired_v_z -= _target_climb_rate_adjust * last_loop_time_s;
             _pitch_target -= _target_pitch_adjust * last_loop_time_s;
@@ -312,7 +311,7 @@ void ModeAutorotate::run()
         // Update controllers
         pos_control->update_z_controller();
 
-        if ((now - _bail_time_start_ms)/1000.0f >= _bail_time) {
+        if ((now - _bail_time_start_ms)*1e-3 >= _bail_time) {
             // Bail out timer complete.  Change flight mode. Do not revert back to auto. Prevent aircraft
             // from continuing mission and potentially flying further away after a power failure.
             if (copter.prev_control_mode == Mode::Number::AUTO) {
