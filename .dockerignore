@@ -27,3 +27,6 @@ cmake-build-*/
 *.tar
 *.tlog
 *.tlog.raw
+logs/
+build/
+

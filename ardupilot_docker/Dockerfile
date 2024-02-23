@@ -5,7 +5,7 @@ FROM public.ecr.aws/docker/library/alpine:latest as FS_ARDU
 COPY . /ardupilot
 RUN rm -rf /ardupilot/ardupilot_docker && rm /ardupilot/Tools/autotest/models/MNA383.json && rm /ardupilot/Tools/autotest/models/MNA383.param
 
-FROM public.ecr.aws/docker/library/python:3.10-slim AS builder
+FROM public.ecr.aws/docker/library/ubuntu:jammy-20240212 AS builder
 # cannot use python 3.11 with copter 4.2
 
 # Make a working directory
@@ -21,6 +21,9 @@ RUN --mount=type=cache,target=/var/cache/apt \
     libxml2-dev \
     libxslt-dev \
     ccache \
+    python3 \
+    python3-pip \
+    python-is-python3 \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 #RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
@@ -34,24 +37,25 @@ ENV PATH="/usr/lib/ccache:${PATH}"
 ENV CCACHE_DIR=/tmp/ccache
 RUN --mount=type=cache,target=/tmp/ccache \
     ./waf distclean \
-    && ./waf configure --board sitl --disable-scripting --no-submodule-update \
+    && ./waf configure --board sitl --disable-scripting --no-submodule-update --debug \
     && ./waf copter \
     && ccache -s
 
 COPY ardupilot_docker/MNA383.json /ardupilot/Tools/autotest/models/MNA383.json
-COPY ardupilot_docker/383.parm /ardupilot/Tools/autotest/models/MNA383.param
+COPY ardupilot_docker/common.parm /ardupilot/Tools/autotest/models/MNA383.param
 
 # REBUILD to get the new model embeded
 RUN --mount=type=cache,target=/tmp/ccache \
-    ./waf configure --board sitl --disable-scripting --no-submodule-update \
+    ./waf configure --board sitl --disable-scripting --no-submodule-update --debug \
     && ./waf copter
 
 # Second stage build
-FROM public.ecr.aws/docker/library/python:3.11-slim AS runner
-#RUN --mount=type=cache,target=/var/cache/apt \
-#    apt-get update && apt-get install --no-install-recommends -y \
-#    gdb \
-#    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+FROM public.ecr.aws/docker/library/ubuntu:jammy-20240212 AS runner
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    python3 \
+    supervisor \
+    python3-pip \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 WORKDIR /ardupilot
 
@@ -66,7 +70,7 @@ COPY --from=builder /ardupilot/Tools/autotest/default_params/copter-octaquad.par
 COPY --from=builder /ardupilot/Tools/scripts/dumpstack.sh .
 COPY --from=builder /ardupilot/Tools/scripts/dumpcore.sh .
 COPY ardupilot_docker/sitl_launch.bash /ardupilot/sitl_launch.bash
-COPY ardupilot_docker/383.parm /ardupilot/383.parm
+COPY ardupilot_docker/common.parm /ardupilot/common.parm
 COPY ardupilot_docker/ccdl.parm /ardupilot/ccdl.parm
 COPY ardupilot_docker/no_ccdl.parm /ardupilot/no_ccdl.parm
 COPY ardupilot_docker/fcu1.parm /ardupilot/fcu1.parm
@@ -91,6 +95,20 @@ RUN python3 -m pip install supervisor --no-cache-dir \
     && cp -r /ardupilot/logs /ardupilot/fcu2 \
     && cp -r /ardupilot/logs /ardupilot/fcu3
 
+#RUN apt-get update && apt-get install --no-install-recommends -y \
+#    curl \
+#    openssh-server \
+#    openjdk-17-jre-headless \
+#    git \
+#    cmake \
+#    g++ \
+#    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+#
+#RUN mkdir /var/run/sshd \
+#    && echo 'root:root123' | chpasswd \
+#    && sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+
+#COPY --from=FS_ARDU /ardupilot /ardupilot
 ################################################################################
 #### Setup the entrypoint == application that will launch by default
 
@@ -131,4 +149,4 @@ ENV SITL_HEADING=${SITL_HEADING}
 EXPOSE 9001
 
 HEALTHCHECK --interval=15s CMD supervisorctl status | grep -q "RUNNING" || exit 1
-CMD ["/usr/local/bin/supervisord"]
+CMD ["/usr/bin/supervisord"]
