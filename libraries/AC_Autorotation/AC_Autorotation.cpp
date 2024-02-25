@@ -362,7 +362,7 @@ void AC_Autorotation::initial_flare_estimate(void)
     _col_hover_rad = MAX(_col_hover_rad, radians(0.1));
 
     float b = _param_solidity * M_2PI;
-    _disc_area = M_PI * sq(_param_diameter * 0.5f);
+    _disc_area = M_PI * 0.25 * sq(_param_diameter);
     float lambda = (-(b / 8.0f) + safe_sqrt((sq(b)) / 64.0f + ((b / 3.0f) * _col_hover_rad))) * 0.5f;
     //TODO: remove the dependance on the governor param or make the governor param a more generic name.
     float freq = _motors_heli->get_rpm_setpoint() / 60.0f;
