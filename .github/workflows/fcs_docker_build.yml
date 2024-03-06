@@ -1,0 +1,64 @@
+# This workflow will build and push a new container image to Amazon ECR
+
+name: Build and Push to Amazon ECR
+
+on:
+  pull_request:
+    branches:
+      - "main"
+  release:
+    types: [published]
+env:
+  AWS_REGION: eu-west-1                   # set this to your preferred AWS region, e.g. us-west-1
+  ECR_REPOSITORY: aircraft-fcs           # set this to your Amazon ECR repository name
+ 
+permissions:
+  contents: read
+
+jobs:
+  get-ref-name:
+    runs-on: ubuntu-latest
+    outputs:
+      ref_name: ${{ steps.get-ref-name.outputs.ref_name }}
+    steps:
+      - name: Get ref_name
+        id: get-ref-name
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            sanitized_ref=$(echo ${{ github.head_ref }} | sed 's/[^a-zA-Z0-9.]/-/g')
+          else
+            sanitized_ref=$(echo ${{ github.ref_name }} | sed 's/[^a-zA-Z0-9.]/-/g')
+          fi
+          echo "ref_name=$sanitized_ref"
+          echo "ref_name=$sanitized_ref" >> $GITHUB_OUTPUT || exit 1
+  build:
+    needs: get-ref-name
+    name: Build Image
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Check out code
+      uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build, tag, and push image to ECR
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+        IMAGE_TAG: ${{ needs.get-ref-name.outputs.ref_name }}
+      run: |
+        pwd
+        docker build -f ardupilot_docker/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
