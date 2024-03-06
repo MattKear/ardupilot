@@ -158,6 +158,8 @@ public:
 
     float get_coll_min_pitch() const { return _collective_min_deg;}
 
+    float get_coll_zero_thrust_pitch() const { return _collective_zero_thrust_deg; }
+
     // Return collective hover position as an angle in deg
     float get_hover_coll_ang(void);
 
