@@ -207,6 +207,10 @@ void Copter::heli_update_autorotation()
         // set the height in the autorotation controller
         g2.arot.set_ground_distance(gnd_dist);
     }
+
+    // Run the preliminary flare calcs to get prints to the GCS to help users setup the controller.
+    // This function returns early if not configured to do this.
+    g2.arot.run_flare_prelim_calc();
 #endif
 
     // check if flying and interlock disengaged
