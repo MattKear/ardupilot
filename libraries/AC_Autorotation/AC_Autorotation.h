@@ -111,7 +111,6 @@ private:
     float _collective_out;
     float _head_speed_error;         // Error between target head speed and current head speed.  Normalised by head speed set point RPM.
     float _col_cutoff_freq;          // Lowpass filter cutoff frequency (Hz) for collective.
-    uint16_t _unhealthy_rpm_counter;  // Counter used to track RPM sensor unhealthy signal.
     float _target_head_speed;        // Normalised target head speed.  Normalised by head speed set point RPM.
     float _p_term_hs;                // Proportional contribution to collective setting.
     float _ff_term_hs;               // Following trim feed forward contribution to collective setting.

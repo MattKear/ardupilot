@@ -419,7 +419,7 @@ void AC_Autorotation::initial_flare_estimate(void)
 void AC_Autorotation::calc_flare_alt(float sink_rate, float fwd_speed)
 {
     // Compute speed module and glide path angle during descent
-    float speed_module = norm(sink_rate, fwd_speed);
+    float speed_module = MIN(norm(sink_rate, fwd_speed), 0.1);
     float glide_angle = safe_asin(M_PI / 2 - (fwd_speed / speed_module));
 
     // Estimate inflow velocity at beginning of flare
