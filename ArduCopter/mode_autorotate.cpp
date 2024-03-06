@@ -37,7 +37,7 @@ bool ModeAutorotate::init(bool ignore_checks)
     }
 
     // Init autorotation controllers object
-    g2.arot.init(motors, copter.rangefinder.ground_clearance_cm_orient(ROTATION_PITCH_270));
+    g2.arot.init(copter.rangefinder.ground_clearance_cm_orient(ROTATION_PITCH_270));
 
     // Retrieve rpm and start rpm sensor health checks
     _initial_rpm = g2.arot.get_rpm();
