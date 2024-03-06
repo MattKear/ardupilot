@@ -166,9 +166,10 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
 
 
 // Constructor
-AC_Autorotation::AC_Autorotation(AP_InertialNav& inav, AP_AHRS& ahrs) :
+AC_Autorotation::AC_Autorotation(AP_InertialNav& inav, AP_AHRS& ahrs, AP_MotorsHeli*& motors):
     _inav(inav),
     _ahrs(ahrs),
+    _motors_heli(motors),
     _p_hs(HS_CONTROLLER_HEADSPEED_P),
     _p_fw_vel(AP_FW_VEL_P),
     _p_coll_tch(TCH_P)
@@ -177,12 +178,7 @@ AC_Autorotation::AC_Autorotation(AP_InertialNav& inav, AP_AHRS& ahrs) :
 }
 
 
-void AC_Autorotation::init(AP_MotorsHeli* motors, float gnd_clear) {
-
-    _motors_heli = motors;
-    if (_motors_heli == nullptr) {
-        AP_HAL::panic("AROT: _motors_heli is nullptr");
-    }
+void AC_Autorotation::init(float gnd_clear) {
 
     // Reset z acceleration average variables
     _avg_acc_z = 0.0f;

@@ -16,10 +16,10 @@ class AC_Autorotation
 public:
 
     //Constructor
-    AC_Autorotation(AP_InertialNav& inav, AP_AHRS& ahrs);
+    AC_Autorotation(AP_InertialNav& inav, AP_AHRS& ahrs, AP_MotorsHeli*& motors);
 
      // object initialisation
-    void init(AP_MotorsHeli* motors, float gnd_clear);
+    void init(float gnd_clear);
 
     // Helper to set all necessary variables needed for the entry phase
     void init_entry(void);
@@ -183,5 +183,5 @@ private:
     //--------References to Other Libraries--------
     AP_InertialNav&    _inav;
     AP_AHRS&           _ahrs;
-    AP_MotorsHeli*     _motors_heli;
+    AP_MotorsHeli*&    _motors_heli;
 };
