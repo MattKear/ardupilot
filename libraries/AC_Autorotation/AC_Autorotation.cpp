@@ -15,6 +15,7 @@
 // flare controller default definitions
 #define AP_ALPHA_TPP                                  20.0f   // (deg) Maximum angle of the Tip Path Plane
 #define MIN_TIME_ON_GROUND                            3000    // (ms) Time on ground required before collective is slewed to zero thrust
+#define FLARE_TEST_PRINT_INTERVAL                     5000    // (ms) Time between sending updates to the flare estimate calculation to the GCS
 
 const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
 
@@ -158,7 +159,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Param: OPTIONS
     // @DisplayName: Autorotation options
     // @Description: Bitmask for autorotation options.
-    // @Bitmask: 0: Use stabilize-like controls (roll angle, yaw rate)
+    // @Bitmask: 0: Use stabilize-like controls (roll angle, yaw rate), 1: Print inital flare calc
     AP_GROUPINFO("OPTIONS", 17, AC_Autorotation, _options, 0),
 
     AP_GROUPEND
@@ -347,7 +348,25 @@ float AC_Autorotation::get_rpm(void)
     return current_rpm;
 }
 
+// Helper to continuously print the flare estimate calculations to the GCS.
+// This helps users to tune some of their params without having to actually fly an autorotation.
+void AC_Autorotation::run_flare_prelim_calc(void)
+{
+    if (!_param_enable.get() || !(_options.get() & int32_t(OPTION::PRINT_FLARE_ESTIMATES))) {
+        return;
+    }
 
+    if (AP_HAL::millis() - _last_flare_test_ms > FLARE_TEST_PRINT_INTERVAL) {
+        // Run the initial flare estimate to get the GCS prints
+        initial_flare_estimate();
+        gcs().send_text(MAV_SEVERITY_INFO, "testing 123");
+        _last_flare_test_ms = AP_HAL::millis();
+    }
+
+}
+
+
+#define ASSUMED_CD0 0.011
 void AC_Autorotation::initial_flare_estimate(void)
 {
     // Estimate hover thrust

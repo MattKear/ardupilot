@@ -99,6 +99,8 @@ public:
 
     bool use_stabilise_controls(void) const { return _options.get() & int32_t(OPTION::STABILISE_CONTROLS); }
 
+    void run_flare_prelim_calc(void);
+
     // User Settable Parameters
     static const struct AP_Param::GroupInfo var_info[];
 
@@ -147,6 +149,7 @@ private:
     bool  _flare_complete;           // Flare completed
     bool  _flare_update_check;       // Check for flare altitude updating
     uint32_t _time_on_ground;        // Time elapsed after touch down
+    uint32_t _last_flare_test_ms;    // Last time the initial flare estimate was run and printed to the GCS
 
     LowPassFilterFloat _accel_target_filter; // acceleration target filter
 
@@ -170,7 +173,8 @@ private:
     AP_Int32 _options;
 
     enum class OPTION {
-        STABILISE_CONTROLS=(1<<0),
+        STABILISE_CONTROLS = (1<<0),
+        PRINT_FLARE_ESTIMATES = (1<<1),
     };
 
     //--------Internal Functions--------
