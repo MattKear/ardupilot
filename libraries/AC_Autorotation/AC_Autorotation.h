@@ -171,6 +171,7 @@ private:
     AP_Float _param_diameter;
     AP_Float _t_tch;
     AP_Int32 _options;
+    AP_Float _c_l_alpha;
 
     enum class OPTION {
         STABILISE_CONTROLS = (1<<0),

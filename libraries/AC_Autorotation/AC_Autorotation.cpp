@@ -162,6 +162,12 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Bitmask: 0: Use stabilize-like controls (roll angle, yaw rate), 1: Print inital flare calc
     AP_GROUPINFO("OPTIONS", 17, AC_Autorotation, _options, 0),
 
+    // @Param: CL_ALPHA
+    // @DisplayName: Rotor averaged lift curve slope
+    // @Description: The mean lift curve slope of the rotor. Defines the change in lift coefficient with respect to a reference blade pitch angle. This param cannot have a value higher than the theoretical maximum of 2 pi.
+    // @Range: 1.6 6.283
+    AP_GROUPINFO("CL_ALPHA", 18, AC_Autorotation, _c_l_alpha, M_2PI),
+
     AP_GROUPEND
 };
 
@@ -369,26 +375,28 @@ void AC_Autorotation::run_flare_prelim_calc(void)
 #define ASSUMED_CD0 0.011
 void AC_Autorotation::initial_flare_estimate(void)
 {
-    // Estimate hover thrust
-    float _col_hover_rad = radians(_motors_heli->get_hover_coll_ang());
+    // Get blade pitch angle, accounting for non-zero zero thrust blade pitch for the asymmetric blade case
+    float blade_pitch_hover_rad = radians(_motors_heli->get_hover_coll_ang() - _motors_heli->get_coll_zero_thrust_pitch());
 
-    // Ensure safe math operations below by constraining _col_hover_rad to be > 0.
+    // Ensure safe math operations below by constraining blade_pitch_hover_rad to be > 0.
     // Assuming 0.1 deg will never be enough to blade pitch angle to maintain hover.
-    _col_hover_rad = MAX(_col_hover_rad, radians(0.1));
+    blade_pitch_hover_rad = MAX(blade_pitch_hover_rad, radians(0.1));
 
-    float b = _param_solidity * M_2PI;
+    float b = _param_solidity * _c_l_alpha.get();
     _disc_area = M_PI * 0.25 * sq(_param_diameter);
-    float lambda = -b / 16.0 + safe_sqrt(sq(b) / 256.0 + b * _col_hover_rad / 8.0);
-    //TODO: remove the dependance on the governor param or make the governor param a more generic name.
-    float freq = _motors_heli->get_rpm_setpoint() / 60.0f;
-    float tip_speed= freq * M_2PI * _param_diameter * 0.5f;
-    _lift_hover = ((SSL_AIR_DENSITY * sq(tip_speed) * (_param_solidity * _disc_area)) * ((_col_hover_rad / 3.0f) - (lambda / 2.0f)) * 5.8f) * 0.5f;
+
+    // Calculating the equivalent inflow ratio (average across the whole blade)
+    float lambda_eq = -b / 16.0 + safe_sqrt(sq(b) / 256.0 + b * blade_pitch_hover_rad / 8.0);
+
+    // Tip speed = head speed (rpm) / 60 * 2pi * rotor diameter/2. Eq below is simplified.
+    float tip_speed_auto = _param_head_speed_set_point.get() * M_PI * _param_diameter / 60.0;
+
+    // Calc the coefficient of thrust in the hover
+    float c_t_hover = 0.5 * b * (blade_pitch_hover_rad / 3.0 - lambda_eq / 2.0);
+    _lift_hover = c_t_hover * 2.0 * SSL_AIR_DENSITY * _disc_area * sq(tip_speed_auto);
 
     // Estimate rate of descent
-    float omega_auto = (_param_head_speed_set_point / 60.0f) * M_2PI;
-    float tip_speed_auto = omega_auto * _param_diameter * 0.5f;
-    float c_t = _lift_hover / (0.5 * SSL_AIR_DENSITY * _disc_area * sq(tip_speed));
-    _est_rod = ((0.25f * (_param_solidity * 0.011f / c_t) * tip_speed_auto) + ((sq(c_t) / (_param_solidity * 0.011f)) * tip_speed_auto));
+    _est_rod = ((0.25 * _param_solidity.get() * ASSUMED_CD0 / c_t_hover) + (sq(c_t_hover) / (_param_solidity * ASSUMED_CD0))) * tip_speed_auto;
 
     // Estimate rotor C_d
     _c = (_lift_hover / (sq(_est_rod) * 0.5f * SSL_AIR_DENSITY * _disc_area)) * 1.15f;
@@ -402,9 +410,9 @@ void AC_Autorotation::initial_flare_estimate(void)
     _flare_complete = false;
     _flare_update_check = false;
 
-
-    gcs().send_text(MAV_SEVERITY_INFO, "Ct/sigma=%f W=%f kg flare_alt=%f C=%f", c_t/_param_solidity, _lift_hover/GRAVITY_MSS, _flare_alt_calc*0.01f, _c);
+    gcs().send_text(MAV_SEVERITY_INFO, "Ct/sigma=%f W=%f kg flare_alt=%f C=%f", c_t_hover/_param_solidity, _lift_hover/GRAVITY_MSS, _flare_alt_calc*0.01f, _c);
     gcs().send_text(MAV_SEVERITY_INFO, "est_rod=%f", _est_rod);
+    gcs().send_text(MAV_SEVERITY_INFO, "inflow spd=%f", lambda_eq*tip_speed_auto);
 }
 
 
