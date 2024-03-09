@@ -140,14 +140,15 @@ class Flare_Calc():
 
         # Calc flare altitude
         des_spd_fwd = self.var['_param_target_speed'] * 0.01
-        return (self.calc_flare_alt(-_est_rod, des_spd_fwd), self._lift_hover/GRAVITY_MSS, lambda_eq)
+
+        flare_alt, delta_t_flare = self.calc_flare_alt(-_est_rod, des_spd_fwd)
+        return (flare_alt, self._lift_hover/GRAVITY_MSS, delta_t_flare)
 
     def calc_flare_alt(self, sink_rate, fwd_speed):
 
         # Compute speed module and glide path angle during descent
         speed_module = max(norm(sink_rate, fwd_speed), 0.1)
         glide_angle = safe_asin(np.pi / 2 - (fwd_speed / speed_module))
-        # glide_angle = math.asin(sink_rate / speed_module)
 
         # Estimate inflow velocity at beginning of flare
         inflow = - speed_module * math.sin(glide_angle + deg2rad(AP_ALPHA_TPP))
@@ -172,7 +173,7 @@ class Flare_Calc():
         # Total delta altitude to ground
         _flare_alt_calc = _cushion_alt + delta_h * 100.0
 
-        return _flare_alt_calc*1e-2
+        return _flare_alt_calc*1e-2, delta_t_flare
 # =====================================================================================
 
 
@@ -182,10 +183,10 @@ def plot_single_var_sensitivity(obj, var_name, var_array):
     other_var = []
     for v in var_array:
         obj.var[var_name] = v
-        alt, mass, lambda_eq = obj.initial_flare_estimate()
+        alt, mass, delta_t_f = obj.initial_flare_estimate()
         flare_alt.append(alt)
         mass_est.append(mass)
-        other_var.append(lambda_eq)
+        other_var.append(delta_t_f)
 
     # Plot against flare alt
     fig, ax = plt.subplots()
@@ -203,7 +204,7 @@ def plot_single_var_sensitivity(obj, var_name, var_array):
     fig, ax = plt.subplots()
     ax.plot(var_array, other_var)
     ax.set_xlabel(var_name)
-    ax.set_ylabel('Inflow Ratio')
+    ax.set_ylabel('Flare Time ()')
 
     obj.reset_to_defaults()
 
@@ -211,15 +212,17 @@ def plot_single_var_sensitivity(obj, var_name, var_array):
 
 if __name__=='__main__':
     # Setup flare object to do calculations
-    # flare_obj = Flare_Calc_Pre_Changes()
-    flare_obj = Flare_Calc()
+    flare_obj = Flare_Calc_Pre_Changes()
+    # flare_obj = Flare_Calc()
 
-    solidity = np.linspace(0.03, 0.10, 100)
-    c_l_alpha = np.linspace(np.pi, np.pi*2, 100)
-    diameter = np.linspace(0.72, 3.0, 100)
-    blade_pitch_hover_deg = np.linspace(0.1, 10.0, 100)
-    head_speed = np.linspace(600, 1500, 100)
-    target_speed = np.linspace(800, 1600, 100)
+    N_PTS = 100000
+
+    solidity = np.linspace(0.03, 0.10, N_PTS)
+    c_l_alpha = np.linspace(np.pi, np.pi*2, N_PTS)
+    diameter = np.linspace(0.72, 3.0, N_PTS)
+    blade_pitch_hover_deg = np.linspace(0.1, 10.0, N_PTS)
+    head_speed = np.linspace(600, 1500, N_PTS)
+    target_speed = np.linspace(800, 1600, N_PTS)
 
     plot_single_var_sensitivity(flare_obj, '_param_solidity', solidity)
     plot_single_var_sensitivity(flare_obj, '_c_l_alpha', c_l_alpha)
