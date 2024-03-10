@@ -392,13 +392,17 @@ void AP_MotorsHeli_Single::move_actuators(float roll_out, float pitch_out, float
     // coming into this equation at 4500 or less
     float total_out = norm(pitch_out, roll_out);
 
+    float ratio = 1.0;
     if (total_out > (_cyclic_max/4500.0f)) {
-        float ratio = (float)(_cyclic_max/4500.0f) / total_out;
+        ratio = (float)(_cyclic_max/4500.0f) / total_out;
         roll_out *= ratio;
         pitch_out *= ratio;
         limit.roll = true;
         limit.pitch = true;
     }
+
+    // calculate the blade pitch angle contribution from cyclic (logging only)
+    _cyclic_ang_deg = total_out*ratio*_cyclic_angle_max_deg.get();
 
     // constrain collective input
     float collective_out = coll_in;

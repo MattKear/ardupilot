@@ -146,6 +146,15 @@ const AP_Param::GroupInfo AP_MotorsHeli::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("COL_LAND_MIN", 32, AP_MotorsHeli, _collective_land_min_deg, AP_MOTORS_HELI_COLLECTIVE_LAND_MIN),
 
+    // @Param: CYC_MAX_ANG
+    // @DisplayName: Blade pitch contribution from cyclic output.
+    // @Description: The angle, in degrees, of the blade pitch angle contribution that the cyclic adds at maximum output.
+    // @Range: 0 10
+    // @Units: deg
+    // @Increment: 0.1
+    // @User: Standard
+    AP_GROUPINFO("CYC_MAX_ANG", 20, AP_MotorsHeli, _cyclic_angle_max_deg, 8.0),
+
     AP_GROUPEND
 };
 
@@ -625,4 +634,10 @@ float AP_MotorsHeli::calc_coll_from_ang(float col_ang_deg)
 {
     float col_norm = col_ang_deg / MAX((_collective_max_deg.get() - _collective_min_deg.get()), 1.0);
     return constrain_float(col_norm, 0.0, 1.0);
+}
+
+// Return the current collective blade pitch angle contribution
+float AP_MotorsHeli::get_coll_angle(void) const
+{
+    return (_collective_max_deg.get() - _collective_min_deg.get()) * get_throttle() + _collective_min_deg.get();
 }

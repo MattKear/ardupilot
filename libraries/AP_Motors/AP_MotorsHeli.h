@@ -160,6 +160,12 @@ public:
 
     float get_coll_zero_thrust_pitch() const { return _collective_zero_thrust_deg; }
 
+    // Return the current collective blade pitch angle contribution
+    float get_coll_angle(void) const;
+
+    // Return the current cyclic blade pitch angle contribution
+    float get_cyc_angle(void) const { return _cyclic_ang_deg; }
+
     // Return collective hover position as an angle in deg
     float get_hover_coll_ang(void);
 
@@ -295,11 +301,13 @@ protected:
     AP_Float        _collective_land_min_deg;   // Minimum Landed collective blade pitch in degrees for non-manual collective modes (i.e. modes that use altitude hold)
     AP_Float        _collective_max_deg;        // Maximum collective blade pitch angle in deg that corresponds to the PWM set for maximum collective pitch (H_COL_MAX)
     AP_Float        _collective_min_deg;        // Minimum collective blade pitch angle in deg that corresponds to the PWM set for minimum collective pitch (H_COL_MIN)
+    AP_Float        _cyclic_angle_max_deg;      // The blade pitch angle angle contribution in degrees of the cyclic output contribution
 
     // internal variables
     float           _collective_zero_thrust_pct;      // collective zero thrutst parameter value converted to 0 ~ 1 range
     float           _collective_land_min_pct;      // collective land min parameter value converted to 0 ~ 1 range
     float           _collective_hover_rad;
+    float           _cyclic_ang_deg;                 // length of the total output (after )
     uint8_t         _servo_test_cycle_counter = 0;   // number of test cycles left to run after bootup
 
     motor_frame_type _frame_type;
