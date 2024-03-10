@@ -309,6 +309,8 @@ struct PACKED log_Heli {
     float    main_rotor_speed;
     float    governor_output;
     float    control_output;
+    float    collective_angle;
+    float    cyclic_angle;
 };
 
 // Write an helicopter packet
@@ -321,6 +323,8 @@ void Copter::Log_Write_Heli()
         main_rotor_speed        : motors->get_main_rotor_speed(),
         governor_output         : motors->get_governor_output(),
         control_output          : motors->get_control_output(),
+        collective_angle        : motors->get_coll_angle(),
+        cyclic_angle            : motors->get_cyc_angle(),
     };
     logger.WriteBlock(&pkt_heli, sizeof(pkt_heli));
 }
@@ -488,10 +492,12 @@ const struct LogStructure Copter::log_structure[] = {
 // @Field: DRRPM: Desired rotor speed
 // @Field: ERRPM: Estimated rotor speed
 // @Field: Gov: Governor Output
-// @Field: Throt: Throttle output
+// @Field: Thr: Throttle output
+// @Field: Col: Collective blade pitch angle contribution
+// @Field: Cyc: Cyclic blade pitch angle contribution
 #if FRAME_CONFIG == HELI_FRAME
     { LOG_HELI_MSG, sizeof(log_Heli),
-      "HELI",  "Qffff",        "TimeUS,DRRPM,ERRPM,Gov,Throt", "s----", "F----" , true },
+      "HELI",  "Qffffff",        "TimeUS,DRRPM,ERRPM,Gov,Thr,Col,Cyc", "sqq--dd", "F000000" , true },
 #endif
 
 // @LoggerMessage: SIDD
