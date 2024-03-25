@@ -37,13 +37,13 @@ void Copter::siren_check()
         if (!siren_status.enabled && siren_status.last_siren_time == 0) {
             siren_status.enabled = true;
             siren_status.last_siren_time = AP_HAL::millis();
-            relay.on(2);
+            relay.on(1);
         }
     }
     if (siren_status.enabled) {
         if (AP_HAL::millis() - siren_status.last_siren_time > static_cast<uint32_t>(g2.siren_timeout_ms.get())) {
             siren_status.enabled = false;
-            relay.off(2);
+            relay.off(1);
         }
     }
 }
