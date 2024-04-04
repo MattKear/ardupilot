@@ -12,6 +12,7 @@
 
 #include <AP_SerialManager/AP_SerialManager.h>
 #include <SRV_Channel/SRV_Channel.h>
+#include <AP_BoardConfig/AP_BoardConfig.h>
 
 #define SET_EXTENDED_POSITION_CMD      0xDC
 
@@ -24,6 +25,9 @@
 #define PWM_POSITION_MAX               2000
 #define ANGLE_POSITION_MAX             100.0
 #define EXTENDED_POSITION_MAX          0x0F80
+
+#define UART_BUFSIZE_RX                128
+#define UART_BUFSIZE_TX                128
 
 extern const AP_HAL::HAL& hal;
 
@@ -53,49 +57,73 @@ AP_Volz_Protocol::AP_Volz_Protocol(void)
 
 void AP_Volz_Protocol::init(void)
 {
-    AP_SerialManager &serial_manager = AP::serialmanager();
+    if (uint32_t(bitmask.get()) == 0) {
+        // No servos enabled
+        return;
+    }
+
+    const AP_SerialManager &serial_manager = AP::serialmanager();
     port = serial_manager.find_serial(AP_SerialManager::SerialProtocol_Volz,0);
-    update_volz_bitmask(bitmask);
+    if (port == nullptr) {
+        // No port configured
+        return;
+    }
+
+    // Create thread to handle output
+    if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_Volz_Protocol::loop, void),
+                                          "Volz",
+                                           1024, AP_HAL::Scheduler::PRIORITY_RCOUT, 1)) {
+        AP_BoardConfig::allocation_error("Volz thread");
+    }
 }
 
-void AP_Volz_Protocol::update()
+void AP_Volz_Protocol::loop()
 {
-    if (!initialised) {
-        initialised = true;
-        init();
-    }
-    
-    if (port == nullptr) {
-        return;
-    }
+    port->begin(115200, UART_BUFSIZE_RX, UART_BUFSIZE_TX);
+    port->set_unbuffered_writes(true);
+    port->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_DISABLE);
 
-    if (last_used_bitmask != uint32_t(bitmask.get())) {
-        update_volz_bitmask(bitmask);
-    }
+    // Calculate the amount of time it should take to send a command
+    // B/s to s/B, 1000000 converts to microseconds, multiply by number of bytes
+    // 6 bytes at 11520 bytes per second takes 520 us
+    const uint16_t send_us =  (sizeof(CMD) * 1000000) / port->bw_in_bytes_per_second();
 
-    uint32_t now = AP_HAL::micros();
-    if (((now - last_volz_update_time) < volz_time_frame_micros) ||
-        (port->txspace() < sizeof(CMD))) {
-        return;
-    }
+    // receive packet is same length as sent, double to allow some time for the servo respond
+    const uint16_t receive_us = send_us * 2;
 
-    last_volz_update_time = now;
+    // This gives a total time of 1560ms, message rate of 641 Hz.
+    // One servo at 641Hz, two at 320.5 each, three at 213.7 each ect...
 
+    while (port != nullptr) {
 
-    // loop for all channels
-    for (uint8_t i=0; i<NUM_SERVO_CHANNELS; i++) {
-        // check if current channel is needed for Volz protocol
-        if (last_used_bitmask & (1U<<i)) {
+        // Wait the expected amount of time for the send and receive to complete so we don't step on the response
+        hal.scheduler->delay_microseconds(send_us + receive_us);
 
-            const SRV_Channel *c = SRV_Channels::srv_channel(i);
-            if (c == nullptr) {
+        while (port->txspace() < sizeof(CMD)) {
+            // Wait until there is enough space to transmit a full command
+            hal.scheduler->delay_microseconds(10);
+        }
+
+        // loop for all channels
+        for (uint8_t i=0; i<ARRAY_SIZE(servo.pwm); i++) {
+            // Send each channels in turn
+            const uint8_t index = (last_sent_index + 1 + i) % ARRAY_SIZE(servo.pwm);
+            if ((uint32_t(bitmask.get()) & (1U<<index)) == 0) {
+                // Not configured to send
                 continue;
             }
-            uint16_t pwm = c->get_output_pwm();
+            last_sent_index = index;
+
+            uint16_t pwm;
+            {
+                // Get PWM from saved array
+                WITH_SEMAPHORE(servo.sem);
+                pwm = servo.pwm[index];
+            }
             if (pwm == 0) {
-                // 0 PMW should stop outputting, for example in "safe"
-                // There is no way to de-power, move to trim
-                pwm = c->get_trim();
+                // Never use zero PWM, the check in update should ensure this never happens
+                // If we were to use zero the range extrapolation would result in a -100 deg angle request
+                continue;
             }
 
             // Map PWM to angle, this is a un-constrained interpolation
@@ -110,11 +138,42 @@ void AP_Volz_Protocol::update()
             // prepare Volz protocol data.
             CMD cmd;
             cmd.ID = SET_EXTENDED_POSITION_CMD;
-            cmd.actuator_id = i + 1; // send actuator id as 1 based index so ch1 will have id 1, ch2 will have id 2 ....
+            cmd.actuator_id = index + 1; // send actuator id as 1 based index so ch1 will have id 1, ch2 will have id 2 ....
             cmd.arg1 = HIGHBYTE(value);
             cmd.arg2 = LOWBYTE(value);
 
             send_command(cmd);
+            break;
+        }
+    }
+}
+
+// Called each time the servo outputs are sent
+void AP_Volz_Protocol::update()
+{
+    if (!initialised) {
+        // One time setup
+        initialised = true;
+        init();
+    }
+
+    if (port == nullptr) {
+        // no point if we don't have a valid port
+        return;
+    }
+
+    // take semaphore and loop for all channels
+    WITH_SEMAPHORE(servo.sem);
+    for (uint8_t i=0; i<ARRAY_SIZE(servo.pwm); i++) {
+        const SRV_Channel *c = SRV_Channels::srv_channel(i);
+        if (c == nullptr) {
+            continue;
+        }
+        servo.pwm[i] = c->get_output_pwm();
+        if (servo.pwm[i] == 0) {
+            // 0 PMW should stop outputting, for example in "safe"
+            // There is no way to de-power, move to trim
+            servo.pwm[i] = c->get_trim();
         }
     }
 }
@@ -142,28 +201,6 @@ void AP_Volz_Protocol::send_command(CMD &cmd)
     cmd.crc1 = HIGHBYTE(crc);
     cmd.crc2 = LOWBYTE(crc);
     port->write(cmd.data, sizeof(cmd));
-}
-
-void AP_Volz_Protocol::update_volz_bitmask(uint32_t new_bitmask)
-{
-    const uint8_t count = __builtin_popcount(new_bitmask);
-    last_used_bitmask = new_bitmask;
-
-    // have a safety margin of 20% to allow for not having full uart
-    // utilisation. We really don't want to start filling the uart
-    // buffer or we'll end up with servo lag
-    const float safety = 1.3;
-
-    // each channel take about 425.347us to transmit so total time will be ~ number of channels * 450us
-    // rounded to 450 to make sure we don't go over the baud rate.
-    uint32_t channels_micros = count * 450 * safety;
-
-    // limit the minimum to 2500 will result a max refresh frequency of 400hz.
-    if (channels_micros < 2500) {
-        channels_micros = 2500;
-    }
-
-    volz_time_frame_micros = channels_micros;
 }
 
 #endif  // AP_VOLZ_ENABLED
