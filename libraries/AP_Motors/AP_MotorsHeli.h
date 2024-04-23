@@ -237,6 +237,11 @@ protected:
     // update turbine start flag
     void update_turbine_start();
 
+#if HAL_LOGGING_ENABLED
+    // Returns the scaling value required to convert the collective angle parameters into the cyclic-output-to-angle conversion for blade angle logging
+    float get_cyclic_angle_scaler(void) const;
+#endif
+
     // enum values for HOVER_LEARN parameter
     enum HoverLearn {
         HOVER_LEARN_DISABLED = 0,
