@@ -230,6 +230,10 @@ public:
 
     Copter(void);
 
+    void set_rangefinder_timeout(uint32_t timeout) { rangefinder_timeout_ms = timeout; }
+
+    void reset_rangefinder_timeout(void) { set_rangefinder_timeout(0); }
+
 private:
 
     // key aircraft parameters passed to multiple libraries
@@ -820,6 +824,8 @@ private:
     void heli_update_rotor_speed_targets();
     void heli_update_autorotation();
     void update_collective_low_flag(int16_t throttle_control);
+
+    bool arot_rng_finder_set_on;
 
     // inertia.cpp
     void read_inertia();
