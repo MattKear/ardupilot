@@ -63,6 +63,7 @@
 #include "AP_RangeFinder_Ainstein_LR_D1.h"
 #include "AP_RangeFinder_RDS02UF.h"
 #include "AP_RangeFinder_LightWare_GRF.h"
+#include "AP_RangeFinder_ToughSonic.h"
 
 #include <AP_BoardConfig/AP_BoardConfig.h>
 #include <AP_Logger/AP_Logger.h>
@@ -623,6 +624,12 @@ __INITFUNC__ void RangeFinder::detect_instance(uint8_t instance, uint8_t& serial
         serial_create_fn = AP_RangeFinder_LightWareGRF::create;
         break;
 #endif // AP_RANGEFINDER_LIGHTWARE_GRF_ENABLED
+
+#if AP_RANGEFINDER_TOUGHSONIC_ENABLED
+    case Type::ToughSonic:
+        serial_create_fn = AP_RangeFinder_ToughSonic::create;
+        break;
+#endif
 
     case Type::NONE:
         break;
