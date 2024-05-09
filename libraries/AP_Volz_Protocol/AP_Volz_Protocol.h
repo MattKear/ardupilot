@@ -151,6 +151,10 @@ private:
     } telem;
 #endif
 
+#if HAL_GCS_ENABLED
+    uint32_t last_report_ms;
+    uint8_t last_report_index;
+#endif
 };
 
 #endif  // AP_VOLZ_PROTOCOL
