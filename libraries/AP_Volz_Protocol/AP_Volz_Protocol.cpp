@@ -111,12 +111,14 @@ void AP_Volz_Protocol::send_position_cmd()
         // Convert ratio to +-0.5 and multiply by stroke
         float angle = (ratio - 0.5) * constrain_float(range, 0.0, 200.0);
 
-        // Rate limit angle
+#if HAL_LOGGING_ENABLED
         {
             WITH_SEMAPHORE(telem.sem);
             telem.data[index].requested_angle = angle;
         }
+#endif
 
+        // Rate limit angle
         // Time since last call
         const uint32_t now_ms = AP_HAL::millis();
         const uint32_t dt_ms = now_ms - servo.last_ms[index];
@@ -139,17 +141,20 @@ void AP_Volz_Protocol::send_position_cmd()
 
         send_command(cmd);
 
+#if HAL_LOGGING_ENABLED
         {
             // Update the commanded angle
             WITH_SEMAPHORE(telem.sem);
             static_assert(ARRAY_SIZE(servo.pwm) == ARRAY_SIZE(telem.data), "actuator index invalid for telem data array");
             telem.data[index].desired_angle = angle;
         }
+#endif
 
         break;
     }
 }
 
+#if HAL_LOGGING_ENABLED
 // Request telem data, cycling through each servo and telem item
 void AP_Volz_Protocol::request_telem()
 {
@@ -183,6 +188,7 @@ void AP_Volz_Protocol::request_telem()
         break;
     }
 }
+#endif // HAL_LOGGING_ENABLED
 
 void AP_Volz_Protocol::loop()
 {
@@ -212,7 +218,8 @@ void AP_Volz_Protocol::loop()
             // Wait until there is enough space to transmit a full command
             hal.scheduler->delay_microseconds(10);
         }
-
+        
+#if HAL_LOGGING_ENABLED
         // Send a command for each servo, then one telem request
         const uint8_t num_servos = __builtin_popcount(bitmask.get());
         if (sent_count < num_servos) {
@@ -229,6 +236,11 @@ void AP_Volz_Protocol::loop()
             WITH_SEMAPHORE(telem.sem);
             read_telem();
         }
+
+#else // No logging, send only
+        send_position_cmd();
+#endif
+
     }
 }
 
