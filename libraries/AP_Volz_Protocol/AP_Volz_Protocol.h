@@ -111,6 +111,9 @@ private:
     struct {
         HAL_Semaphore sem;
         uint16_t pwm[NUM_SERVO_CHANNELS];
+        float requested_angle[NUM_SERVO_CHANNELS];
+        float last_angle[NUM_SERVO_CHANNELS];
+        uint32_t last_ms[NUM_SERVO_CHANNELS];
     } servo;
 
 

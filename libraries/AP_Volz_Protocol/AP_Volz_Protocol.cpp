@@ -109,7 +109,23 @@ void AP_Volz_Protocol::send_position_cmd()
         // ratio = 0 at PWM_POSITION_MIN to 1 at PWM_POSITION_MAX
         const float ratio = (float(pwm) - PWM_POSITION_MIN) / (PWM_POSITION_MAX - PWM_POSITION_MIN);
         // Convert ratio to +-0.5 and multiply by stroke
-        const float angle = (ratio - 0.5) * constrain_float(range, 0.0, 200.0);
+        float angle = (ratio - 0.5) * constrain_float(range, 0.0, 200.0);
+
+        // Rate limit angle
+        {
+            WITH_SEMAPHORE(servo.sem);
+
+            // Time since last call
+            const uint32_t now_ms = AP_HAL::millis();
+            const uint32_t dt_ms = now_ms - servo.last_ms[index];
+            servo.last_ms[index] = now_ms;
+
+            // Max change given 100 d/s rate limit
+            const float max_change = 100.0 * dt_ms * 0.001;
+            servo.requested_angle[index] = angle;
+            angle = constrain_float(angle, servo.last_angle[index] - max_change, servo.last_angle[index] + max_change);
+            servo.last_angle[index] = angle;
+        }
 
         // Map angle to command out of full range, add 0.5 so that float to int truncation rounds correctly
         const uint16_t value = linear_interpolate(EXTENDED_POSITION_MIN, EXTENDED_POSITION_MAX, angle, ANGLE_POSITION_MIN, ANGLE_POSITION_MAX) + 0.5;
@@ -395,6 +411,7 @@ void AP_Volz_Protocol::update()
             // @Description: Volz servo data
             // @Field: TimeUS: Time since system startup
             // @Field: I: Instance
+            // @Field: Rang: raw angle
             // @Field: Dang: desired angle
             // @Field: ang: reported angle
             // @Field: pc: primary supply current
@@ -404,12 +421,13 @@ void AP_Volz_Protocol::update()
             // @Field: mt: motor temperature
             // @Field: pt: pcb temperature
             AP::logger().WriteStreaming("VOLZ",
-                "TimeUS,I,Dang,ang,pc,sc,pv,sv,mt,pt",
-                "s#ddAAvvOO",
-                "F000000000",
-                "QBffffffHH",
+                "TimeUS,I,Rang,Dang,ang,pc,sc,pv,sv,mt,pt",
+                "s#dddAAvvOO",
+                "F0000000000",
+                "QBfffffffHH",
                 AP_HAL::micros64(),
                 i + 1, // convert to 1 indexed to match actuator IDs and SERVOx numbering
+                servo.requested_angle[i],
                 telem.data[i].desired_angle,
                 telem.data[i].angle,
                 telem.data[i].primary_current,
