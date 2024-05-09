@@ -113,19 +113,19 @@ void AP_Volz_Protocol::send_position_cmd()
 
         // Rate limit angle
         {
-            WITH_SEMAPHORE(servo.sem);
-
-            // Time since last call
-            const uint32_t now_ms = AP_HAL::millis();
-            const uint32_t dt_ms = now_ms - servo.last_ms[index];
-            servo.last_ms[index] = now_ms;
-
-            // Max change given 100 d/s rate limit
-            const float max_change = 100.0 * dt_ms * 0.001;
-            servo.requested_angle[index] = angle;
-            angle = constrain_float(angle, servo.last_angle[index] - max_change, servo.last_angle[index] + max_change);
-            servo.last_angle[index] = angle;
+            WITH_SEMAPHORE(telem.sem);
+            telem.data[index].requested_angle = angle;
         }
+
+        // Time since last call
+        const uint32_t now_ms = AP_HAL::millis();
+        const uint32_t dt_ms = now_ms - servo.last_ms[index];
+        servo.last_ms[index] = now_ms;
+
+        // Max change given 100 d/s rate limit
+        const float max_change = 100.0 * dt_ms * 0.001;
+        angle = constrain_float(angle, servo.last_angle[index] - max_change, servo.last_angle[index] + max_change);
+        servo.last_angle[index] = angle;
 
         // Map angle to command out of full range, add 0.5 so that float to int truncation rounds correctly
         const uint16_t value = linear_interpolate(EXTENDED_POSITION_MIN, EXTENDED_POSITION_MAX, angle, ANGLE_POSITION_MIN, ANGLE_POSITION_MAX) + 0.5;
@@ -186,9 +186,9 @@ void AP_Volz_Protocol::request_telem()
 
 void AP_Volz_Protocol::loop()
 {
+    port->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_RTS_DE);
     port->begin(115200, UART_BUFSIZE_RX, UART_BUFSIZE_TX);
     port->set_unbuffered_writes(true);
-    port->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_RTS_DE);
 
     // Calculate the amount of time it should take to send a command
     // B/s to s/B, 1000000 converts to microseconds, multiply by number of bytes
@@ -426,7 +426,7 @@ void AP_Volz_Protocol::update()
                 "QBfffffffHH",
                 AP_HAL::micros64(),
                 i + 1, // convert to 1 indexed to match actuator IDs and SERVOx numbering
-                servo.requested_angle[i],
+                telem.data[i].requested_angle,
                 telem.data[i].desired_angle,
                 telem.data[i].angle,
                 telem.data[i].primary_current,
@@ -445,31 +445,32 @@ void AP_Volz_Protocol::update()
     if ((now_ms - last_report_ms) < 250) {
         return;
     }
+    last_report_ms = now_ms;
 
-    {
-        WITH_SEMAPHORE(telem.sem);
-        for (uint8_t i=0; i<ARRAY_SIZE(telem.data); i++) {
-            uint8_t index = (last_report_index + 1 + i) % ARRAY_SIZE(telem.data);
-            if ((uint32_t(bitmask.get()) & (1U<<index)) == 0) {
-                // Not configured to send
-                continue;
-            }
-            last_report_index = index;
+    for (uint8_t i=0; i<ARRAY_SIZE(telem.data); i++) {
+        uint8_t index = (last_report_index + 1 + i) % ARRAY_SIZE(telem.data);
+        if ((uint32_t(bitmask.get()) & (1U<<index)) == 0) {
+            // Not configured to send
+            continue;
+        }
+        last_report_index = index;
 
-            // Send abs zero for invalid
-            float temp = KELVIN_TO_C(0.0);
+        // Send abs zero for invalid
+        float temp = KELVIN_TO_C(0.0);
+        {
+            WITH_SEMAPHORE(telem.sem);
             if ((telem.data[index].last_response_ms != 0) && ((now_ms - telem.data[index].last_response_ms) < 5000)) {
                 // Seen telem  and had a response for more than 5 seconds
                 // report the max of the pcb and motor
                 temp = MAX(telem.data[index].motor_temp_deg, telem.data[index].pcb_temp_deg);
             }
-
-            char* name;
-            asprintf(&name, "VolzT%u", index + 1);
-            gcs().send_named_float(name, temp);
-
-            break;
         }
+
+        char* name;
+        asprintf(&name, "VolzT%u", index + 1);
+        gcs().send_named_float(name, temp);
+
+        break;
     }
 #endif
 }
