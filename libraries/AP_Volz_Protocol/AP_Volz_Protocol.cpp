@@ -186,10 +186,9 @@ void AP_Volz_Protocol::request_telem()
 
 void AP_Volz_Protocol::loop()
 {
-    port->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_RTS_DE);
-
     port->begin(115200, UART_BUFSIZE_RX, UART_BUFSIZE_TX);
     port->set_unbuffered_writes(true);
+    port->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_RTS_DE);
 
     // Calculate the amount of time it should take to send a command
     // B/s to s/B, 1000000 converts to microseconds, multiply by number of bytes
