@@ -118,6 +118,13 @@ const AP_Param::GroupInfo AP_MotorsUGV::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("THST_ASYM", 14, AP_MotorsUGV, _thrust_asymmetry, 1.0f),
 
+    // @Param: STR_THR_GAIN
+    // @DisplayName: Gain to control steering vs differential thrust outputs for skid steering vehicles with steering
+    // @Description: Low numbers result in more steering output than differential thrusts, higher numbers result in more differential thrust than steering
+    // @Range: 0.0 2.0
+    // @User: Advanced
+    AP_GROUPINFO("STR_THR_GAIN", 15, AP_MotorsUGV, _differential_thrust_gain, 1.0),
+
     AP_GROUPEND
 };
 
@@ -806,7 +813,7 @@ void AP_MotorsUGV::output_skid_steering(bool armed, float steering, float thrott
     }
 
     // skid steering mixer
-    float steering_scaled = steering / 4500.0f; // steering scaled -1 to +1
+    float steering_scaled = (steering * _differential_thrust_gain) / 4500.0f; // steering scaled -1 to +1
     float throttle_scaled = throttle * 0.01f;  // throttle scaled -1 to +1
 
     // sanitize values for asymmetry of thrust, mixer assumes forward thrust is always larger than reverse
