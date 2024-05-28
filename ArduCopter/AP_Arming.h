@@ -26,6 +26,8 @@ public:
     bool disarm(AP_Arming::Method method, bool do_disarm_checks=true) override;
     bool arm(AP_Arming::Method method, bool do_arming_checks=true) override;
 
+    bool in_arm_motors;
+
 protected:
 
     bool pre_arm_checks(bool display_failure) override;
