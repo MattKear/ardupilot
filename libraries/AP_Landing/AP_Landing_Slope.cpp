@@ -400,6 +400,12 @@ int32_t AP_Landing::type_slope_get_target_airspeed_cm(void)
     } else {
         target_airspeed_cm = 100 * 0.5 * (aparm.airspeed_cruise + aparm.airspeed_min);
     }
+
+    // Enforce the use of landing speed for parachute landing
+    if ((type == TYPE_PARACHUTE) && (land_airspeed >= 0)) {
+        return constrain_int32(land_airspeed*100, aparm.airspeed_min, aparm.airspeed_max);
+    }
+
     switch (type_slope_stage) {
     case SlopeStage::NORMAL:
         target_airspeed_cm = aparm.airspeed_cruise*100;
