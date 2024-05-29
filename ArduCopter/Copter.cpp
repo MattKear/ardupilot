@@ -533,8 +533,9 @@ void Copter::ccdl_failover_check()
         const uint32_t tnow_ms = tnow / 1000;
         // On a ccdl port, we expect to receive ccdl from primary target and hearbeat from backup target.
         // if we don't receive ccdl from the primary target, we expect it to comes from the other ccdl port.
-        const uint32_t current_failover_timeout_ms = (copter.ap.in_arming_delay || copter.arming.in_arm_motors) ? GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_ARMING_MS  : GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_MS;
-        const uint32_t current_failover_backup_timeout_ms = (copter.ap.in_arming_delay || copter.arming.in_arm_motors) ? GCS_MAVLINK::CCDL_FAILOVER_BACKUP_TIMEOUT_ARMING_MS : GCS_MAVLINK::CCDL_FAILOVER_BACKUP_TIMEOUT_MS;
+        const bool use_longer_timeout = copter.ap.in_arming_delay || copter.arming.in_arm_motors || AP::logger().in_log_download();
+        const uint32_t current_failover_timeout_ms = use_longer_timeout ? GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_ARMING_MS  : GCS_MAVLINK::CCDL_FAILOVER_TIMEOUT_MS;
+        const uint32_t current_failover_backup_timeout_ms = use_longer_timeout ? GCS_MAVLINK::CCDL_FAILOVER_BACKUP_TIMEOUT_ARMING_MS : GCS_MAVLINK::CCDL_FAILOVER_BACKUP_TIMEOUT_MS;
         for (int8_t i = 0; i < 2; ++i) {
             // do we received ccdl from the primary target ?
             const uint32_t tdiff_p = tnow_ms - ccdl_routing_current_sysid.ccdl[i].primary_route_last_hb;
