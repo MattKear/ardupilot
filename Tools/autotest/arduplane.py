@@ -1431,6 +1431,52 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
         self.reboot_sitl()
         self.end_subtest("Completed Parachute Failsafe test")
 
+    def ParachuteLanding(self):
+        '''Test parachute landing method'''
+        self.start_subtest("Ensure TECS_LAND_ARSPD is adopted on approach")
+        self.set_parameters({
+            "CHUTE_ENABLED": 1,
+            "CHUTE_TYPE": 10,
+            "SERVO9_FUNCTION": 27,
+            "SIM_PARA_ENABLE": 1,
+            "SIM_PARA_PIN": 9,
+            "FS_LONG_ACTN": 3,
+            "TECS_LAND_ARSPD":15,
+            "TRIM_ARSPD_CM":2400,
+            "LAND_TYPE":2,
+            "LOG_BITMASK":1081279,# ensure full rate attitude logging
+        })
+        self.load_mission("parachute_landing_mission.txt")
+        self.reboot_sitl()
+
+        # Iterate over the test a number of times to look for an inconsistancy
+        n_tests = 1
+        for t in range(n_tests):
+            self.progress("Landing test: %i of %i" % (t+1, n_tests))
+
+            self.wait_ready_to_arm()
+            self.set_rc(3, 1000)
+            self.change_mode("AUTO")
+            self.arm_vehicle()
+            self.set_rc(3, 1500)
+
+            # Test for expected airspeeds around the mission
+            checks = [
+                (3, self.get_parameter("TRIM_ARSPD_CM") * 0.01),
+                (5, 18), # looking for do_change_speed value
+                (9, self.get_parameter("TECS_LAND_ARSPD")), # looking for approach speed
+            ]
+            for (current_waypoint, want_airspeed) in checks:
+                self.wait_current_waypoint(current_waypoint, timeout=300)
+                self.wait_airspeed(want_airspeed-1, want_airspeed+1, minimum_duration=1, timeout=120)
+
+            # If we got this far look for the parachute deployment
+            self.wait_statustext("BANG", timeout=120)
+            self.set_heartbeat_rate(self.speedup)
+            self.disarm_vehicle(force=True)
+            self.reboot_sitl()
+            self.end_subtest("Completed parachute landing test %i" % t)
+
     def TestGripperMission(self):
         '''Test Gripper mission items'''
         self.context_push()
@@ -5425,6 +5471,7 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             self.TerrainRally,
             self.MAV_CMD_NAV_LOITER_UNLIM,
             self.MAV_CMD_NAV_RETURN_TO_LAUNCH,
+            self.ParachuteLanding,
         ])
         return ret
 
