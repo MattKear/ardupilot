@@ -58,18 +58,20 @@ Apply a series of different loads (weights are often the easiest) and look at th
 
 - Set test mode.
 
-#### Throttle Ramp
+#### Throttle Ramp Mode
 
 -	Set THST_HOLD_S (s) to the length of time to hold throttle at each step.
 -	Set THST_MAX_THR (%) [0 - 100] to set the max throttle.
 -	Set THST_RAMP_STEP [0.01 - 1.0]
-Step Change
+
+#### Transients / Step-Change Mode
 -	Set THST_HOLD_S (s) to the length of time to hold the step change.
 -	Set THST_MAX_THR (%) [0 - 100] to the max throttle to set the step change to.
 -	Set MOT_THST_HOVER [0.0 - 1.0]
 Note: Throttle will step hover throttle +/- (max throttle – hover).  Ensure set to allow symmetric steps.
-Frequency Sweep
--	Throttle/thrust output is between SPIN_MIN and SPIN_MAX
+
+#### Frequency Sweep / Throttle Chirp Mode
+-	Throttle/thrust output is between MOT_SPIN_MIN and MOT_SPIN_MAX
 -	Set THST_HOLD_S (s) to the length of time to hold the initial trim state. Usually set 3 s.
 -	Set THST_MAX_THR (%) [0 - 100] to the max throttle to set the step change to.
 -	Set MOT_THST_HOVER [0.0 - 1.0] this is the centre/mean of the sin wave
@@ -82,15 +84,17 @@ Frequency Sweep
 - Log air temperature, relative humidity, and pressure.
 - Arm ArduCopter via GCS.
 - Switch toggle safety switch.
-- Throttle ramp will begin, stopping to dwell at configured steps.
-- Throttle will automatically ramp up and then back down.
-- Throttle will sit at MOT_SPIN_MIN once test has completed.
+- Throttle will ramp up and test will begin.
+- Test will be performed  automatically, as per configuration.
+- Throttle will ramp down and sit at MOT_SPIN_MIN once test has completed.
 - Switch toggle safety switch to both safe and disarm system.
 
 
 ## Test Modes
 
 Copter flight modes are used as a proxy for thrust stand modes. The below describes which copter modes correlates to the thrust stand modes.
+
+You must set the flight modes below, via the GCS, to use the corresponding thrust stand modes described below.
 
 - **Stabilise:** Stepped throttle ramp for expo calculations
 - **Alt_Hold** - Throttle mode hold, ramps to THST_MAX_THR and holds for THST_HOLD_S
