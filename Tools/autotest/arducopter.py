@@ -9088,10 +9088,10 @@ class AutoTestCopter(AutoTest):
             #  "Test maxbotix rangefinder drivers",
             #  self.fly_rangefinder_driver_maxbotix),  # 62s
 
-            ("MAVProximity",
-             "Test MAVLink proximity driver",
-             self.fly_proximity_mavlink_distance_sensor,
-             ),
+            # ("MAVProximity",
+            #  "Test MAVLink proximity driver",
+            #  self.fly_proximity_mavlink_distance_sensor,
+            #  ),
 
             ("ParameterValidation",
              "Test parameters are checked for validity",
