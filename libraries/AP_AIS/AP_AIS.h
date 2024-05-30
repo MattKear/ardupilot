@@ -19,7 +19,7 @@
 #include <AP_Common/AP_ExpandingArray.h>
 
 #ifndef HAL_AIS_ENABLED
-#define HAL_AIS_ENABLED !HAL_MINIMIZE_FEATURES
+#define HAL_AIS_ENABLED 0
 #endif
 
 #if HAL_AIS_ENABLED
