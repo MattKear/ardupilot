@@ -41,7 +41,7 @@ extern const AP_HAL::HAL& hal;
 #endif
 
 #ifndef HAL_SERIAL4_PROTOCOL
-#define SERIAL4_PROTOCOL SerialProtocol_GPS
+#define SERIAL4_PROTOCOL SerialProtocol_None
 #else
 #define SERIAL4_PROTOCOL HAL_SERIAL4_PROTOCOL
 #endif
@@ -50,7 +50,7 @@ extern const AP_HAL::HAL& hal;
 #define SERIAL5_PROTOCOL HAL_SERIAL5_PROTOCOL
 #define SERIAL5_BAUD HAL_SERIAL5_BAUD
 #else
-#define SERIAL5_PROTOCOL SerialProtocol_None
+#define SERIAL5_PROTOCOL SerialProtocol_GPS
 #define SERIAL5_BAUD AP_SERIALMANAGER_MAVLINK_BAUD/1000
 #endif
 
