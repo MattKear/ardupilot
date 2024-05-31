@@ -346,6 +346,6 @@ define HAL_BATTMON_LTC2946_ADDR 0x67
 
 # GNSS
 define HAL_SERIAL5_PROTOCOL SerialProtocol_GPS
-define HAL_SERIAL5_BAUD 38
+define HAL_SERIAL5_BAUD 230
 # Free for ccdl
 define HAL_SERIAL4_PROTOCOL SerialProtocol_None
