@@ -89,7 +89,7 @@ const AP_Param::GroupInfo AP_MotorsHeli_Swash::var_info[] = {
     // @Range: 0 60
     // @Units: deg
     // @User: Standard
-    AP_GROUPINFO("LIN_SV_ANG", 9, AP_MotorsHeli_Swash, _linear_swash_servo_ang_deg, 0),
+    AP_GROUPINFO("LIN_SV_ANG", 3, AP_MotorsHeli_Swash, _linear_swash_servo_ang_deg, 0),
    
     AP_GROUPEND
 };
