@@ -408,9 +408,11 @@ void AP_Volz_Protocol::update()
     const uint32_t now_ms = AP_HAL::millis();
 #endif
 
-    // take semaphore and log all channels
 #if HAL_LOGGING_ENABLED
-    {
+    // take semaphore and log all channels at 5 Hz
+    if ((now_ms - last_log_ms) > 200) {
+        last_log_ms = now_ms;
+
         WITH_SEMAPHORE(telem.sem);
         for (uint8_t i=0; i<ARRAY_SIZE(telem.data); i++) {
             if ((telem.data[i].last_response_ms == 0) || ((now_ms - telem.data[i].last_response_ms) > 5000)) {
@@ -453,36 +455,35 @@ void AP_Volz_Protocol::update()
 #endif
 
 #if HAL_GCS_ENABLED
-    // Report temp as named float at 4Hz
-    if ((now_ms - last_report_ms) < 250) {
-        return;
-    }
-    last_report_ms = now_ms;
+    // Report temp as named float at 1Hz
+    if ((now_ms - last_report_ms) > 1000) {
+        last_report_ms = now_ms;
 
-    for (uint8_t i=0; i<ARRAY_SIZE(telem.data); i++) {
-        uint8_t index = (last_report_index + 1 + i) % ARRAY_SIZE(telem.data);
-        if ((uint32_t(bitmask.get()) & (1U<<index)) == 0) {
-            // Not configured to send
-            continue;
-        }
-        last_report_index = index;
-
-        // Send abs zero for invalid
-        float temp = KELVIN_TO_C(0.0);
-        {
-            WITH_SEMAPHORE(telem.sem);
-            if ((telem.data[index].last_response_ms != 0) && ((now_ms - telem.data[index].last_response_ms) < 5000)) {
-                // Seen telem  and had a response for more than 5 seconds
-                // report the max of the pcb and motor
-                temp = MAX(telem.data[index].motor_temp_deg, telem.data[index].pcb_temp_deg);
+        for (uint8_t i=0; i<ARRAY_SIZE(telem.data); i++) {
+            uint8_t index = (last_report_index + 1 + i) % ARRAY_SIZE(telem.data);
+            if ((uint32_t(bitmask.get()) & (1U<<index)) == 0) {
+                // Not configured to send
+                continue;
             }
+            last_report_index = index;
+
+            // Send abs zero for invalid
+            float temp = KELVIN_TO_C(0.0);
+            {
+                WITH_SEMAPHORE(telem.sem);
+                if ((telem.data[index].last_response_ms != 0) && ((now_ms - telem.data[index].last_response_ms) < 5000)) {
+                    // Seen telem  and had a response for more than 5 seconds
+                    // report the max of the pcb and motor
+                    temp = MAX(telem.data[index].motor_temp_deg, telem.data[index].pcb_temp_deg);
+                }
+            }
+
+            char* name;
+            asprintf(&name, "VolzT%u", index + 1);
+            gcs().send_named_float(name, temp);
+
+            break;
         }
-
-        char* name;
-        asprintf(&name, "VolzT%u", index + 1);
-        gcs().send_named_float(name, temp);
-
-        break;
     }
 #endif
 }

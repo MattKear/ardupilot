@@ -155,6 +155,7 @@ private:
 #endif
 
 #if HAL_GCS_ENABLED
+    uint32_t last_log_ms;
     uint32_t last_report_ms;
     uint8_t last_report_index;
 #endif
