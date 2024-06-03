@@ -393,7 +393,7 @@ void AP_MotorsHeli_Dual::move_actuators(float roll_out, float pitch_out, float c
     limit.throttle_lower = false;
     limit.throttle_upper = false;
 
-    if (_dual_mode == AP_MOTORS_HELI_DUAL_MODE_TRANSVERSE || _dual_mode == AP_MOTORS_HELI_DUAL_MODE_INTERMESHING) {
+    //if (_dual_mode == AP_MOTORS_HELI_DUAL_MODE_TRANSVERSE || _dual_mode == AP_MOTORS_HELI_DUAL_MODE_INTERMESHING) {
         if (pitch_out < -_cyclic_max/4500.0f) {
             pitch_out = -_cyclic_max/4500.0f;
             limit.pitch = true;
@@ -403,7 +403,7 @@ void AP_MotorsHeli_Dual::move_actuators(float roll_out, float pitch_out, float c
             pitch_out = _cyclic_max/4500.0f;
             limit.pitch = true;
         }
-    } else {
+    //} else {
         if (roll_out < -_cyclic_max/4500.0f) {
             roll_out = -_cyclic_max/4500.0f;
             limit.roll = true;
@@ -413,7 +413,7 @@ void AP_MotorsHeli_Dual::move_actuators(float roll_out, float pitch_out, float c
             roll_out = _cyclic_max/4500.0f;
             limit.roll = true;
         }
-    }
+    //}
 
     if (_heliflags.inverted_flight) {
         collective_in = 1 - collective_in;
