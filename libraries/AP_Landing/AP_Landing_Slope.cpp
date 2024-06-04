@@ -403,7 +403,7 @@ int32_t AP_Landing::type_slope_get_target_airspeed_cm(void)
 
     // Enforce the use of landing speed for parachute landing
     if ((type == TYPE_PARACHUTE) && (land_airspeed >= 0)) {
-        return constrain_int32(land_airspeed*100, aparm.airspeed_min, aparm.airspeed_max);
+        return constrain_int32(land_airspeed*100, aparm.airspeed_min*100, aparm.airspeed_max*100);
     }
 
     switch (type_slope_stage) {
