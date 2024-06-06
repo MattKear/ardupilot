@@ -862,6 +862,7 @@ bool AP_Arming_Copter::arm(const AP_Arming::Method method, const bool do_arming_
         return false;
     }
     in_arm_motors = true;
+    const auto arming_start_time = millis();
 
     // return true if already armed
     if (copter.motors->armed()) {
@@ -956,7 +957,7 @@ bool AP_Arming_Copter::arm(const AP_Arming::Method method, const bool do_arming_
 
     // assumed armed without a arming, switch. Overridden in switches.cpp
     copter.ap.armed_with_airmode_switch = false;
-
+    gcs().send_text(MAV_SEVERITY_INFO, "Arming Duration: %u ms", static_cast<unsigned>(copter.arm_time_ms - arming_start_time));
     // return success
     return true;
 }
