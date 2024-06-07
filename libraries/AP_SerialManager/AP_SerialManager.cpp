@@ -462,13 +462,13 @@ void AP_SerialManager::init()
                 case SerialProtocol_MAVLink:
                 case SerialProtocol_MAVLink2:
                     uart->begin(map_baudrate(state[i].baud),
-                                         AP_SERIALMANAGER_MAVLINK_BUFSIZE_RX,
-                                         AP_SERIALMANAGER_MAVLINK_BUFSIZE_TX);
+                                AP_SERIALMANAGER_DOUBLE_MAVLINK_BUFSIZE_RX,
+                                AP_SERIALMANAGER_DOUBLE_MAVLINK_BUFSIZE_TX);
                     break;
                 case SerialProtocol_AHRSMAVLINK:
                     uart->begin(map_baudrate(state[i].baud),
-                                        AP_SERIALMANAGER_MAVLINK_BUFSIZE_RX,
-                                        AP_SERIALMANAGER_MAVLINK_BUFSIZE_TX);
+                                AP_SERIALMANAGER_DOUBLE_MAVLINK_BUFSIZE_RX,
+                                AP_SERIALMANAGER_DOUBLE_MAVLINK_BUFSIZE_TX);
                     break;
                 case SerialProtocol_FrSky_D:
                     // Note baudrate is hardcoded to 9600
