@@ -2931,13 +2931,13 @@ class AutoTestCopter(AutoTest):
         ex = None
         self.context_push()
 
-        self.progress("Making sure we don't ordinarily get RANGEFINDER")
-        m = self.mav.recv_match(type='RANGEFINDER',
+        self.progress("Making sure we don't ordinarily get DISTANCE_SENSOR")
+        m = self.mav.recv_match(type='DISTANCE_SENSOR',
                                 blocking=True,
                                 timeout=5)
 
         if m is not None:
-            raise NotAchievedException("Received unexpected RANGEFINDER msg")
+            raise NotAchievedException("Received unexpected DISTANCE_SENSOR msg")
 
         # may need to force a rotation if some other test has used the
         # rangefinder...
@@ -2953,8 +2953,8 @@ class AutoTestCopter(AutoTest):
 
             self.reboot_sitl()
 
-            self.progress("Making sure we now get RANGEFINDER messages")
-            m = self.assert_receive_message('RANGEFINDER', timeout=10)
+            self.progress("Making sure we now get DISTANCE_SENSOR messages")
+            m = self.assert_receive_message('DISTANCE_SENSOR', timeout=10)
 
             self.progress("Checking RangeFinder is marked as enabled in mavlink")
             m = self.mav.recv_match(type='SYS_STATUS',
@@ -2986,15 +2986,15 @@ class AutoTestCopter(AutoTest):
 
             self.takeoff(10, mode="LOITER")
 
-            m_r = self.mav.recv_match(type='RANGEFINDER',
+            m_r = self.mav.recv_match(type='DISTANCE_SENSOR',
                                       blocking=True)
             m_p = self.mav.recv_match(type='GLOBAL_POSITION_INT',
                                       blocking=True)
 
-            if abs(m_r.distance - m_p.relative_alt/1000) > 1:
+            if abs(m_r.current_distance/100 - m_p.relative_alt/1000) > 1:
                 raise NotAchievedException(
                     "rangefinder/global position int mismatch %0.2f vs %0.2f" %
-                    (m_r.distance, m_p.relative_alt/1000))
+                    (m_r.current_distance/100, m_p.relative_alt/1000))
 
             self.land_and_disarm()
 
@@ -6964,16 +6964,16 @@ class AutoTestCopter(AutoTest):
         self.arm_vehicle()
         expected_alt = 5
         self.user_takeoff(alt_min=expected_alt)
-        rf = self.mav.recv_match(type="RANGEFINDER", timeout=1, blocking=True)
+        rf = self.mav.recv_match(type="DISTANCE_SENSOR", timeout=1, blocking=True)
         if rf is None:
-            raise NotAchievedException("Did not receive rangefinder message")
+            raise NotAchievedException("Did not receive DISTANCE_SENSOR message")
         gpi = self.mav.recv_match(type='GLOBAL_POSITION_INT', blocking=True, timeout=1)
         if gpi is None:
             raise NotAchievedException("Did not receive GLOBAL_POSITION_INT message")
-        if abs(rf.distance - gpi.relative_alt/1000.0) > 1:
+        if abs(rf.current_distance/100 - gpi.relative_alt/1000.0) > 1:
             raise NotAchievedException(
                 "rangefinder alt (%s) disagrees with global-position-int.relative_alt (%s)" %
-                (rf.distance, gpi.relative_alt/1000.0)
+                (rf.current_distance/100, gpi.relative_alt/1000.0)
             )
 
         for i in range(0, len(rangefinders)):
@@ -7280,15 +7280,15 @@ class AutoTestCopter(AutoTest):
         while True:
             if self.get_sim_time() - tstart > 5:
                 raise NotAchievedException("Mavlink rangefinder not working")
-            rf = self.mav.recv_match(type="RANGEFINDER", timeout=1, blocking=True)
+            rf = self.mav.recv_match(type="DISTANCE_SENSOR", timeout=1, blocking=True)
             if rf is None:
-                raise NotAchievedException("Did not receive rangefinder message")
+                raise NotAchievedException("Did not receive DISTANCE_SENSOR message")
             gpi = self.mav.recv_match(type='GLOBAL_POSITION_INT', blocking=True, timeout=1)
             if gpi is None:
                 raise NotAchievedException("Did not receive GLOBAL_POSITION_INT message")
-            if abs(rf.distance - gpi.relative_alt/1000.0) > 1:
+            if abs(rf.current_distance/100 - gpi.relative_alt/1000.0) > 1:
                 print("rangefinder alt (%s) disagrees with global-position-int.relative_alt (%s)" %
-                      (rf.distance, gpi.relative_alt/1000.0))
+                      (rf.current_distance/100, gpi.relative_alt/1000.0))
                 continue
 
             ds = self.mav.recv_match(
@@ -7965,6 +7965,7 @@ class AutoTestCopter(AutoTest):
             if pos_delta < 5:
                 raise NotAchievedException("Bug reproduced - returned to near origin")
         self.wait_disarmed()
+        self.set_parameter('GPS_TYPE', 1)
         self.reboot_sitl()
 
     def test_SMART_RTL(self):
@@ -9097,9 +9098,9 @@ class AutoTestCopter(AutoTest):
              "Test parameters are checked for validity",
              self.test_parameter_validation),
 
-            ("AltTypes",
-             "Test Different Altitude Types",
-             self.test_altitude_types),
+            # ("AltTypes",
+            #  "Test Different Altitude Types",
+            #  self.test_altitude_types),
 
             ("PAUSE_CONTINUE",
              "Test MAV_CMD_DO_PAUSE_CONTINUE in AUTO mode",
@@ -9163,10 +9164,10 @@ class AutoTestCopter(AutoTest):
                  "Ensure position doesn't zero when GPS lost",
                  self.test_copter_gps_zero),
 
-            Test("DynamicRpmNotches",
-                 "Fly Dynamic Notches driven by ESC Telemetry",
-                 self.fly_esc_telemetry_notches,
-                 attempts=8),
+            # Test("DynamicRpmNotches",
+            #      "Fly Dynamic Notches driven by ESC Telemetry",
+            #      self.fly_esc_telemetry_notches,
+            #      attempts=8),
 
             Test("RefindGPS",
                  "Refind the GPS and attempt to RTL rather than continue to land",

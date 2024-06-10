@@ -5321,13 +5321,13 @@ class AutoTest(ABC):
         return msg.alt / 1000.0  # mm -> m
 
     def assert_rangefinder_distance_between(self, dist_min, dist_max):
-        m = self.assert_receive_message('RANGEFINDER')
+        m = self.assert_receive_message('DISTANCE_SENSOR')
 
-        if m.distance < dist_min:
+        if m.current_distance/100 < dist_min:
             raise NotAchievedException("below min height (%f < %f)" %
                                        (m.distance, dist_min))
 
-        if m.distance > dist_max:
+        if m.current_distance/100 > dist_max:
             raise NotAchievedException("above max height (%f > %f)" %
                                        (m.distance, dist_max))
 
@@ -5339,8 +5339,8 @@ class AutoTest(ABC):
                                        (quality, m.signal_quality))
 
     def get_rangefinder_distance(self):
-        m = self.assert_receive_message('RANGEFINDER', timeout=5)
-        return m.distance
+        m = self.assert_receive_message('DISTANCE_SENSOR', timeout=5)
+        return m.current_distance/100
 
     def wait_rangefinder_distance(self, dist_min, dist_max, timeout=30, **kwargs):
         '''wait for RANGEFINDER distance'''
