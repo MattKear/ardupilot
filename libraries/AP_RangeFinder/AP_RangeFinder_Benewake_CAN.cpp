@@ -83,14 +83,24 @@ bool AP_RangeFinder_Benewake_CAN::handle_frame(AP_HAL::CANFrame &frame)
     last_recv_id = id;
 
     const uint16_t dist_cm = (frame.data[1]<<8) | frame.data[0];
-    const uint16_t snr = (frame.data[3]<<8) | frame.data[2];
-    if (snr_min != 0 && snr < uint16_t(snr_min.get())) {
+    last_recv_snr = (frame.data[3]<<8) | frame.data[2];
+    if (snr_min != 0 && last_recv_snr < uint16_t(snr_min.get())) {
         // too low signal strength
         return true;
     }
     _distance_sum_cm += dist_cm;
     _distance_count++;
+
     return true;
+}
+
+// get signal quality
+uint16_t AP_RangeFinder_Benewake_CAN::get_signal_quality_snr() const
+{
+    if (state.status != RangeFinder::Status::Good) {
+        return 0;
+    }
+    return last_recv_snr;
 }
 
 // handle frames from CANSensor, passing to the drivers

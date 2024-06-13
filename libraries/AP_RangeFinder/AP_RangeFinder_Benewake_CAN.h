@@ -18,6 +18,8 @@ public:
     // handler for incoming frames. Return true if consumed
     bool handle_frame(AP_HAL::CANFrame &frame);
 
+    uint16_t get_signal_quality_snr() const override;
+
     static const struct AP_Param::GroupInfo var_info[];
 
 protected:
@@ -29,6 +31,7 @@ private:
     float _distance_sum_cm;
     uint32_t _distance_count;
     int32_t last_recv_id = -1;
+    uint16_t last_recv_snr;
 
     AP_Int32 snr_min;
     AP_Int32 receive_id;

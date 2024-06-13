@@ -47,6 +47,8 @@ public:
     MAV_DISTANCE_SENSOR get_mav_distance_sensor_type() const;
     RangeFinder::Status status() const;
     RangeFinder::Type type() const { return (RangeFinder::Type)params.type.get(); }
+    // 0 is no return value. returns the signal to noise ratio
+    virtual uint16_t get_signal_quality_snr() const { return 0; }
 
     // true if sensor is returning data
     bool has_data() const;

@@ -799,6 +799,7 @@ void RangeFinder::Log_RFND() const
                 dist         : s->distance_cm(),
                 status       : (uint8_t)s->status(),
                 orient       : s->orientation(),
+                snr          : s->get_signal_quality_snr(),
         };
         AP::logger().WriteBlock(&pkt, sizeof(pkt));
     }
