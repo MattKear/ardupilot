@@ -435,6 +435,7 @@ struct PACKED log_RFND {
     uint16_t dist;
     uint8_t status;
     uint8_t orient;
+    uint16_t snr;
 };
 
 /*
@@ -1314,7 +1315,7 @@ LOG_STRUCTURE_FROM_CAMERA \
     { LOG_MODE_MSG, sizeof(log_Mode), \
       "MODE", "QMBB",         "TimeUS,Mode,ModeNum,Rsn", "s---", "F---" }, \
     { LOG_RFND_MSG, sizeof(log_RFND), \
-      "RFND", "QBCBB", "TimeUS,Instance,Dist,Stat,Orient", "s#m--", "F-B--", true }, \
+      "RFND", "QBCBBH", "TimeUS,Instance,Dist,Stat,Orient,SNR", "s#m---", "F-B---", true }, \
     { LOG_MAV_STATS, sizeof(log_MAV_Stats), \
       "DMS", "QIIIIBBBBBBBBB",         "TimeUS,N,Dp,RT,RS,Fa,Fmn,Fmx,Pa,Pmn,Pmx,Sa,Smn,Smx", "s-------------", "F-------------" }, \
     { LOG_BEACON_MSG, sizeof(log_Beacon), \
