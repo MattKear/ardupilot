@@ -5001,6 +5001,16 @@ void GCS_MAVLINK::send_sys_status()
     const uint16_t errors1 = errors & 0xffff;
     const uint16_t errors2 = (errors>>16) & 0xffff;
     const uint16_t errors4 = AP::internalerror().count() & 0xffff;
+    uint16_t errors_comm = 0;
+    uint16_t errors_comm_pct = 0;
+    mavlink_status_t *ms = mavlink_get_channel_status(chan);
+    if (ms) {
+        errors_comm = ms->packet_rx_drop_count;
+        const uint32_t total_packets = ms->packet_rx_success_count + ms->packet_rx_drop_count;
+        if (total_packets != 0 && ms->packet_rx_drop_count != 0) {
+            errors_comm_pct = (ms->packet_rx_drop_count * 100) / (ms->packet_rx_success_count + ms->packet_rx_drop_count);
+        }
+    }
 
     mavlink_msg_sys_status_send(
         chan,
@@ -5017,8 +5027,8 @@ void GCS_MAVLINK::send_sys_status()
         -1,
         -1,
 #endif
-        0,  // comm drops %,
-        0,  // comm drops in pkts,
+        errors_comm_pct,  // comm drops %,
+        errors_comm,  // comm drops in pkts,
         errors1,
         errors2,
         0,  // errors3
