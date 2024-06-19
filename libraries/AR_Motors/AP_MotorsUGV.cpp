@@ -794,6 +794,9 @@ void AP_MotorsUGV::output_skid_steering(bool armed, float steering, float thrott
         return;
     }
 
+    // Apply differential gain
+    steering *= _differential_thrust_gain;
+
     // clear and set limits based on input
     set_limits_from_input(armed, steering, throttle);
 
@@ -813,7 +816,7 @@ void AP_MotorsUGV::output_skid_steering(bool armed, float steering, float thrott
     }
 
     // skid steering mixer
-    float steering_scaled = (steering * _differential_thrust_gain) / 4500.0f; // steering scaled -1 to +1
+    float steering_scaled = steering / 4500.0f; // steering scaled -1 to +1
     float throttle_scaled = throttle * 0.01f;  // throttle scaled -1 to +1
 
     // sanitize values for asymmetry of thrust, mixer assumes forward thrust is always larger than reverse
