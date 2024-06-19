@@ -2469,11 +2469,29 @@ bool AP_Mission::distance_to_mission_leg(uint16_t start_index, float &rejoin_dis
         _jump_tracking_backup[i] = _jump_tracking[i];
     }
 
+    // return immediately if nav command index is invalid or mission not running
+    const uint16_t nav_cmd_index = get_current_nav_index();
+    const auto cmd_total = num_commands();
+    if ((nav_cmd_index == 0) || (nav_cmd_index >= cmd_total)) {
+        return false;
+    }
+
+    bool skip_landing = false;
+    if (cmd_total > 2 && _flags.state == MISSION_RUNNING){
+        auto invalid_takeoff_index = 2;
+        auto invalid_land_index = cmd_total - 2;
+
+        if(nav_cmd_index < invalid_land_index && nav_cmd_index > invalid_takeoff_index){
+            skip_landing = true;
+            gcs().send_text(MAV_SEVERITY_INFO, "Mission: Landing seq not including final wp");
+        }
+    }
+
     // run through remainder of mission to approximate a distance to landing
     uint16_t index = start_index;
     for (uint8_t i=0; i<255; i++) {
         // search until the end of the mission command list
-        for (uint16_t cmd_index = index; cmd_index <= (unsigned)_cmd_total; cmd_index++) {
+        for (uint16_t cmd_index = index; cmd_index <= cmd_total; cmd_index++) {
             if (get_next_cmd(cmd_index, temp_cmd, true, false)) {
                 break;
             } else {
@@ -2482,6 +2500,10 @@ bool AP_Mission::distance_to_mission_leg(uint16_t start_index, float &rejoin_dis
             }
         }
         index = temp_cmd.index + 1;
+        if(skip_landing && is_landing_type_cmd(temp_cmd.id)){
+            prev_loc.zero();
+            continue;
+        }
 
         if (stored_in_location(temp_cmd.id) && temp_cmd.content.location.initialised()) {
             if (prev_loc.lat == 0 && prev_loc.lng == 0) {
