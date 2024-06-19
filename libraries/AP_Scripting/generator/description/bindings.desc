@@ -735,6 +735,8 @@ singleton AC_AttitudeControl method get_rpy_srate void float'Ref float'Ref float
 include APM_Control/AR_AttitudeControl.h depends APM_BUILD_TYPE(APM_BUILD_Rover)
 singleton AR_AttitudeControl depends APM_BUILD_TYPE(APM_BUILD_Rover)
 singleton AR_AttitudeControl method get_srate void float'Ref float'Ref
+singleton AR_AttitudeControl method get_desired_turn_rate float
+singleton AR_AttitudeControl method get_desired_speed float
 
 include APM_Control/AR_PosControl.h depends APM_BUILD_TYPE(APM_BUILD_Rover)
 singleton AR_PosControl depends APM_BUILD_TYPE(APM_BUILD_Rover)
