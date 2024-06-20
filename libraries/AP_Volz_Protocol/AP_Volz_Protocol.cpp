@@ -479,8 +479,10 @@ void AP_Volz_Protocol::update()
             }
 
             char* name;
-            asprintf(&name, "VolzT%u", index + 1);
-            gcs().send_named_float(name, temp);
+            if (asprintf(&name, "VolzT%u", index + 1) > 0) {
+                gcs().send_named_float(name, temp);
+            }
+            free(name);
 
             break;
         }
