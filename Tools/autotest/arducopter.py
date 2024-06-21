@@ -7894,6 +7894,9 @@ class AutoTestCopter(AutoTest):
         sensors = [
             ("MS5611", 2),
         ]
+        self.set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_SCALED_PRESSURE, 10)
+        self.set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_SCALED_PRESSURE2, 10)
+        self.set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_SCALED_PRESSURE3, 10)
         for (name, bus) in sensors:
             self.context_push()
             if bus is not None:

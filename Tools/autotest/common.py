@@ -1940,6 +1940,15 @@ class AutoTest(ABC):
                                     timeout=1)
             if m is not None:
                 break
+        self.set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_FENCE_STATUS, streamrate)
+        self.set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_POSITION_TARGET_GLOBAL_INT, streamrate)
+        self.set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED, streamrate)
+        self.set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_VFR_HUD, streamrate)
+        self.set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_AHRS, streamrate)
+        self.set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_RC_CHANNELS, streamrate)
+        self.set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_PID_TUNING, streamrate)
+
+
 
     def set_streamrate_mavproxy(self, streamrate, timeout=10):
         tstart = time.time()
