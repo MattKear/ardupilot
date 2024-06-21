@@ -6739,6 +6739,7 @@ class AutoTestCopter(AutoTest):
                 "SIM_WIND_T": 1.000000,
             })
             self.reboot_sitl()
+            self.set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_WIND, 10)
 
             # require_absolute=True infers a GPS is present
             self.wait_ready_to_arm(require_absolute=False)
@@ -7894,15 +7895,16 @@ class AutoTestCopter(AutoTest):
         sensors = [
             ("MS5611", 2),
         ]
-        self.set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_SCALED_PRESSURE, 10)
-        self.set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_SCALED_PRESSURE2, 10)
-        self.set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_SCALED_PRESSURE3, 10)
+
         for (name, bus) in sensors:
             self.context_push()
             if bus is not None:
                 self.set_parameter("BARO_EXT_BUS", bus)
             self.set_parameter("BARO_PROBE_EXT", 1 << 2)
             self.reboot_sitl()
+            self.set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_SCALED_PRESSURE, 10)
+            self.set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_SCALED_PRESSURE2, 10)
+            self.set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_SCALED_PRESSURE3, 10)
             self.wait_ready_to_arm()
             self.arm_vehicle()
 

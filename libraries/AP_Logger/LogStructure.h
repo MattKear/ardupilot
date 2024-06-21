@@ -1125,6 +1125,7 @@ struct PACKED log_VER {
 // @Field: Dist: Reported distance from sensor
 // @Field: Stat: Sensor state
 // @Field: Orient: Sensor orientation
+// @Field: SNR: Signal to noise ratio
 
 // @LoggerMessage: RPM
 // @Description: Data from RPM sensors
