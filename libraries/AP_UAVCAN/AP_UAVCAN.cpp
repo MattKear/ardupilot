@@ -34,6 +34,7 @@
 #include <uavcan/equipment/esc/RawCommand.hpp>
 #include <uavcan/equipment/esc/RPMCommand.hpp>
 #include <uavcan/equipment/esc/Status.hpp>
+#include <uavcan/equipment/esc/StatusExtended.hpp>
 #include <uavcan/equipment/indication/LightsCommand.hpp>
 #include <uavcan/equipment/indication/SingleLightCommand.hpp>
 #include <uavcan/equipment/indication/BeepCommand.hpp>
@@ -255,6 +256,11 @@ static uavcan::Subscriber<com::volz::servo::ActuatorStatus, ActuatorStatusVolzCb
 // handler ESC status
 UC_REGISTRY_BINDER(ESCStatusCb, uavcan::equipment::esc::Status);
 static uavcan::Subscriber<uavcan::equipment::esc::Status, ESCStatusCb> *esc_status_listener[HAL_MAX_CAN_PROTOCOL_DRIVERS];
+
+// handler for extended ESC status
+UC_REGISTRY_BINDER(ExtESCStatusCb, uavcan::equipment::esc::StatusExtended);
+static uavcan::Subscriber<uavcan::equipment::esc::StatusExtended, ExtESCStatusCb> *extended_esc_status_listener[HAL_MAX_CAN_PROTOCOL_DRIVERS];
+
 
 #if AP_DRONECAN_HIMARK_SERVO_ENABLED
 static uavcan::Publisher<com::himark::servo::ServoCmd>* himark_out[HAL_MAX_CAN_PROTOCOL_DRIVERS];
@@ -558,6 +564,11 @@ void AP_UAVCAN::init(uint8_t driver_index, bool enable_filters)
     esc_status_listener[driver_index] = new uavcan::Subscriber<uavcan::equipment::esc::Status, ESCStatusCb>(*_node);
     if (esc_status_listener[driver_index]) {
         esc_status_listener[driver_index]->start(ESCStatusCb(this, &handle_ESC_status));
+    }
+
+    extended_esc_status_listener[driver_index] = new uavcan::Subscriber<uavcan::equipment::esc::StatusExtended, ExtESCStatusCb>(*_node);
+    if (extended_esc_status_listener[driver_index]) {
+        extended_esc_status_listener[driver_index]->start(ExtESCStatusCb(this, &handle_esc_ext_status));
     }
 
     debug_listener[driver_index] = new uavcan::Subscriber<uavcan::protocol::debug::LogMessage, DebugCb>(*_node);
@@ -1518,6 +1529,34 @@ void AP_UAVCAN::handle_ESC_status(AP_UAVCAN* ap_uavcan, uint8_t node_id, const E
             | (isnan(cb.msg->voltage) ? 0 : AP_ESC_Telem_Backend::TelemetryType::VOLTAGE)
             | (isnan(cb.msg->temperature) ? 0 : AP_ESC_Telem_Backend::TelemetryType::TEMPERATURE)
             | (isnan(cb.msg->power_rating_pct) ? 0 : AP_ESC_Telem_Backend::TelemetryType::POWER_PERCENTAGE));
+#endif
+}
+
+/*
+  handle Extended ESC status message
+ */
+void AP_UAVCAN::handle_esc_ext_status(AP_UAVCAN* ap_uavcan, uint8_t node_id, const ExtESCStatusCb &cb)
+{
+#if HAL_WITH_ESC_TELEM
+    const uint8_t esc_offset = constrain_int16(ap_uavcan->_esc_offset.get(), 0, UAVCAN_SRV_NUMBER);
+    const uint8_t esc_index = cb.msg->esc_index + esc_offset;
+
+    if (!is_esc_data_index_valid(esc_index)) {
+        return;
+    }
+
+    TelemetryData telemetryData {
+        .motor_temp_cdeg = int16_t(cb.msg->motor_temperature_degC * 100),
+        .input_duty = uint8_t(cb.msg->input_pct),
+        .output_duty = uint8_t(cb.msg->output_pct),
+        .flags = uint32_t(cb.msg->status_flags),
+    };
+
+    ap_uavcan->update_telem_data(esc_index, telemetryData,
+        AP_ESC_Telem_Backend::TelemetryType::MOTOR_TEMPERATURE
+        | AP_ESC_Telem_Backend::TelemetryType::INPUT_DUTY
+        | AP_ESC_Telem_Backend::TelemetryType::OUTPUT_DUTY
+        | AP_ESC_Telem_Backend::TelemetryType::FLAGS);
 #endif
 }
 
