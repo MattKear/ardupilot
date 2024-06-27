@@ -305,6 +305,42 @@ bool AP_ESC_Telem::get_power_percentage(uint8_t esc_index, float& power_percenta
     return true;
 }
 
+// get an individual ESC's input duty if available, returns true on success
+bool AP_ESC_Telem::get_input_duty(uint8_t esc_index, uint8_t& input_duty) const
+{
+    if (esc_index >= ESC_TELEM_MAX_ESCS
+        || AP_HAL::millis() - _telem_data[esc_index].last_update_ms > ESC_TELEM_DATA_TIMEOUT_MS
+        || !(_telem_data[esc_index].types & AP_ESC_Telem_Backend::TelemetryType::INPUT_DUTY)) {
+        return false;
+    }
+    input_duty = _telem_data[esc_index].input_duty;
+    return true;
+}
+
+// get an individual ESC's output duty if available, returns true on success
+bool AP_ESC_Telem::get_output_duty(uint8_t esc_index, uint8_t& output_duty) const
+{
+    if (esc_index >= ESC_TELEM_MAX_ESCS
+        || AP_HAL::millis() - _telem_data[esc_index].last_update_ms > ESC_TELEM_DATA_TIMEOUT_MS
+        || !(_telem_data[esc_index].types & AP_ESC_Telem_Backend::TelemetryType::OUTPUT_DUTY)) {
+        return false;
+    }
+    output_duty = _telem_data[esc_index].output_duty;
+    return true;
+}
+
+// get an individual ESC's status flags if available, returns true on success
+bool AP_ESC_Telem::get_flags(uint8_t esc_index, uint32_t& flags) const
+{
+    if (esc_index >= ESC_TELEM_MAX_ESCS
+        || AP_HAL::millis() - _telem_data[esc_index].last_update_ms > ESC_TELEM_DATA_TIMEOUT_MS
+        || !(_telem_data[esc_index].types & AP_ESC_Telem_Backend::TelemetryType::FLAGS)) {
+        return false;
+    }
+    flags = _telem_data[esc_index].flags;
+    return true;
+}
+
 // send ESC telemetry messages over MAVLink
 void AP_ESC_Telem::send_esc_telemetry_mavlink(uint8_t mav_chan)
 {
@@ -476,6 +512,17 @@ void AP_ESC_Telem::update_telem_data(const uint8_t esc_index, const AP_ESC_Telem
     if (data_mask & AP_ESC_Telem_Backend::TelemetryType::USAGE) {
         _telem_data[esc_index].usage_s = new_data.usage_s;
     }
+
+    if (data_mask & AP_ESC_Telem_Backend::TelemetryType::INPUT_DUTY) {
+        _telem_data[esc_index].input_duty = new_data.input_duty;
+    }
+    if (data_mask & AP_ESC_Telem_Backend::TelemetryType::OUTPUT_DUTY) {
+        _telem_data[esc_index].output_duty = new_data.output_duty;
+    }
+    if (data_mask & AP_ESC_Telem_Backend::TelemetryType::FLAGS) {
+        _telem_data[esc_index].flags = new_data.flags;
+    }
+
     if (data_mask & AP_ESC_Telem_Backend::TelemetryType::POWER_PERCENTAGE) {
         _telem_data[esc_index].power_percentage = new_data.power_percentage;
     }
@@ -552,6 +599,28 @@ void AP_ESC_Telem::update()
                     power_percentage : _telem_data[i].power_percentage,
                 };
                 AP::logger().WriteBlock(&pkt, sizeof(pkt));
+
+                // Write ESC extended status messages
+                //   id: starts from 0
+                //   input duty: duty cycle input to the ESC in percent
+                //   output duty: duty cycle output to the motor in percent
+                //   status flags: manufacurer-specific status flags
+
+                uint8_t input_duty;
+                uint8_t output_duty;
+                uint32_t flags;
+
+                if (get_input_duty(i, input_duty) && get_output_duty(i, output_duty) && get_flags(i, flags)) {
+                    const struct log_EscX pkt2{
+                        LOG_PACKET_HEADER_INIT(uint8_t(LOG_ESCX_MSG)),
+                        time_us           : AP_HAL::micros64(),
+                        instance          : i,
+                        input_duty_cycle  : input_duty,
+                        output_duty_cycle : output_duty,
+                        flags             : flags,
+                    };
+                    AP::logger().WriteBlock(&pkt2, sizeof(pkt2));
+                }
                 _last_telem_log_ms[i] = _telem_data[i].last_update_ms;
                 _last_rpm_log_us[i] = _rpm_data[i].last_update_us;
             }

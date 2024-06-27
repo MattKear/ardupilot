@@ -3,7 +3,8 @@
 #include <AP_Logger/LogStructure.h>
 
 #define LOG_IDS_FROM_ESC_TELEM                  \
-    LOG_ESC_MSG
+    LOG_ESC_MSG, \
+    LOG_ESCX_MSG
 
 // @LoggerMessage: ESC
 // @Description: Feedback received from ESCs
@@ -32,6 +33,17 @@ struct PACKED log_Esc {
     uint8_t power_percentage;
 };
 
+struct PACKED log_EscX {
+    LOG_PACKET_HEADER;
+    uint64_t time_us;
+    uint8_t instance;
+    uint8_t input_duty_cycle;
+    uint8_t output_duty_cycle;
+    uint32_t flags;
+};
+
 #define LOG_STRUCTURE_FROM_ESC_TELEM \
     { LOG_ESC_MSG, sizeof(log_Esc), \
-      "ESC",  "QBeeffcfcfB", "TimeUS,Instance,RPM,RawRPM,Volt,Curr,Temp,CTot,MotTemp,Err,Pwr", "s#qqvAOaO%%", "F-BB--BCB--" , true },
+      "ESC",  "QBeeffcfcfB", "TimeUS,Instance,RPM,RawRPM,Volt,Curr,Temp,CTot,MotTemp,Err,Pwr", "s#qqvAOaO%%", "F-BB--BCB--" , true }, \
+    { LOG_ESCX_MSG, sizeof(log_EscX), \
+      "ESCX", "QBBBI", "TimeUS,Instance,inpct,outpct,flags", "s#%%-", "F----" , true },
