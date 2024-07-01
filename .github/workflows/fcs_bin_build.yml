@@ -72,9 +72,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: fcs_release_${{ needs.get-ref-name.outputs.ref_name }}
-          path: /__w/ardupilot/ardupilot/build/CubeOrange/bin/arducopter.apj
+          path: /__w/aircraft-fcs/aircraft-fcs/build/CubeOrange/bin/arducopter.apj
       - name: "Publish to GitHub"
         uses: softprops/action-gh-release@v2
         with:
-          files: /__w/ardupilot/ardupilot/build/CubeOrange/bin/arducopter.apj
+          files: /__w/aircraft-fcs/aircraft-fcs/build/CubeOrange/bin/arducopter.apj
 
