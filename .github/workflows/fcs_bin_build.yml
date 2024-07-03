@@ -65,7 +65,9 @@ jobs:
           git config --global --add safe.directory ${GITHUB_WORKSPACE}
           PATH="/usr/lib/ccache:/opt/gcc-arm-none-eabi-10/bin:$PATH"
           PATH="/github/home/.local/bin:$PATH"
-          Tools/scripts/build_ci.sh
+          ./waf configure --board CubeOrange --enable-header-checks
+          ./waf clean
+          ./waf copter
           ccache -s
           ccache -z
       - name: Archive release
