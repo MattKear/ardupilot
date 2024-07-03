@@ -220,4 +220,8 @@ void Copter::motor_test_stop()
 
     // turn off notify leds
     AP_Notify::flags.esc_calibration = false;
+    copter.ap.pre_arm_check = false;
+    AP_Notify::flags.pre_arm_check = false;
+    gcs().send_message(MSG_HEARTBEAT);
+    gcs().send_message(MSG_SYS_STATUS);
 }
