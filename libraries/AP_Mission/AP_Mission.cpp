@@ -2477,7 +2477,7 @@ bool AP_Mission::distance_to_mission_leg(uint16_t start_index, float &rejoin_dis
     }
 
     bool skip_landing = false;
-    if (cmd_total > 2 && _flags.state == MISSION_RUNNING){
+    if (cmd_total > 2 && _flags.state != MISSION_COMPLETE){
         auto invalid_takeoff_index = 2;
         auto invalid_land_index = cmd_total - 2;
 
