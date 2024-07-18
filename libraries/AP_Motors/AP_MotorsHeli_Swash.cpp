@@ -206,7 +206,7 @@ void AP_MotorsHeli_Swash::add_servo_raw(uint8_t num, float roll, float pitch, fl
     SRV_Channels::set_range(function, 1000);
 
     // swash servos always use full endpoints as restricting them would lead to scaling errors
-    SRV_Channels::set_output_min_max(function, 1000, 2000);
+    // SRV_Channels::set_output_min_max(function, 1000, 2000);
 
 }
 
@@ -251,7 +251,7 @@ void AP_MotorsHeli_Swash::linearise_servo_output(float& input) const
         return;
     }
 
-    input = constrain_float(input, -1.0f, 1.0f);
+    // input = constrain_float(input, -1.0f, 1.0f);
 
     // servo output is calculated by normalizing input to max servo horn rotation angle
     float servo_ang_rads = radians(_linear_swash_servo_ang_deg.get());
