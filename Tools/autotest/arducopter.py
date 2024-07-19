@@ -9714,6 +9714,25 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         self.change_mode('AUTO')
         self.wait_disarmed()
 
+    def AutoRTLTest(self):
+        '''testing an odd mission with do jumps and do land starts that has previously caused a dumpstack'''
+
+        self.load_mission('mission.txt')
+        self.customise_SITL_commandline([
+            "--home", self.sitl_home_string_from_mission("mission.txt"),
+        ])
+
+        self.set_parameter('AUTO_OPTIONS', 3)
+        self.change_mode('AUTO')
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+
+        self.wait_altitude(10, 15, relative=True, timeout=60)
+        self.change_mode('AUTO_RTL')
+
+        self.wait_disarmed()
+
+
     def MAVLandedStateTakeoff(self):
         '''check EXTENDED_SYS_STATE message'''
         ex = None
@@ -10802,6 +10821,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             self.MAV_CMD_SET_EKF_SOURCE_SET,
             self.MAV_CMD_NAV_TAKEOFF,
             self.MAV_CMD_NAV_TAKEOFF_command_int,
+            self.AutoRTLTest,
         ])
         return ret
 
