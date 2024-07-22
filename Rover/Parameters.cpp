@@ -692,6 +692,18 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @Path: mode_circle.cpp
     AP_SUBGROUPINFO(mode_circle, "CIRC", 57, ParametersG2, ModeCircle),
 
+    // @Group: RLL
+    // @Path: ../libraries/APM_Control/AP_RollController.cpp
+    AP_SUBGROUPINFO(rollController, "RLL", 58, ParametersG2, AP_RollController),
+
+    // @Group: PTCH
+    // @Path: ../libraries/APM_Control/AP_PitchController.cpp
+    AP_SUBGROUPINFO(pitchController, "PTCH", 59, ParametersG2, AP_PitchController),
+
+    // @Group: YAW
+    // @Path: ../libraries/APM_Control/AP_YawController.cpp
+    AP_SUBGROUPINFO(yawController, "YAW", 60, ParametersG2, AP_YawController),
+
     AP_GROUPEND
 };
 

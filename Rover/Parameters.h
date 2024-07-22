@@ -15,6 +15,10 @@
 #include "AP_Torqeedo/AP_Torqeedo.h"
 #include <AP_WindVane/AP_WindVane.h>
 
+#include <APM_Control/AP_RollController.h>
+#include <APM_Control/AP_PitchController.h>
+#include <APM_Control/AP_YawController.h>
+
 #define AP_PARAM_VEHICLE_NAME rover
 
 // Global parameter class.
@@ -434,6 +438,14 @@ public:
     AP_Float fs_gcs_timeout;
 
     class ModeCircle mode_circle;
+
+    // key aircraft parameters passed to multiple libraries
+    AP_FixedWing aparm;
+
+    // Attitude to servo controllers
+    AP_RollController rollController{aparm};
+    AP_PitchController pitchController{aparm};
+    AP_YawController yawController{aparm};
 };
 
 extern const AP_Param::Info var_info[];

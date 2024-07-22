@@ -121,6 +121,14 @@ private:
     // variables
     AP_Param param_loader;
 
+    // key aircraft parameters passed to multiple libraries
+    AP_FixedWing aparm;
+
+    // Attitude to servo controllers
+    AP_RollController rollController{aparm};
+    AP_PitchController pitchController{aparm};
+    AP_YawController yawController{aparm};
+
     // all settable parameters
     Parameters g;
     ParametersG2 g2;
