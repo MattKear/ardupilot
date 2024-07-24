@@ -11,17 +11,6 @@ PA15  TIM2_CH1  TIM2 PWM(5) GPIO(54)
 # Beeper
 PA6   TIM16_CH1 TIM16 GPIO(32) ALARM
 
-# ----------------------- GPS ----------------------------
-define HAL_PERIPH_ENABLE_GPS
-define GPS_MAX_RATE_MS 200
-
-define GPS_MAX_RECEIVERS 1
-define GPS_MAX_INSTANCES 1
-
-define HAL_PERIPH_GPS_PORT_DEFAULT 2
-
-# allow for F9P GPS modules with moving baseline
-define GPS_MOVING_BASELINE 1
 
 
 # ---------------------- COMPASS ---------------------------
@@ -43,11 +32,7 @@ define HAL_BARO_ALLOW_INIT_NO_BARO
 BARO SPL06 I2C:0:0x76
 
 # ------------------ I2C airspeed -------------------------
-define HAL_PERIPH_ENABLE_AIRSPEED
 
-# MS4525 sensor by default
-define HAL_AIRSPEED_TYPE_DEFAULT 1
-define AIRSPEED_MAX_SENSORS 1
 
 # -------------------- MSP --------------------------------
 define HAL_PERIPH_ENABLE_MSP
@@ -79,3 +64,6 @@ define HAL_PERIPH_ENABLE_NOTIFY
 
 
 define HAL_SERIAL_ESC_COMM_ENABLED 1
+
+define AP_TEMPERATURE_SENSOR_ENABLED 1
+define HAL_PERIPH_ENABLE_DEVICE_TEMPERATURE 1
