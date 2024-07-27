@@ -1,7 +1,5 @@
 #include "AP_SurfaceDistance.h"
 
-#include <AP_RangeFinder/AP_RangeFinder.h>
-
 #ifndef RANGEFINDER_TIMEOUT_MS
  # define RANGEFINDER_TIMEOUT_MS 1000        // rangefinder filter reset if no updates from sensor in 1 second
 #endif
@@ -61,8 +59,10 @@ void AP_SurfaceDistance::update()
         status |= (uint8_t)Surface_Distance_Status::Enabled;
     }
 
+    last_rangefinder_status = rangefinder->status_orient(rotation);
+
     // update health
-    alt_healthy = (rangefinder->status_orient(rotation) == RangeFinder::Status::Good) &&
+    alt_healthy = (last_rangefinder_status == RangeFinder::Status::Good) &&
                             (rangefinder->range_valid_count_orient(rotation) >= RANGEFINDER_HEALTH_MIN);
     if (!alt_healthy) {
         status |= (uint8_t)Surface_Distance_Status::Unhealthy;
@@ -71,8 +71,10 @@ void AP_SurfaceDistance::update()
     // tilt corrected but unfiltered, not glitch protected alt
     alt_cm = tilt_correction * rangefinder->distance_cm_orient(rotation);
 
-    // remember inertial alt to allow us to interpolate rangefinder
-    inertial_alt_cm = inertial_nav.get_position_z_up_cm();
+    // remember inertial alt to allow us to interpolate rangefinder from the last healthy measurement
+    if (alt_healthy) {
+        inertial_alt_cm = inertial_nav.get_position_z_up_cm();
+    }
 
     // glitch handling.  rangefinder readings more than RANGEFINDER_GLITCH_ALT_CM from the last good reading
     // are considered a glitch and glitch_count becomes non-zero
@@ -134,15 +136,78 @@ void AP_SurfaceDistance::update()
   difference between the inertial height at that time and the current
   inertial height to give us interpolation of height from rangefinder
  */
-bool AP_SurfaceDistance::get_rangefinder_height_interpolated_cm(int32_t& ret) const
+bool AP_SurfaceDistance::get_rangefinder_height_interpolated_cm(int32_t& ret)
 {
-    if (!enabled_and_healthy()) {
+    WITH_SEMAPHORE(sem);
+
+    // We are allowing extrapolation from the last good rangefinder reading
+    // if it reports out of range high or out of range low
+    if (!enabled ||
+        last_rangefinder_status == RangeFinder::Status::NotConnected ||
+        last_rangefinder_status == RangeFinder::Status::NoData) {
         return false;
     }
+
     ret = alt_cm_filt.get();
     ret += inertial_nav.get_position_z_up_cm() - inertial_alt_cm;
     return true;
 }
+
+/*
+  return hagl measurement, using numerous sources to fail over to,
+  depending on source health. Priority: 1) inertially interpolated
+  rangefinder 2) terrain 3) height above home.
+  if we have previously received a healthy range finder measurement
+  we uses an offset for bumpless transfer to terrain database
+*/
+bool AP_SurfaceDistance::get_height_above_ground(float& hgt)
+{
+    // function only valid for instances associated with downward facing rangefinders
+    if (rotation != ROTATION_PITCH_270) {
+        return false;
+    }
+
+    int32_t height_above_ground_cm;
+    if (get_rangefinder_height_interpolated_cm(height_above_ground_cm)) {
+        last_interp_rngfind_hagl = height_above_ground_cm;
+        hgt = float(height_above_ground_cm) * 0.01;
+
+        // Remember that we have received a healthy rangefinder reading
+        if (enabled_and_healthy()) {
+            have_received_rangefinder = true;
+        }
+
+        return true;
+    }
+
+    Location current_loc;
+    if (!AP::ahrs().get_location(current_loc)) {
+        // the remaining methods rely on having a location, exit early if we did not get one
+        return false;
+    }
+
+    if (current_loc.get_alt_cm(Location::AltFrame::ABOVE_TERRAIN, height_above_ground_cm)) {
+
+        // apply offset for bumpless transfer if we have previously received a healthy rangefinder measurement
+        int32_t rangefinder_terrain_offset_cm = 0;
+        if (have_received_rangefinder) {
+            rangefinder_terrain_offset_cm = last_interp_rngfind_hagl - height_above_ground_cm;
+        }
+
+        hgt = float(height_above_ground_cm + rangefinder_terrain_offset_cm) * 0.01;
+        return true;
+    }
+
+    // assume the Earth is flat and get height above home
+    if (current_loc.get_alt_cm(Location::AltFrame::ABOVE_HOME, height_above_ground_cm)) {
+        hgt = float(height_above_ground_cm) * 0.01;
+        return true;
+    }
+
+    // We should not get this far, something is very wrong if we do
+    return false;
+}
+
 
 #if HAL_LOGGING_ENABLED
 void AP_SurfaceDistance::Log_Write(void) const

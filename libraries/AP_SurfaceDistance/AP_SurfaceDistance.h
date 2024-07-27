@@ -4,6 +4,7 @@
 #include <Filter/LowPassFilter.h>
 #include <AP_InertialNav/AP_InertialNav.h>
 #include <AP_HAL/Semaphores.h>
+#include <AP_RangeFinder/AP_RangeFinder.h>
 
 class AP_SurfaceDistance {
 public:
@@ -18,7 +19,10 @@ public:
     bool enabled_and_healthy(void) const;
 
     // get inertially interpolated rangefinder height
-    bool get_rangefinder_height_interpolated_cm(int32_t& ret) const;
+    bool get_rangefinder_height_interpolated_cm(int32_t& ret);
+
+    // return hagl measurement, using numerous sources to fail over to, depending on source health. Priority: 1) inertially interpolated rangefinder 2) terrain 3) height above home
+    bool get_height_above_ground(float& hgt);
 
     bool enabled;                          // not to be confused with rangefinder enabled, this state is to be set by the vehicle.
     bool alt_healthy;                      // true if we can trust the altitude from the rangefinder
@@ -41,6 +45,9 @@ private:
     const uint8_t instance;
     uint8_t status;
     uint32_t last_healthy_ms;
+    RangeFinder::Status last_rangefinder_status;  // keep track of the last received rangefinder state
+    int32_t last_interp_rngfind_hagl;             // last recorded hagl measurement from interpolated rangefinder measurement, used for bumpless transfer to terrain database
+    bool have_received_rangefinder;               // flag to know if we should apply bumpless transfer between rangefinder and terrain database
 
     const AP_InertialNav& inertial_nav;
     const Rotation rotation;
