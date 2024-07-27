@@ -18,6 +18,7 @@
 
 #include <AP_HAL/AP_HAL.h>
 #include <SITL/SITL.h>
+#include <GCS_MAVLink/GCS.h>
 
 /*
   constructor - registers instance at top RangeFinder driver
@@ -39,6 +40,8 @@ void AP_RangeFinder_SITL::update(void)
         state.status = RangeFinder::Status::NoData;
         return;
     }
+
+    gcs().send_named_float("rng_state", float(state.status));
 
     state.distance_m = MAX(0, dist);
     state.last_reading_ms = AP_HAL::millis();
