@@ -252,11 +252,11 @@ private:
     AP_Int8 *flight_modes;
     const uint8_t num_flight_modes = 6;
 
-    AP_SurfaceDistance rangefinder_state {ROTATION_PITCH_270, inertial_nav, 0U};
+    AP_SurfaceDistance ground_surface_state {ROTATION_PITCH_270, inertial_nav, 0U};
     AP_SurfaceDistance rangefinder_up_state {ROTATION_PITCH_90, inertial_nav, 1U};
 
     // helper function to get inertially interpolated rangefinder height.
-    bool get_rangefinder_height_interpolated_cm(int32_t& ret) const;
+    bool get_rangefinder_height_interpolated_cm(int32_t& ret);
 
 #if AP_RANGEFINDER_ENABLED
     class SurfaceTracking {

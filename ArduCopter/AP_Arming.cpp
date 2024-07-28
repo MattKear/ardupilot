@@ -258,7 +258,7 @@ bool AP_Arming_Copter::parameter_checks(bool display_failure)
                 break;
             case AC_WPNav::TerrainSource::TERRAIN_FROM_RANGEFINDER:
 #if AP_RANGEFINDER_ENABLED
-                if (!copter.rangefinder_state.enabled || !copter.rangefinder.has_orientation(ROTATION_PITCH_270)) {
+                if (!copter.ground_surface_state.enabled || !copter.rangefinder.has_orientation(ROTATION_PITCH_270)) {
                     check_failed(ARMING_CHECK_PARAMETERS, display_failure, failure_template, "no rangefinder");
                     return false;
                 }

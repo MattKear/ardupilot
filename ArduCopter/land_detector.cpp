@@ -115,7 +115,7 @@ void Copter::update_land_detector()
         bool descent_rate_low = fabsf(inertial_nav.get_velocity_z_up_cms()) < 100.0 * LAND_DETECTOR_VEL_Z_MAX * land_detector_scalar;
 
         // if we have a healthy rangefinder only allow landing detection below 2 meters
-        bool rangefinder_check = (!rangefinder_alt_ok() || rangefinder_state.alt_cm_filt.get() < LAND_RANGEFINDER_MIN_ALT_CM);
+        bool rangefinder_check = (!rangefinder_alt_ok() || ground_surface_state.alt_cm_filt.get() < LAND_RANGEFINDER_MIN_ALT_CM);
 
         // if we have weight on wheels (WoW) or ambiguous unknown. never no WoW
 #if AP_LANDINGGEAR_ENABLED

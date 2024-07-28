@@ -460,7 +460,7 @@ bool ModeZigZag::calculate_next_dest(Destination ab_dest, bool use_wpnav_alt, Ve
         if (terrain_alt) {
 #if AP_RANGEFINDER_ENABLED
             if (!copter.surface_tracking.get_target_alt_cm(next_dest.z)) {
-                next_dest.z = copter.rangefinder_state.alt_cm_filt.get();
+                next_dest.z = copter.ground_surface_state.alt_cm_filt.get();
             }
 #endif
         } else {
@@ -514,7 +514,7 @@ bool ModeZigZag::calculate_side_dest(Vector3f& next_dest, bool& terrain_alt) con
     if (terrain_alt) {
 #if AP_RANGEFINDER_ENABLED
         if (!copter.surface_tracking.get_target_alt_cm(next_dest.z)) {
-            next_dest.z = copter.rangefinder_state.alt_cm_filt.get();
+            next_dest.z = copter.ground_surface_state.alt_cm_filt.get();
         }
 #endif
     } else {

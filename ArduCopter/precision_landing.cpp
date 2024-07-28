@@ -14,7 +14,7 @@ void Copter::init_precland()
 void Copter::update_precland()
 {
     // alt will be unused if we pass false through as the second parameter:
-    return precland.update(rangefinder_state.alt_cm_glitch_protected,
+    return precland.update(ground_surface_state.alt_cm_glitch_protected,
                            rangefinder_alt_ok());
 }
 #endif

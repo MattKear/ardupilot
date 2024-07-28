@@ -638,7 +638,7 @@ void Mode::land_run_vertical_control(bool pause_descent)
     if (!pause_descent) {
 
         float hagl_cm = 0.0;
-        if (copter.rangefinder_state.get_height_above_ground(hagl_cm)) {
+        if (copter.ground_surface_state.get_height_above_ground(hagl_cm)) {
             hagl_cm *= 100.0; // m to cm
         }
 
@@ -776,7 +776,7 @@ void Mode::land_run_horizontal_control()
     Vector3f thrust_vector = pos_control->get_thrust_vector();
 
     float hagl;
-    if (!copter.rangefinder_state.get_height_above_ground(hagl)){
+    if (!copter.ground_surface_state.get_height_above_ground(hagl)){
         // something has gone very wrong if we dont have a height above
         // ground, best to assume zero though to force attitude limit below
         hagl = 0;

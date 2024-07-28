@@ -11,11 +11,11 @@ void Copter::SurfaceTracking::update_surface_offset()
     const bool timeout = (now_ms - last_update_ms) > SURFACE_TRACKING_TIMEOUT_MS;
 
     // check tracking state and that range finders are healthy
-    if (((surface == Surface::GROUND) && copter.rangefinder_alt_ok() && (copter.rangefinder_state.glitch_count == 0)) ||
+    if (((surface == Surface::GROUND) && copter.rangefinder_alt_ok() && (copter.ground_surface_state.glitch_count == 0)) ||
         ((surface == Surface::CEILING) && copter.rangefinder_up_ok() && (copter.rangefinder_up_state.glitch_count == 0))) {
 
         // Get the appropriate surface distance state, the terrain offset is calculated in the surface distance lib. 
-        AP_SurfaceDistance &rf_state = (surface == Surface::GROUND) ? copter.rangefinder_state : copter.rangefinder_up_state;
+        AP_SurfaceDistance &rf_state = (surface == Surface::GROUND) ? copter.ground_surface_state : copter.rangefinder_up_state;
 
         // update position controller target offset to the surface's alt above the EKF origin
         copter.pos_control->set_pos_offset_target_z_cm(rf_state.terrain_offset_cm);
@@ -85,7 +85,7 @@ bool Copter::SurfaceTracking::get_target_dist_for_logging(float &target_dist) co
 
 float Copter::SurfaceTracking::get_dist_for_logging() const
 {
-    return ((surface == Surface::CEILING) ? copter.rangefinder_up_state.alt_cm : copter.rangefinder_state.alt_cm) * 0.01f;
+    return ((surface == Surface::CEILING) ? copter.rangefinder_up_state.alt_cm : copter.ground_surface_state.alt_cm) * 0.01f;
 }
 
 // set direction

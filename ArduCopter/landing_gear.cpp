@@ -12,7 +12,7 @@ void Copter::landinggear_update()
 
     // support height based triggering using rangefinder or altitude above ground
     float height;
-    if (!rangefinder_state.get_height_above_ground(height)){
+    if (!ground_surface_state.get_height_above_ground(height)){
         // if something has gone wrong with hagl measurement, it is
         // safer to assume zero height and deploy the landing gear
         height = 0.0;
@@ -33,7 +33,7 @@ void Copter::landinggear_update()
     case RangeFinder::Status::OutOfRangeHigh:
     case RangeFinder::Status::Good:
         // use last good reading
-        height = rangefinder_state.alt_cm_filt.get()*0.01;
+        height = ground_surface_state.alt_cm_filt.get()*0.01;
         break;
     }
 #endif  // AP_RANGEFINDER_ENABLED

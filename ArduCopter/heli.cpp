@@ -43,7 +43,7 @@ void Copter::check_dynamic_flight(void)
     }
 
 #if AP_RANGEFINDER_ENABLED
-    if (!moving && rangefinder_state.enabled && rangefinder.status_orient(ROTATION_PITCH_270) == RangeFinder::Status::Good) {
+    if (!moving && ground_surface_state.enabled && rangefinder.status_orient(ROTATION_PITCH_270) == RangeFinder::Status::Good) {
         // when we are more than 2m from the ground with good
         // rangefinder lock consider it to be dynamic flight
         moving = (rangefinder.distance_cm_orient(ROTATION_PITCH_270) > 200);
@@ -195,7 +195,12 @@ void Copter::heli_update_autorotation()
         // Get height above ground. If using a healthy LiDaR below func will return an interpolated
         // distance based on inertial measurement. If LiDaR is unhealthy and terrain is available
         // we will get a terrain database estimate. Otherwise we will get height above home.
-        int32_t gnd_dist = flightmode->get_alt_above_ground_cm();
+        float gnd_dist;
+        if (!ground_surface_state.get_height_above_ground(gnd_dist)) {
+            // something has gone very wrong and we don't know our height above the ground.
+            // best thing we can do is assume a height of zero and trigger the flare and hope for the best
+            gnd_dist = 0.0;
+        }
 
         // set the height in the autorotation controller
         g2.arot.set_ground_distance(gnd_dist);
