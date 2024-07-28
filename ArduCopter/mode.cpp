@@ -631,34 +631,19 @@ void Mode::make_safe_ground_handling(bool force_throttle_unlimited)
     attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(0.0f, 0.0f, 0.0f);
 }
 
-/*
-  get a height above ground estimate for landing
- */
-int32_t Mode::get_alt_above_ground_cm(void)
-{
-    int32_t alt_above_ground_cm;
-    if (copter.get_rangefinder_height_interpolated_cm(alt_above_ground_cm)) {
-        return alt_above_ground_cm;
-    }
-    if (!pos_control->is_active_xy()) {
-        return copter.current_loc.alt;
-    }
-    if (copter.current_loc.get_alt_cm(Location::AltFrame::ABOVE_TERRAIN, alt_above_ground_cm)) {
-        return alt_above_ground_cm;
-    }
-
-    // Assume the Earth is flat:
-    return copter.current_loc.alt;
-}
-
 void Mode::land_run_vertical_control(bool pause_descent)
 {
     float cmb_rate = 0;
     bool ignore_descent_limit = false;
     if (!pause_descent) {
 
+        float hagl_cm = 0.0;
+        if (copter.rangefinder_state.get_height_above_ground(hagl_cm)) {
+            hagl_cm *= 100.0; // m to cm
+        }
+
         // do not ignore limits until we have slowed down for landing
-        ignore_descent_limit = (MAX(g2.land_alt_low,100) > get_alt_above_ground_cm()) || copter.ap.land_complete_maybe;
+        ignore_descent_limit = (MAX(g2.land_alt_low,100) > hagl_cm) || copter.ap.land_complete_maybe;
 
         float max_land_descent_velocity;
         if (g.land_speed_high > 0) {
@@ -671,7 +656,7 @@ void Mode::land_run_vertical_control(bool pause_descent)
         max_land_descent_velocity = MIN(max_land_descent_velocity, -abs(g.land_speed));
 
         // Compute a vertical velocity demand such that the vehicle approaches g2.land_alt_low. Without the below constraint, this would cause the vehicle to hover at g2.land_alt_low.
-        cmb_rate = sqrt_controller(MAX(g2.land_alt_low,100)-get_alt_above_ground_cm(), pos_control->get_pos_z_p().kP(), pos_control->get_max_accel_z_cmss(), G_Dt);
+        cmb_rate = sqrt_controller(MAX(g2.land_alt_low,100) - hagl_cm, pos_control->get_pos_z_p().kP(), pos_control->get_max_accel_z_cmss(), G_Dt);
 
         // Constrain the demanded vertical velocity so that it is between the configured maximum descent speed and the configured minimum descent speed.
         cmb_rate = constrain_float(cmb_rate, max_land_descent_velocity, -abs(g.land_speed));
@@ -790,6 +775,13 @@ void Mode::land_run_horizontal_control()
     pos_control->update_xy_controller();
     Vector3f thrust_vector = pos_control->get_thrust_vector();
 
+    float hagl;
+    if (!copter.rangefinder_state.get_height_above_ground(hagl)){
+        // something has gone very wrong if we dont have a height above
+        // ground, best to assume zero though to force attitude limit below
+        hagl = 0;
+    }
+
     if (g2.wp_navalt_min > 0) {
         // user has requested an altitude below which navigation
         // attitude is limited. This is used to prevent commanded roll
@@ -797,8 +789,8 @@ void Mode::land_run_horizontal_control()
         // there is any position estimate drift after touchdown. We
         // limit attitude to 7 degrees below this limit and linearly
         // interpolate for 1m above that
-        const float attitude_limit_cd = linear_interpolate(700, copter.aparm.angle_max, get_alt_above_ground_cm(),
-                                                     g2.wp_navalt_min*100U, (g2.wp_navalt_min+1)*100U);
+        const float attitude_limit_cd = linear_interpolate(700, copter.aparm.angle_max, hagl,
+                                                     g2.wp_navalt_min, (g2.wp_navalt_min+1.0));
         const float thrust_vector_max = sinf(radians(attitude_limit_cd * 0.01f)) * GRAVITY_MSS * 100.0f;
         const float thrust_vector_mag = thrust_vector.xy().length();
         if (thrust_vector_mag > thrust_vector_max) {

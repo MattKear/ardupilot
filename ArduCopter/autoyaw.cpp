@@ -361,12 +361,12 @@ void Mode::AutoYaw::update_weathervane(const int16_t pilot_yaw_cds)
         return;
     }
 
-    float yaw_rate_cds;
-    if (copter.g2.weathervane.get_yaw_out(yaw_rate_cds, pilot_yaw_cds, copter.flightmode->get_alt_above_ground_cm()*0.01,
-                                                                       copter.pos_control->get_roll_cd()-copter.attitude_control->get_roll_trim_cd(),
-                                                                       copter.pos_control->get_pitch_cd(),
-                                                                       copter.flightmode->is_taking_off(),
-                                                                       copter.flightmode->is_landing())) {
+    float yaw_rate_cds, hagl;
+    if (copter.rangefinder_state.get_height_above_ground(hagl) && copter.g2.weathervane.get_yaw_out(yaw_rate_cds, pilot_yaw_cds, hagl,
+                                                                                                    copter.pos_control->get_roll_cd()-copter.attitude_control->get_roll_trim_cd(),
+                                                                                                    copter.pos_control->get_pitch_cd(),
+                                                                                                    copter.flightmode->is_taking_off(),
+                                                                                                    copter.flightmode->is_landing())) {
         set_mode(Mode::WEATHERVANE);
         _yaw_rate_cds = yaw_rate_cds;
         return;
