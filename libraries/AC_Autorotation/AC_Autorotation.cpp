@@ -616,6 +616,8 @@ void AC_Autorotation::Log_Write_Autorotation(void) const
                                 _avg_acc_z,
                                 _desired_sink_rate,
                                 (_hagl*0.01f));
+
+    gcs().send_named_float("AROT_HAGL", _hagl);
 }
 #endif  // HAL_LOGGING_ENABLED
 
