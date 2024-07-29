@@ -5334,11 +5334,11 @@ class AutoTest(ABC):
 
         if m.current_distance/100 < dist_min:
             raise NotAchievedException("below min height (%f < %f)" %
-                                       (m.distance, dist_min))
+                                       (m.current_distance, dist_min))
 
         if m.current_distance/100 > dist_max:
             raise NotAchievedException("above max height (%f > %f)" %
-                                       (m.distance, dist_max))
+                                       (m.current_distance, dist_max))
 
     def assert_distance_sensor_quality(self, quality):
         m = self.assert_receive_message('DISTANCE_SENSOR')
