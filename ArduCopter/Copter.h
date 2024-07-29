@@ -685,7 +685,7 @@ private:
     void nav_script_time_done(uint16_t id) override;
 #endif // AP_SCRIPTING_ENABLED
     void ccdl_failover_check();
-    void ccdl_failover_send();
+    void ccdl_failover_send() override;
     void vote_fcu(FCU_Vote vote);
     FCU_Vote vote_failover();
     void rc_loop();

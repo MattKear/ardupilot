@@ -297,6 +297,8 @@ public:
     // get standby status
     virtual bool get_standby() const { return false; }
 
+    virtual void ccdl_failover_send() { };
+
 protected:
 
     virtual void init_ardupilot() = 0;

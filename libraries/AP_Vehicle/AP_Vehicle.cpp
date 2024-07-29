@@ -358,6 +358,7 @@ void AP_Vehicle::scheduler_delay_callback()
         last_50hz = tnow;
         gcs().update_receive();
         gcs().update_send();
+        _singleton->ccdl_failover_send();
         _singleton->notify.update();
     }
     if (tnow - last_5s > 5000) {
