@@ -869,13 +869,14 @@ bool AP_Arming_Copter::arm(const AP_Arming::Method method, const bool do_arming_
         in_arm_motors = false;
         return true;
     }
-
+    gcs().update_receive();
     copter.ccdl_failover_send();  // send before arm checks to ensure arming loop zero the other fcu timeout
     if (!AP_Arming::arm(method, do_arming_checks)) {
         AP_Notify::events.arming_failed = true;
         in_arm_motors = false;
         return false;
     }
+    gcs().update_receive();
     copter.ccdl_failover_send();  // send directly after arming check to ensure it is sent before logging starts
     // let logger know that we're armed (it may open logs e.g.)
     AP::logger().set_vehicle_armed(true);
@@ -889,6 +890,7 @@ bool AP_Arming_Copter::arm(const AP_Arming::Method method, const bool do_arming_
     for (uint8_t i=0; i<=10; i++) {
         AP::notify().update();
     }
+    gcs().update_receive();
     copter.ccdl_failover_send();  // send after logging should have started
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
     gcs().send_text(MAV_SEVERITY_INFO, "Arming motors");
@@ -918,6 +920,7 @@ bool AP_Arming_Copter::arm(const AP_Arming::Method method, const bool do_arming_
         // remember the height when we armed
         copter.arming_altitude_m = copter.inertial_nav.get_position_z_up_cm() * 0.01;
     }
+    gcs().update_receive();
     copter.ccdl_failover_send();  // send after home is set or reset
     copter.update_super_simple_bearing(false);
 
