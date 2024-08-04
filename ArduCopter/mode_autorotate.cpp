@@ -24,15 +24,16 @@ bool ModeAutorotate::init(bool ignore_checks)
     return false;
 #endif
 
-    // Check that mode is enabled
+    // Check that mode is enabled, make sure this is the first check as this is the most
+    // important thing for users to fix if they are planning to use autorotation mode
     if (!g2.arot.is_enable()) {
-        gcs().send_text(MAV_SEVERITY_INFO, "Autorot Mode Not Enabled");
+        gcs().send_text(MAV_SEVERITY_WARNING, "Autorot Mode Not Enabled");
         return false;
     }
 
-    // Check that interlock is disengaged
-    if (motors->get_interlock()) {
-        gcs().send_text(MAV_SEVERITY_INFO, "Autorot Mode Change Fail: Interlock Engaged");
+    // Must be armed to use mode, prevent triggering state machine on the ground
+    if (!motors->armed() || copter.ap.land_complete || copter.ap.land_complete_maybe) {
+        gcs().send_text(MAV_SEVERITY_WARNING, "Autorot: Must be Armed and Flying");
         return false;
     }
 
@@ -74,14 +75,6 @@ bool ModeAutorotate::init(bool ignore_checks)
 
 void ModeAutorotate::run()
 {
-    // Check if interlock becomes engaged
-    if (motors->get_interlock() && !copter.ap.land_complete) {
-        phase_switch = Autorotation_Phase::BAIL_OUT;
-    } else if (motors->get_interlock() && copter.ap.land_complete) {
-        // Aircraft is landed and no need to bail out
-        set_mode(copter.prev_control_mode, ModeReason::AUTOROTATION_BAILOUT);
-    }
-
     // Current time
     uint32_t now = millis(); //milliseconds
 

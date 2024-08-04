@@ -295,6 +295,7 @@ bool Copter::set_mode(Mode::Number mode, ModeReason reason)
     if (!ignore_checks && !new_flightmode->has_manual_throttle() &&
         (motors->get_spool_state() == AP_Motors::SpoolState::SPOOLING_UP || motors->get_spool_state() == AP_Motors::SpoolState::SPOOLING_DOWN)) {
         #if MODE_AUTOROTATE_ENABLED == ENABLED
+            // TODO: re-asses this logic. not sure this is sensible.
             //if the mode being exited is the autorotation mode allow mode change despite rotor not being at
             //full speed.  This will reduce altitude loss on bail-outs back to non-manual throttle modes
             bool in_autorotation_check = (flightmode != &mode_autorotate || new_flightmode != &mode_autorotate);
