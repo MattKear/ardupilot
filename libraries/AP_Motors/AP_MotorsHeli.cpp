@@ -606,7 +606,7 @@ void AP_MotorsHeli::set_rotor_runup_complete(bool new_value)
 #if HAL_LOGGING_ENABLED
     if (!_heliflags.rotor_runup_complete && new_value) {
         LOGGER_WRITE_EVENT(LogEvent::ROTOR_RUNUP_COMPLETE);
-    } else if (_heliflags.rotor_runup_complete && !new_value && !_heliflags.in_autorotation) {
+    } else if (_heliflags.rotor_runup_complete && !new_value && !_main_rotor.in_autorotation()) {
         LOGGER_WRITE_EVENT(LogEvent::ROTOR_SPEED_BELOW_CRITICAL);
     }
 #endif
