@@ -474,7 +474,7 @@ void AP_MotorsHeli_RSC::update_rotor_runup(float dt)
         _runup_complete = false;
     }
     // if rotor estimated speed is zero, then spooldown has been completed
-    if (get_rotor_speed() <= 0.0f) {
+    if (_rotor_runup_output <= 0.0f) {
         _spooldown_complete = true;
     } else {
         _spooldown_complete = false;
@@ -484,13 +484,6 @@ void AP_MotorsHeli_RSC::update_rotor_runup(float dt)
     if ((autorotation.state == Autorotation::State::BAILING_OUT) && _runup_complete) {
         autorotation.set_state(Autorotation::State::DEACTIVATED);
     }
-}
-
-// get_rotor_speed - gets rotor speed either as an estimate, or (ToDO) a measured value
-float AP_MotorsHeli_RSC::get_rotor_speed() const
-{
-    // if no actual measured rotor speed is available, estimate speed based on rotor runup scalar.
-    return _rotor_runup_output;
 }
 
 // write_rsc - outputs pwm onto output rsc channel
@@ -614,6 +607,34 @@ void AP_MotorsHeli_RSC::governor_reset()
     _governor_engage = false;
     _governor_fault_count = 0;   // reset fault count when governor reset
 }
+
+#if HAL_LOGGING_ENABLED
+// Write a helicopter motors packet
+void AP_MotorsHeli_RSC::write_log(void) const
+{
+    // @LoggerMessage: HRSC
+    // @Description: Helicopter related messages 
+    // @Field: I: Instance, 0=Main, 1=Tail
+    // @Field: TimeUS: Time since system startup
+    // @Field: DRRPM: Desired rotor speed
+    // @Field: ERRPM: Estimated rotor speed
+    // @Field: Gov: Governor Output
+    // @Field: Throt: Throttle output
+
+    // Write to data flash log
+    AP::logger().WriteStreaming("HRSC",
+                        "TimeUS,I,DRRPM,ERRPM,Gov,Throt",
+                        "s#----",
+                        "F-----",
+                        "QBffff",
+                        AP_HAL::micros64(),
+                        _instance,
+                        get_desired_speed(),
+                        _rotor_runup_output,
+                        _governor_output,
+                        get_control_output());
+}
+#endif
 
 // helper for external sources to request changes in autorotation state
 void AP_MotorsHeli_RSC::set_autorotation_active(bool tf)
