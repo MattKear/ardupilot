@@ -450,11 +450,6 @@ void AP_MotorsHeli_RSC::update_rotor_runup(float dt)
             _rotor_runup_output = _rotor_ramp_output;
         }
     }
-    // if in autorotation, don't let rotor_runup_output go less than critical speed to keep
-    // runup complete flag from being set to false
-    if (in_autorotation() && !rotor_speed_above_critical()) {
-        _rotor_runup_output = get_critical_speed();
-    }
 
     // update run-up complete flag
 
@@ -480,10 +475,10 @@ void AP_MotorsHeli_RSC::update_rotor_runup(float dt)
         _spooldown_complete = false;
     }
 
-    // manage exit from BAILING_OUT to DEACTIVATED if we are exiting the autorotation
-    if ((autorotation.state == Autorotation::State::BAILING_OUT) && _runup_complete) {
-        autorotation.set_state(Autorotation::State::DEACTIVATED);
-    }
+    // // manage exit from BAILING_OUT to DEACTIVATED if we are exiting the autorotation
+    // if ((autorotation.state == Autorotation::State::BAILING_OUT) && _runup_complete) {
+    //     autorotation.set_state(Autorotation::State::DEACTIVATED);
+    // }
 }
 
 // write_rsc - outputs pwm onto output rsc channel
@@ -620,19 +615,22 @@ void AP_MotorsHeli_RSC::write_log(void) const
     // @Field: ERRPM: Estimated rotor speed
     // @Field: Gov: Governor Output
     // @Field: Throt: Throttle output
+    // @Field: ramp: throttle ramp up
 
     // Write to data flash log
     AP::logger().WriteStreaming("HRSC",
-                        "TimeUS,I,DRRPM,ERRPM,Gov,Throt",
-                        "s#----",
-                        "F-----",
-                        "QBffff",
+                        "TimeUS,I,DRRPM,ERRPM,Gov,Throt,ramp,c",
+                        "s#------",
+                        "F-------",
+                        "QBffffff",
                         AP_HAL::micros64(),
                         _instance,
                         get_desired_speed(),
                         _rotor_runup_output,
                         _governor_output,
-                        get_control_output());
+                        get_control_output(),
+                        _rotor_ramp_output,
+                        float(_runup_complete));
 }
 #endif
 
@@ -662,6 +660,11 @@ void AP_MotorsHeli_RSC::Autorotation::set_state(State desired_state)
     // set the bailout case if deactivated has just been requested
     if ((state == State::ACTIVE) && (desired_state == State::DEACTIVATED)) {
         desired_state = State::BAILING_OUT;
+    }
+
+    // manage exit from BAILING_OUT to DEACTIVATED if we are exiting the autorotation
+    if ((state == Autorotation::State::BAILING_OUT) && AP_MotorsHeli_RSC::_runup_complete) {
+        desired_state = Autorotation::State::DEACTIVATED;
     }
 
     // handle GCS messages
