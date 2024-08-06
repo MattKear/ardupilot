@@ -59,6 +59,7 @@ import argparse
 import array
 import base64
 import binascii
+import copy
 import json
 import os
 import platform
@@ -67,12 +68,17 @@ import struct
 import sys
 import time
 import zlib
+import socket
 from sys import platform as _platform
+from typing import Optional
 
+from pymavlink import mavutil
 import serial
 import logging
 
 logging.basicConfig(level=logging.DEBUG, format='[uploader.py]: [%(levelname)s]: %(message)s')
+
+os.environ['MAVLINK20'] = '1'
 
 is_WSL = bool("Microsoft" in platform.uname()[2])
 is_WSL2 = bool("microsoft-standard-WSL2" in platform.release())
@@ -157,14 +163,14 @@ def crc32(bytes, state=0):
     return state
 
 
-class firmware(object):
-    '''Loads a firmware file'''
+class Firmware(object):
+    '''Loads a Firmware file'''
 
     desc = {}
     image = bytes()
     crcpad = bytearray(b'\xff\xff\xff\xff')
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
 
         # read the file
         f = open(path, "r")
@@ -173,7 +179,7 @@ class firmware(object):
 
         self.image = bytearray(zlib.decompress(base64.b64decode(self.desc['image'])))
         if 'extf_image' in self.desc:
-            self.extf_image = bytearray(zlib.decompress(base64.b64decode(self.desc['extf_image'])))
+            self.extf_image: Optional[bytearray] = bytearray(zlib.decompress(base64.b64decode(self.desc['extf_image'])))
         else:
             self.extf_image = None
         # pad image to 4-byte length
@@ -200,8 +206,8 @@ class firmware(object):
         return state
 
 
-class uploader(object):
-    '''Uploads a firmware file to the PX FMU bootloader'''
+class Uploader(object):
+    '''Uploads a Firmware file to the PX FMU bootloader'''
 
     # protocol bytes
     INSYNC          = b'\x12'
@@ -264,18 +270,22 @@ class uploader(object):
                  source_system=None,
                  source_component=None,
                  no_extf=False,
-                 force_erase=False):
-        self.MAVLINK_REBOOT_ID1 = bytearray(b'\xfe\x21\x72\xff\x00\x4c\x00\x00\x40\x40\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xf6\x00\x01\x00\x00\x53\x6b')  # NOQA
-        self.MAVLINK_REBOOT_ID0 = bytearray(b'\xfe\x21\x45\xff\x00\x4c\x00\x00\x40\x40\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xf6\x00\x00\x00\x00\xcc\x37')  # NOQA
+                 force_erase=False) -> None:
+        self.MAVLINK_REBOOT_ID1: Optional[bytearray] = bytearray(b'\xfe\x21\x72\xff\x00\x4c\x00\x00\x40\x40\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xf6\x00\x01\x00\x00\x53\x6b')  # NOQA
+        self.MAVLINK_REBOOT_ID0: Optional[bytearray] = bytearray(b'\xfe\x21\x45\xff\x00\x4c\x00\x00\x40\x40\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xf6\x00\x00\x00\x00\xcc\x37')  # NOQA
+        self.target_system = target_system
         if target_component is None:
             target_component = 1
+        self.target_component = target_component
         if source_system is None:
             source_system = 255
+        self.source_system = source_system
         if source_component is None:
             source_component = 1
+        self.source_component = source_component
         self.no_extf = no_extf
         self.force_erase = force_erase
-
+        self.portname = portname
         # open the port, keep the default timeout short so we can poll quickly
         self.port = serial.Serial(portname, baudrate_bootloader, timeout=2.0, write_timeout=2.0)
         self.baudrate_bootloader = baudrate_bootloader
@@ -287,7 +297,6 @@ class uploader(object):
         self.baudrate_flightstack_idx = -1
         # generate mavlink reboot message:
         if target_system is not None:
-            from pymavlink import mavutil
             m = mavutil.mavlink.MAVLink_command_long_message(
                 target_system,
                 target_component,
@@ -312,16 +321,16 @@ class uploader(object):
             m = mavutil.mavlink.MAVLink_param_set_message(target_system, target_component, "SERIAL4_PROTOCOL".encode('ascii'), -1.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
             self.MAVLINK_STOP_SR4_CCDL = m.pack(mav)
             logging.info(f"Uploader created : baudrate_bootloader: {baudrate_bootloader},"
-                  f" baudrate_flightstack: {baudrate_flightstack},"
-                  f" baudrate_bootloader_flash: {self.baudrate_bootloader_flash},"
-                  f" target_system: {target_system},"
-                  f" source_system: {source_system}")
+                         f" baudrate_flightstack: {baudrate_flightstack},"
+                         f" baudrate_bootloader_flash: {self.baudrate_bootloader_flash},"
+                         f" target_system: {target_system},"
+                         f" source_system: {source_system}")
 
-    def close(self):
+    def close(self) -> None:
         if self.port is not None:
             self.port.close()
 
-    def open(self):
+    def open(self) -> None:
         timeout = time.time() + 0.2
 
         # Attempt to open the port while it exists and until timeout occurs
@@ -346,7 +355,7 @@ class uploader(object):
                 logging.info(f"Port open ? {portopen}")
                 break
 
-    def __send(self, c):
+    def __send(self, c) -> None:
         self.port.write(c)
 
     def __recv(self, count=1):
@@ -366,11 +375,11 @@ class uploader(object):
         val = struct.unpack("<B", raw)
         return val[0]
 
-    def __getSync(self):
+    def __getSync(self) -> None:
         self.port.flush()
         c = bytes(self.__recv())
         if c != self.INSYNC:
-            raise RuntimeError("unexpected %s instead of INSYNC" % c)
+            raise RuntimeError(f"unexpected {c!r} instead of INSYNC")
         c = self.__recv()
         if c == self.INVALID:
             raise RuntimeError("bootloader reports INVALID OPERATION")
@@ -380,22 +389,22 @@ class uploader(object):
             raise RuntimeError("unexpected response 0x%x instead of OK" % ord(c))
 
     # attempt to get back into sync with the bootloader
-    def __sync(self):
+    def __sync(self) -> None:
         # send a stream of ignored bytes longer than the longest possible conversation
         # that we might still have in progress
         self.port.flushInput()
         self.port.flushOutput()
-        self.__send(uploader.NOP * (uploader.PROG_MULTI_MAX + 2))
+        self.__send(Uploader.NOP * (Uploader.PROG_MULTI_MAX + 2))
         self.port.flushInput()
         self.port.flushOutput()
-        self.__send(uploader.GET_SYNC +
-                    uploader.EOC)
+        self.__send(Uploader.GET_SYNC +
+                    Uploader.EOC)
         self.__getSync()
-        self.__send(uploader.GET_SYNC +
-                    uploader.EOC)
+        self.__send(Uploader.GET_SYNC +
+                    Uploader.EOC)
         self.__getSync()
 
-    def __trySync(self):
+    def __trySync(self) -> bool:
         try:
             self.port.flush()
             if (self.__recv() != self.INSYNC):
@@ -418,7 +427,7 @@ class uploader(object):
 
     # send the GET_DEVICE command and wait for an info parameter
     def __getInfo(self, param):
-        self.__send(uploader.GET_DEVICE + param + uploader.EOC)
+        self.__send(Uploader.GET_DEVICE + param + Uploader.EOC)
         value = self.__recv_int()
         self.__getSync()
         return value
@@ -426,7 +435,7 @@ class uploader(object):
     # send the GET_OTP command and wait for an info parameter
     def __getOTP(self, param):
         t = struct.pack("I", param)  # int param as 32bit ( 4 byte ) char array.
-        self.__send(uploader.GET_OTP + t + uploader.EOC)
+        self.__send(Uploader.GET_OTP + t + Uploader.EOC)
         value = self.__recv(4)
         self.__getSync()
         return value
@@ -434,21 +443,21 @@ class uploader(object):
     # send the GET_SN command and wait for an info parameter
     def __getSN(self, param):
         t = struct.pack("I", param)  # int param as 32bit ( 4 byte ) char array.
-        self.__send(uploader.GET_SN + t + uploader.EOC)
+        self.__send(Uploader.GET_SN + t + Uploader.EOC)
         value = self.__recv(4)
         self.__getSync()
         return value
 
     # send the GET_CHIP command
     def __getCHIP(self):
-        self.__send(uploader.GET_CHIP + uploader.EOC)
+        self.__send(Uploader.GET_CHIP + Uploader.EOC)
         value = self.__recv_int()
         self.__getSync()
         return value
 
     # send the GET_CHIP command
     def __getCHIPDes(self):
-        self.__send(uploader.GET_CHIP_DES + uploader.EOC)
+        self.__send(Uploader.GET_CHIP_DES + Uploader.EOC)
         length = self.__recv_int()
         value = self.__recv(length)
         self.__getSync()
@@ -457,7 +466,7 @@ class uploader(object):
         peices = value.split(",")
         return peices
 
-    def __drawProgressBar(self, label, progress, maxVal):
+    def __drawProgressBar(self, label, progress, maxVal) -> None:
         if maxVal < progress:
             progress = maxVal
 
@@ -467,15 +476,15 @@ class uploader(object):
         sys.stdout.flush()
 
     # send the CHIP_ERASE command and wait for the bootloader to become ready
-    def __erase(self, label):
+    def __erase(self, label) -> None:
         print("\n", end='')
         if self.force_erase:
             print("Force erasing full chip\n")
-            self.__send(uploader.CHIP_FULL_ERASE +
-                        uploader.EOC)
+            self.__send(Uploader.CHIP_FULL_ERASE +
+                        Uploader.EOC)
         else:
-            self.__send(uploader.CHIP_ERASE +
-                    uploader.EOC)
+            self.__send(Uploader.CHIP_ERASE +
+                        Uploader.EOC)
 
         # erase is very slow, give it 20s
         timeout = 20.0
@@ -498,44 +507,44 @@ class uploader(object):
         raise RuntimeError("timed out waiting for erase")
 
     # send a PROG_MULTI command to write a collection of bytes
-    def __program_multi(self, data):
+    def __program_multi(self, data) -> None:
 
         if runningPython3:
             length = len(data).to_bytes(1, byteorder='big')
         else:
             length = chr(len(data))
 
-        self.__send(uploader.PROG_MULTI)
+        self.__send(Uploader.PROG_MULTI)
         self.__send(length)
         self.__send(data)
-        self.__send(uploader.EOC)
+        self.__send(Uploader.EOC)
         self.__getSync()
 
     # send a PROG_EXTF_MULTI command to write a collection of bytes to external flash
-    def __program_multi_extf(self, data):
+    def __program_multi_extf(self, data) -> None:
 
         if runningPython3:
             length = len(data).to_bytes(1, byteorder='big')
         else:
             length = chr(len(data))
 
-        self.__send(uploader.EXTF_PROG_MULTI)
+        self.__send(Uploader.EXTF_PROG_MULTI)
         self.__send(length)
         self.__send(data)
-        self.__send(uploader.EOC)
+        self.__send(Uploader.EOC)
         self.__getSync()
 
     # verify multiple bytes in flash
-    def __verify_multi(self, data):
+    def __verify_multi(self, data) -> bool:
 
         if runningPython3:
             length = len(data).to_bytes(1, byteorder='big')
         else:
             length = chr(len(data))
 
-        self.__send(uploader.READ_MULTI)
+        self.__send(Uploader.READ_MULTI)
         self.__send(length)
-        self.__send(uploader.EOC)
+        self.__send(Uploader.EOC)
         self.port.flush()
         programmed = self.__recv(len(data))
         if programmed != data:
@@ -553,18 +562,18 @@ class uploader(object):
         else:
             clength = chr(length)
 
-        self.__send(uploader.READ_MULTI)
+        self.__send(Uploader.READ_MULTI)
         self.__send(clength)
-        self.__send(uploader.EOC)
+        self.__send(Uploader.EOC)
         self.port.flush()
         ret = self.__recv(length)
         self.__getSync()
         return ret
 
     # send the reboot command
-    def __reboot(self):
-        self.__send(uploader.REBOOT +
-                    uploader.EOC)
+    def __reboot(self) -> None:
+        self.__send(Uploader.REBOOT +
+                    Uploader.EOC)
         self.port.flush()
 
         # v3+ can report failure if the first word flash fails
@@ -576,10 +585,10 @@ class uploader(object):
         return [seq[i:i+length] for i in range(0, len(seq), length)]
 
     # upload code
-    def __program(self, label, fw):
+    def __program(self, label, fw) -> None:
         print("\n", end='')
         code = fw.image
-        groups = self.__split_len(code, uploader.PROG_MULTI_MAX)
+        groups = self.__split_len(code, Uploader.PROG_MULTI_MAX)
 
         uploadProgress = 0
         for bytes in groups:
@@ -592,12 +601,12 @@ class uploader(object):
         self.__drawProgressBar(label, 100, 100)
 
     # download code
-    def __download(self, label, fw):
+    def __download(self, label, fw) -> None:
         print("\n", end='')
         f = open(fw, 'wb')
 
         downloadProgress = 0
-        readsize = uploader.READ_MULTI_MAX
+        readsize = Uploader.READ_MULTI_MAX
         total = 0
         while True:
             n = min(self.fw_maxsize - total, readsize)
@@ -616,13 +625,13 @@ class uploader(object):
         logging.info("\nReceived %u bytes to %s" % (total, fw))
 
     # verify code
-    def __verify_v2(self, label, fw):
+    def __verify_v2(self, label, fw) -> None:
         print("\n", end='')
-        self.__send(uploader.CHIP_VERIFY +
-                    uploader.EOC)
+        self.__send(Uploader.CHIP_VERIFY +
+                    Uploader.EOC)
         self.__getSync()
         code = fw.image
-        groups = self.__split_len(code, uploader.READ_MULTI_MAX)
+        groups = self.__split_len(code, Uploader.READ_MULTI_MAX)
         verifyProgress = 0
         for bytes in groups:
             verifyProgress += 1
@@ -632,12 +641,12 @@ class uploader(object):
                 raise RuntimeError("Verification failed")
         self.__drawProgressBar(label, 100, 100)
 
-    def __verify_v3(self, label, fw):
+    def __verify_v3(self, label, fw) -> None:
         print("\n", end='')
         self.__drawProgressBar(label, 1, 100)
         expect_crc = fw.crc(self.fw_maxsize)
-        self.__send(uploader.GET_CRC +
-                    uploader.EOC)
+        self.__send(Uploader.GET_CRC +
+                    Uploader.EOC)
         report_crc = self.__recv_int()
         self.__getSync()
         if report_crc != expect_crc:
@@ -646,24 +655,24 @@ class uploader(object):
             raise RuntimeError("Program CRC failed")
         self.__drawProgressBar(label, 100, 100)
 
-    def __set_boot_delay(self, boot_delay):
-        self.__send(uploader.SET_BOOT_DELAY +
+    def __set_boot_delay(self, boot_delay) -> None:
+        self.__send(Uploader.SET_BOOT_DELAY +
                     struct.pack("b", boot_delay) +
-                    uploader.EOC)
+                    Uploader.EOC)
         self.__getSync()
 
-    def __setbaud(self, baud):
-        self.__send(uploader.SET_BAUD +
+    def __setbaud(self, baud) -> None:
+        self.__send(Uploader.SET_BAUD +
                     struct.pack("I", baud) +
-                    uploader.EOC)
+                    Uploader.EOC)
         self.__getSync()
 
-    def erase_extflash(self, label, size):
+    def erase_extflash(self, label, size) -> None:
         if runningPython3:
             size_bytes = size.to_bytes(4, byteorder='little')
         else:
             size_bytes = chr(size)
-        self.__send(uploader.EXTF_ERASE + size_bytes + uploader.EOC)
+        self.__send(Uploader.EXTF_ERASE + size_bytes + Uploader.EOC)
         self.__getSync()
         last_pct = 0
         while True:
@@ -676,10 +685,10 @@ class uploader(object):
                 self.__drawProgressBar(label, 10.0, 10.0)
                 return
 
-    def __program_extf(self, label, fw):
+    def __program_extf(self, label, fw) -> None:
         print("\n", end='')
         code = fw.extf_image
-        groups = self.__split_len(code, uploader.PROG_MULTI_MAX)
+        groups = self.__split_len(code, Uploader.PROG_MULTI_MAX)
 
         uploadProgress = 0
         for bytes in groups:
@@ -691,7 +700,7 @@ class uploader(object):
                 self.__drawProgressBar(label, uploadProgress, len(groups))
         self.__drawProgressBar(label, 100, 100)
 
-    def __verify_extf(self, label, fw, size):
+    def __verify_extf(self, label, fw, size) -> None:
         if runningPython3:
             size_bytes = size.to_bytes(4, byteorder='little')
         else:
@@ -699,8 +708,8 @@ class uploader(object):
         print("\n", end='')
         self.__drawProgressBar(label, 1, 100)
         expect_crc = fw.extf_crc(size)
-        self.__send(uploader.EXTF_GET_CRC +
-                    size_bytes + uploader.EOC)
+        self.__send(Uploader.EXTF_GET_CRC +
+                    size_bytes + Uploader.EOC)
 
         # crc can be slow, give it 10s
         deadline = time.time() + 10.0
@@ -732,13 +741,13 @@ class uploader(object):
         self.__drawProgressBar(label, 100, 100)
 
     # get basic data about the board
-    def identify(self):
+    def identify(self) -> None:
         # make sure we are in sync before starting
         self.__sync()
 
         # get the bootloader protocol ID first
-        self.bl_rev = self.__getInfo(uploader.INFO_BL_REV)
-        if (self.bl_rev < uploader.BL_REV_MIN) or (self.bl_rev > uploader.BL_REV_MAX):
+        self.bl_rev = self.__getInfo(Uploader.INFO_BL_REV)
+        if (self.bl_rev < Uploader.BL_REV_MIN) or (self.bl_rev > Uploader.BL_REV_MAX):
             logging.error("Unsupported bootloader protocol %d" % self.bl_rev)
             raise RuntimeError("Bootloader protocol mismatch")
 
@@ -746,17 +755,17 @@ class uploader(object):
             self.extf_maxsize = 0
         else:
             try:
-                self.extf_maxsize = self.__getInfo(uploader.INFO_EXTF_SIZE)
+                self.extf_maxsize = self.__getInfo(Uploader.INFO_EXTF_SIZE)
             except Exception:
                 logging.error("Could not get external flash size, assuming 0")
                 self.extf_maxsize = 0
                 self.__sync()
 
-        self.board_type = self.__getInfo(uploader.INFO_BOARD_ID)
-        self.board_rev = self.__getInfo(uploader.INFO_BOARD_REV)
-        self.fw_maxsize = self.__getInfo(uploader.INFO_FLASH_SIZE)
+        self.board_type = self.__getInfo(Uploader.INFO_BOARD_ID)
+        self.board_rev = self.__getInfo(Uploader.INFO_BOARD_REV)
+        self.fw_maxsize = self.__getInfo(Uploader.INFO_FLASH_SIZE)
 
-    def dump_board_info(self):
+    def dump_board_info(self) -> None:
         # OTP added in v4:
         logging.info("Bootloader Protocol: %u" % self.bl_rev)
         if self.bl_rev > 3:
@@ -836,7 +845,7 @@ class uploader(object):
                     (label, flawed) = revs[rev]
                     if flawed and family == 0x419:
                         logging.info("  %x %s rev%s (flawed; 1M limit, see STM32F42XX Errata sheet sec. 2.1.10)" %
-                              (chip, mcu, label,))
+                                     (chip, mcu, label,))
                     elif family == 0x419:
                         logging.info("  %x %s rev%s (no 1M flaw)" % (chip, mcu, label,))
                     else:
@@ -902,7 +911,7 @@ class uploader(object):
         return None
 
     # upload the firmware
-    def upload(self, fw, force=False, boot_delay=None):
+    def upload(self, fw, force=False, boot_delay=None) -> None:
         # Make sure we are doing the right thing
         if self.board_type != fw.property('board_id'):
             # ID mismatch: check compatibility
@@ -960,7 +969,7 @@ class uploader(object):
         self.__reboot()
         self.port.close()
 
-    def __next_baud_flightstack(self):
+    def __next_baud_flightstack(self) -> bool:
         self.baudrate_flightstack_idx = self.baudrate_flightstack_idx + 1
         if self.baudrate_flightstack_idx >= len(self.baudrate_flightstack):
             return False
@@ -972,7 +981,7 @@ class uploader(object):
 
         return True
 
-    def send_reboot(self):
+    def send_reboot(self) -> bool:
         if (not self.__next_baud_flightstack()):
             return False
 
@@ -995,10 +1004,10 @@ class uploader(object):
             if self.MAVLINK_REBOOT_ID0 is not None:
                 self.__send(self.MAVLINK_REBOOT_ID0)
             # then try reboot via NSH
-            self.__send(uploader.NSH_INIT)
-            self.__send(uploader.NSH_REBOOT_BL)
-            self.__send(uploader.NSH_INIT)
-            self.__send(uploader.NSH_REBOOT)
+            self.__send(Uploader.NSH_INIT)
+            self.__send(Uploader.NSH_REBOOT_BL)
+            self.__send(Uploader.NSH_INIT)
+            self.__send(Uploader.NSH_REBOOT)
             self.port.flush()
             self.port.baudrate = self.baudrate_bootloader
         except Exception:
@@ -1011,7 +1020,7 @@ class uploader(object):
         return True
 
     # upload the firmware
-    def download(self, fw):
+    def download(self, fw) -> None:
         if self.baudrate_bootloader_flash != self.baudrate_bootloader:
             logging.info("Setting baudrate to %u" % self.baudrate_bootloader_flash)
             self.__setbaud(self.baudrate_bootloader_flash)
@@ -1020,6 +1029,29 @@ class uploader(object):
 
         self.__download("Download", fw)
         self.port.close()
+
+    def get_heardbeat(self) -> Optional[mavutil.mavserial]:
+        logging.info("Flushing port")
+        self.port.flush()
+        self.port.close()
+        try:
+            logging.info(f"Creating mavlink connexion {self.portname} baud {self.port.baudrate}, source system {self.source_system}")
+            master = mavutil.mavlink_connection(self.portname, baud=self.port.baudrate, source_system=self.source_system, dialect="ardupilotmega", use_native=False)
+        except (ConnectionRefusedError, socket.error, socket.timeout):
+            logging.error(f"Cannot connected {self.portname}")
+            return None
+        wait_time = 5
+        logging.info(f"Wait {wait_time}s for heartbeat")
+        master.target_system = self.target_system
+        master.target_component = self.target_component
+        msg = master.recv_match(type='HEARTBEAT', blocking=True, timeout=wait_time)
+        if msg is None:
+            logging.info(f"Cannot get heartbeat from APM {self.portname}")
+            master.close()
+            return None
+
+        logging.info(f"Heartbeat from APM (system {master.target_system} component {master.target_component})")
+        return master
 
 
 def ports_to_try(args):
@@ -1053,7 +1085,7 @@ def ports_to_try(args):
     return portlist
 
 
-def modemmanager_check():
+def modemmanager_check() -> None:
     if os.path.exists("/usr/sbin/ModemManager"):
         logging.info("""
 ==========================================================================================================
@@ -1062,7 +1094,7 @@ WARNING: You should uninstall ModemManager as it conflicts with any non-modem se
 """)
 
 
-def find_bootloader(up, port):
+def find_bootloader(up: Uploader, port: str) -> bool:
     while (True):
         up.open()
 
@@ -1091,7 +1123,255 @@ def find_bootloader(up, port):
             return False
 
 
-def main():
+class ParametersUpdater:
+
+    def __init__(self, uploader: Uploader) -> None:
+        self.uploader: Uploader = uploader
+        self.mav: Optional[mavutil.mavserial] = None
+        self.message_hooks = []  # functions or MessageHook instances
+
+    def install_message_hook(self, hook):
+        self.message_hooks.append(hook)
+
+    def remove_message_hook(self, hook):
+        '''remove hook from list of message hooks.  Assumes it exists exactly
+        once'''
+        if self.mav is None:
+            return
+        self.message_hooks.remove(hook)
+
+    def drain_mav(self):
+        '''parse all data available on connection mav (defaulting to
+        self.mav).  It is assumed that mav is connected to the normal
+        simulation'''
+        mav = self.mav
+        count = 0
+        tstart = time.time()
+        timeout = 120
+        failed_to_drain = False
+        # sometimes we recv() when the process is likely to go away..
+        old_autoreconnect = mav.autoreconnect
+        mav.autoreconnect = False
+        while True:
+            try:
+                receive_result = mav.recv_msg()
+            except Exception:
+                mav.autoreconnect = True
+                raise
+            if receive_result is None:
+                break
+            count += 1
+            if time.time() - tstart > timeout:
+                # ArduPilot can produce messages faster than we can
+                # consume them.  Until a better solution is found,
+                # just die if that seems to be the case:
+                failed_to_drain = True
+        mav.autoreconnect = old_autoreconnect
+
+        if failed_to_drain:
+            raise Exception("Did not fully drain MAV within %ss" % timeout)
+        logging.info("Drained %u messages" % count)
+
+    def send_get_parameter_direct(self, name):
+        encname = name
+        if sys.version_info.major >= 3 and not isinstance(encname, bytes):
+            encname = bytes(encname, 'ascii')
+        self.mav.mav.param_request_read_send(self.uploader.target_system,
+                                             1,
+                                             encname,
+                                             -1)
+
+    def send_set_parameter_direct(self, name, value):
+        self.mav.mav.param_set_send(self.uploader.target_system,
+                                    1,
+                                    name.encode('ascii'),
+                                    value,
+                                    mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+
+    def set_parameter(self, name, value, **kwargs):
+        self.set_parameters({name: value}, **kwargs)
+
+    def set_parameters(self, parameters, epsilon_pct=0.00001, verbose=True, attempts=None) -> None:
+        """Set parameters from vehicle."""
+
+        want = copy.copy(parameters)
+        logging.info("set_parameters: (%s)" % str(want))
+        self.drain_mav()
+        if len(want) == 0:
+            return
+
+        if attempts is None:
+            # we can easily fill ArduPilot's param-set/param-get queue
+            # which is quite short.  So we retry *a lot*.
+            attempts = len(want) * 10
+
+        param_value_messages = []
+
+        def add_param_value(mav, message):
+            t = message.get_type()
+            if t != "PARAM_VALUE":
+                return
+            param_value_messages.append(message)
+
+        self.install_message_hook(add_param_value)
+        logging.info("Set message hook")
+        self.drain_mav()
+
+        original_values = {}
+        autopilot_values = {}
+        for i in range(attempts):
+            time.sleep(1)
+            self.drain_mav()
+            received = set()
+            for (name, value) in want.items():
+                if verbose:
+                    logging.info("%s want=%f autopilot=%s (attempt=%u/%u)" %
+                                 (name, value, autopilot_values.get(name, 'None'), i+1, attempts))
+                if name not in autopilot_values:
+                    if verbose:
+                        logging.info("Requesting (%s)" % (name,))
+                    self.send_get_parameter_direct(name)
+                    continue
+                delta = abs(autopilot_values[name] - value)
+                if delta <= epsilon_pct*0.01*abs(value):
+                    # correct value
+                    logging.info("%s is now %f" % (name, autopilot_values[name]))
+                    received.add(name)
+                    continue
+                logging.info("Sending set (%s) to (%f) (old=%f)" % (name, value, original_values[name]))
+                self.send_set_parameter_direct(name, value)
+            for name in received:
+                del want[name]
+            for m in param_value_messages:
+                if m.param_id in want:
+                    logging.info("Received wanted PARAM_VALUE %s=%f" % (str(m.param_id), m.param_value))
+                    autopilot_values[m.param_id] = m.param_value
+                    if m.param_id not in original_values:
+                        original_values[m.param_id] = m.param_value
+            param_value_messages = []
+
+        self.remove_message_hook(add_param_value)
+
+        if len(want) == 0:
+            return
+        raise ValueError("Failed to set parameters (%s)" % want)
+
+    def message_hook(self, mav, msg):
+        """Called as each mavlink msg is received."""
+        #        print("msg: %s" % str(msg))
+        if msg.get_type() == 'STATUSTEXT':
+            logging.info(f"AP: {msg.text}")
+
+        for h in self.message_hooks:
+            # assume it's a function
+            h(mav, msg)
+
+    def update_parameter(self) -> bool:
+        logging.info("Updating parameters")
+        self.uploader.open()
+
+        try:
+            logging.info("Waiting Heardbeat")
+            self.mav = self.uploader.get_heardbeat()
+            self.mav.message_hooks.append(self.message_hook)
+            # self.mav.mav.request_data_stream_send(
+            #     self.uploader.target_system,
+            #     self.uploader.target_component,
+            #     mavutil.mavlink.MAV_DATA_STREAM_ALL,
+            #     10,
+            #     1)
+        except Exception as e:
+            logging.info(f"Heartbeat Exception {e}")
+            self.mav = None
+            pass
+
+        if self.mav is None:
+            return False
+        logging.info("Got Heardbeat")
+        time.sleep(2)
+
+        start_time = time.time()  # capture start time
+        while time.time() - start_time < 10:  # loop for 10 seconds
+            self.set_parameter("CCDL_TOUT_ENABLE", 1)
+            self.set_parameter("SERIAL1_PROTOCOL", 99)
+            self.set_parameter("SERIAL1_BAUD", 921600)
+            self.set_parameter("SERIAL4_PROTOCOL", 99)
+            self.set_parameter("SERIAL4_BAUD", 921600)
+
+        time.sleep(1)
+        logging.info("Parameters updated")
+        logging.info("Rebooting")
+        self.mav.mav.command_long_send(self.uploader.target_system,
+                                       self.uploader.target_component,
+                                       mavutil.mavlink.MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN,
+                                       1, 0, 0, 0, 0, 0, 0, 0)
+
+        self.mav.close()
+        logging.info("done")
+        # always close the port
+        self.uploader.close()
+
+        # wait for the close, without we might run into Serial I/O Error 6
+        time.sleep(0.3)
+        return True
+
+
+def flash_bootloader(up: Uploader) -> bool:
+    logging.info("Flashing bootloader")
+    while True:
+        up.open()
+
+        try:
+            logging.info("Waiting Heardbeat")
+            master = up.get_heardbeat()
+        except Exception as e:
+            logging.info(f"Heartbeat Exception {e}")
+            master = None
+            pass
+
+        if master is None:
+            return False
+        logging.info("Got Heardbeat")
+        time.sleep(1)
+
+        def bootloader_ack(m) -> bool:
+            if m.get_type() != 'COMMAND_ACK':
+                return False
+            if m.command != mavutil.mavlink.MAV_CMD_FLASH_BOOTLOADER:
+                return False
+            logging.info(f"While awaiting flashbootloader received {m}")
+            if m.result != mavutil.mavlink.MAV_RESULT_ACCEPTED:
+                raise Exception("Bad reboot ACK detected")
+            return True
+
+        start_time = time.time()  # capture start time
+        master.mav.command_long_send(up.target_system,
+                                     up.target_component,
+                                     mavutil.mavlink.MAV_CMD_FLASH_BOOTLOADER,
+                                     1, 0, 0, 0, 0, 290876, 0, 0)
+        logging.info("Bootloader command sent")
+        while time.time() - start_time < 10:  # loop for 10 seconds
+            msg = master.recv_match(type=['COMMAND_ACK', 'HEARTBEAT'], blocking=True, timeout=1)
+            if bootloader_ack(msg):
+                break
+        time.sleep(1)
+        logging.info("Bootloader updated")
+        logging.info("Rebooting")
+        master.mav.command_long_send(up.target_system,
+                                     up.target_component,
+                                     mavutil.mavlink.MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN,
+                                     1, 0, 0, 0, 0, 0, 0, 0)
+        master.close()
+        logging.info("done")
+        # always close the port
+        up.close()
+
+        # wait for the close, without we might run into Serial I/O Error 6
+        time.sleep(0.3)
+        return True
+
+
+def main() -> None:
 
     # Parse commandline arguments
     parser = argparse.ArgumentParser(description="Firmware uploader for the PX autopilot system.")
@@ -1146,20 +1426,26 @@ def main():
                         help="Erase sectors containing specified amount of bytes from ext flash")
     parser.add_argument('--force-erase', action="store_true", help="Do not check for pre cleared flash, always erase the chip")
     parser.add_argument('firmware', nargs="?", action="store", default=None, help="Firmware file to be uploaded")
+    parser.add_argument('--flashbootloader', action="store_true", help="Flash the bootloader")
+    parser.add_argument('--enable-ccdl', action="store_true", help="Enable CCDL")
     args = parser.parse_args()
 
     # warn people about ModemManager which interferes badly with Pixhawk
-    modemmanager_check()
+    # modemmanager_check()
 
-    if args.firmware is None and not args.identify and not args.erase_extflash:
+    if args.firmware is None and not args.identify and not args.erase_extflash and not args.flashbootloader and not args.enable_ccdl:
         parser.error("Firmware filename required for upload or download")
         sys.exit(1)
 
+    if (args.flashbootloader or args.enable_ccdl) and not args.target_system:
+        parser.error("Required target system")
+        sys.exit(1)
+
     # Load the firmware file
-    if not args.download and not args.identify and not args.erase_extflash:
-        fw = firmware(args.firmware)
+    if not args.download and not args.identify and not args.erase_extflash and not args.flashbootloader and not args.enable_ccdl:
+        fw = Firmware(args.firmware)
         logging.info("Loaded firmware for %x,%x, size: %d bytes, waiting for the bootloader..." %
-              (fw.property('board_id'), fw.property('board_revision'), fw.property('image_size')))
+                     (fw.property('board_id'), fw.property('board_revision'), fw.property('image_size')))
     logging.info("If the board does not respond within 1-2 seconds, unplug and re-plug the USB connector.")
 
     baud_flightstack = [int(x) for x in args.baud_flightstack.split(',')]
@@ -1174,7 +1460,7 @@ def main():
 
                 # create an uploader attached to the port
                 try:
-                    up = uploader(port,
+                    up = Uploader(port,
                                   args.baud_bootloader,
                                   baud_flightstack,
                                   args.baud_bootloader_flash,
@@ -1193,6 +1479,18 @@ def main():
 
                     # and loop to the next port
                     continue
+
+                if args.flashbootloader:
+                    # flash the bootloader
+                    if not flash_bootloader(up):
+                        continue
+                    else:
+                        sys.exit(0)
+                if args.enable_ccdl:
+                    if not ParametersUpdater(up).update_parameter():
+                        continue
+                    else:
+                        sys.exit(0)
 
                 if not find_bootloader(up, port):
                     # Go to the next port
