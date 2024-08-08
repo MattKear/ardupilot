@@ -40,6 +40,8 @@ public:
 
     void update(float range) override;
 
+    uint16_t reading_interval_ms() const override { return 40; } // 25Hz default
+
 private:
 
     bool check_synced();
