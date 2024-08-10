@@ -15,6 +15,7 @@ from pymavlink import mavutil
 from pysim import vehicleinfo
 
 import copy
+import operator
 
 
 class AutoTestHelicopter(AutoTestCopter):
@@ -303,9 +304,13 @@ class AutoTestHelicopter(AutoTestCopter):
 
     def AutoRotation(self, timeout=600):
         """Check engine-out behaviour"""
-        self.set_parameter("AROT_ENABLE", 1)
+        self.context_push()
         start_alt = 100 # metres
-        self.set_parameter("PILOT_TKOFF_ALT", start_alt * 100)
+        self.set_parameters({
+            "AROT_ENABLE": 1,
+            "H_RSC_AROT_ENBL": 1,
+        })
+        bail_out_time = self.get_parameter('H_RSC_AROT_RUNUP')
         self.change_mode('POSHOLD')
         self.set_rc(3, 1000)
         self.set_rc(8, 1000)
@@ -321,85 +326,169 @@ class AutoTestHelicopter(AutoTestCopter):
                            relative=True,
                            timeout=timeout)
         self.context_collect('STATUSTEXT')
-        self.progress("Triggering autorotate by raising interlock")
-        self.set_rc(3, 1000)
+
+        # Reset collective to enter hover
+        self.set_rc(3, 1500)
+
+        # Change to the autorotation flight mode
+        self.progress("Triggering autorotate mode")
+        self.change_mode('AUTOROTATE')
+        self.delay_sim_time(2)
+
+        # Disengage the interlock to remove power
         self.set_rc(8, 1000)
 
+        # Ensure we have progressed through the mode's state machine
         self.wait_statustext("SS Glide Phase", check_context=True)
 
-        self.change_mode('STABILIZE')
+        self.progress("Testing bailout from autorotation")
+        self.set_rc(8, 2000)
+        # See if the output ramps to a value close to expected with the prescribed time
+        self.wait_servo_channel_value(8, 1659, timeout=bail_out_time+1, comparator=operator.ge)
+
+        # Successfully bailed out, disengage the interlock and allow autorotation to progress
+        self.set_rc(8, 1000)
         self.wait_statustext(r"SIM Hit ground at ([0-9.]+) m/s",
                              check_context=True,
                              regex=True)
         speed = float(self.re_match.group(1))
         if speed > 30:
             raise NotAchievedException("Hit too hard")
+
+        # Set throttle low to trip auto disarm
+        self.set_rc(3, 1000)
+
         self.wait_disarmed()
+        self.context_pop()
 
     def ManAutoRotation(self, timeout=600):
         """Check autorotation power recovery behaviour"""
-        RAMP_TIME = 4
-        AROT_RAMP_TIME = 2
-        start_alt = 100 # metres
-        self.set_parameters({
-            "H_RSC_AROT_MN_EN": 1,
-            "H_RSC_AROT_ENG_T": AROT_RAMP_TIME,
-            "H_RSC_AROT_IDLE": 20,
-            "H_RSC_RAMP_TIME": RAMP_TIME,
-            "H_RSC_IDLE": 0,
-            "PILOT_TKOFF_ALT": start_alt * 100,
-        })
-        self.change_mode('POSHOLD')
-        self.set_rc(3, 1000)
-        self.set_rc(8, 1000)
-        self.wait_ready_to_arm()
-        self.arm_vehicle()
-        self.set_rc(8, 2000)
-        self.progress("wait for rotor runup to complete")
-        self.wait_servo_channel_value(8, 1659, timeout=10)
-        self.delay_sim_time(20)
-        self.set_rc(3, 2000)
-        self.wait_altitude(start_alt - 1,
-                           (start_alt + 5),
-                           relative=True,
-                           timeout=timeout)
-        self.context_collect('STATUSTEXT')
-        self.change_mode('STABILIZE')
-        self.progress("Triggering manual autorotation by disabling interlock")
-        self.set_rc(3, 1000)
-        self.set_rc(8, 1000)
-        self.wait_servo_channel_value(8, 1199, timeout=3)
-        self.progress("channel 8 set to autorotation window")
+        RSC_CHAN = 8
 
-        # wait to establish autorotation
-        self.delay_sim_time(2)
+        def check_rsc_output(self, throttle, timeout, ramping_up:bool):
+            # Check we get a sensible throttle output
+            expected_pwm = int(throttle * 0.01 * 1000 + 1000)
 
-        self.set_rc(8, 2000)
-        self.wait_servo_channel_value(8, 1659, timeout=AROT_RAMP_TIME * 1.1)
+            # Help out the detection by offset the expected by 1 pwm based on the direction we expect the throttle to be ramping
+            if ramping_up:
+                expected_pwm -= 1
+                op = operator.ge
+            else:
+                expected_pwm += 1
+                op = operator.le
 
-        # give time for engine to power up
-        self.set_rc(3, 1400)
-        self.delay_sim_time(2)
+            # See if the output ramps to a value close to expected with the prescribed time
+            self.wait_servo_channel_value(RSC_CHAN, expected_pwm, timeout=timeout, comparator=op)
 
-        self.progress("in-flight power recovery")
-        self.set_rc(3, 1500)
-        self.delay_sim_time(5)
+            # Ensure we don't subsequently get a throttle value outside expected
+            self.delay_sim_time(1)
+            pwm_received = self.get_servo_channel_value(RSC_CHAN)
 
-        # initiate autorotation again
-        self.set_rc(3, 1000)
-        self.set_rc(8, 1000)
+            # Throw exception if out of tolerance
+            if (abs(expected_pwm - pwm_received) > 3):
+                # We have not got the throttle we expected
+                raise NotAchievedException("Wanted RSC output: %i, but got: %i" % (expected_pwm, pwm_received))
 
-        self.wait_statustext(r"SIM Hit ground at ([0-9.]+) m/s",
-                             check_context=True,
-                             regex=True)
-        speed = float(self.re_match.group(1))
-        if speed > 30:
-            raise NotAchievedException("Hit too hard")
+        def TestAutoRotationConfig(self, arot_ramp_time, arot_idle):
+            RAMP_TIME = 10
+            RUNUP_TIME = 15
+            AROT_RUNUP_TIME = arot_ramp_time + 4
+            RSC_SETPOINT = 66
+            start_alt = 100 # metres
+            self.set_parameters({
+                "H_RSC_AROT_ENBL": 1,
+                "H_RSC_AROT_RAMP": arot_ramp_time,
+                "H_RSC_AROT_RUNUP": AROT_RUNUP_TIME,
+                "H_RSC_AROT_IDLE": arot_idle,
+                "H_RSC_RAMP_TIME": RAMP_TIME,
+                "H_RSC_RUNUP_TIME": RUNUP_TIME,
+                "H_RSC_IDLE": 0,
+                "H_RSC_SETPOINT": RSC_SETPOINT,
+                "PILOT_TKOFF_ALT": start_alt * 100,
+            })
 
-        self.set_rc(3, 1000)
-        # verify servo 8 resets to RSC_IDLE after land complete
-        self.wait_servo_channel_value(8, 1000, timeout=3)
-        self.wait_disarmed()
+            # Check the RSC config so we know what to expect on the throttle output
+            if self.get_parameter("H_RSC_MODE") != 2:
+                self.set_parameter("H_RSC_MODE", 2)
+                self.reboot_sitl()
+
+            self.change_mode('POSHOLD')
+            self.set_rc(3, 1000)
+            self.set_rc(8, 1000)
+            self.wait_ready_to_arm()
+            self.arm_vehicle()
+            self.set_rc(8, 2000)
+            self.progress("wait for rotor runup to complete")
+            check_rsc_output(self, RSC_SETPOINT, RUNUP_TIME+1, ramping_up=True)
+
+            self.delay_sim_time(20)
+            self.set_rc(3, 2000)
+            self.wait_altitude(start_alt - 1,
+                            (start_alt + 5),
+                            relative=True,
+                            timeout=timeout)
+            self.context_collect('STATUSTEXT')
+            self.change_mode('STABILIZE')
+
+            self.progress("Triggering manual autorotation by disabling interlock")
+            self.set_rc(3, 1000)
+            self.set_rc(8, 1000)
+
+            # Check we are using the autorotation throttle output. This should happen instantly on ramp down.
+            check_rsc_output(self, arot_idle, 1, ramping_up=False)
+
+            self.progress("RSC is outputting correct idle throttle")
+
+            # wait to establish autorotation.
+            self.delay_sim_time(2)
+
+            # re-engage interlock to start bailout sequence
+            self.set_rc(8, 2000)
+
+            # Ensure we see the bailout state
+            self.wait_statustext(r"RSC: Bailing Out", check_context=True)
+
+            # Check we are back up to flight throttle. Autorotation ramp up time should be used
+            check_rsc_output(self, RSC_SETPOINT, arot_ramp_time+1, ramping_up=True)
+
+            # give time for engine to power up
+            self.set_rc(3, 1400)
+            self.delay_sim_time(2)
+
+            self.progress("in-flight power recovery")
+            self.set_rc(3, 1500)
+            self.delay_sim_time(5)
+
+            # initiate autorotation again
+            self.set_rc(3, 1000)
+            self.set_rc(8, 1000)
+
+            self.wait_statustext(r"SIM Hit ground at ([0-9.]+) m/s",
+                                check_context=True,
+                                regex=True)
+            speed = float(self.re_match.group(1))
+            if speed > 30:
+                raise NotAchievedException("Hit too hard")
+
+            self.set_rc(3, 1000)
+            # verify servo 8 resets to RSC_IDLE after land complete
+            check_rsc_output(self, 0, 20, ramping_up=False)
+            self.wait_disarmed()
+
+        # We test the bailout behavior of two different configs
+        # First we test config with a regular throttle curve
+        self.progress("testing autorotation with throttle curve config")
+        self.context_push()
+        ramp_time = 2.0
+        arot_idle = 0
+        TestAutoRotationConfig(self, ramp_time, arot_idle)
+
+        # Now we test a config that would be used with an ESC with internal governor and an autorotation window
+        self.progress("testing autorotation with ESC autorotation window config")
+        ramp_time = 0.0
+        arot_idle = 20
+        TestAutoRotationConfig(self, ramp_time, arot_idle)
+        self.context_pop()
 
     def mission_item_home(self, target_system, target_component):
         '''returns a mission_item_int which can be used as home in a mission'''
