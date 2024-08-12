@@ -1477,6 +1477,45 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             self.reboot_sitl()
             self.end_subtest("Completed parachute landing test %i" % t)
 
+    def BlockingRCManual(self):
+        '''Test that RC manual mode changes are blocking'''
+        # Setup flight modes on RC switch
+        MODES_RC_CHAN = int(self.get_parameter("FLTMODE_CH"))
+        # switch positions based on defaults
+        SWITCH_POS_MANUAL = 2000
+        SWITCH_POS_FBWA = 1550
+        self.set_rc(3, 1000)
+        self.wait_ready_to_arm()
+
+        # Test that we can enter/exit manual from GCS
+        self.progress("checking for GCS mode trapping")
+        self.set_rc(MODES_RC_CHAN, SWITCH_POS_FBWA)
+        self.delay_sim_time(2)
+        self.change_mode("FBWA")
+        self.delay_sim_time(2)
+
+        self.progress("checking for rc mode change")
+        self.set_rc(MODES_RC_CHAN, SWITCH_POS_MANUAL)
+        self.wait_mode('MANUAL')
+        self.delay_sim_time(2)
+        self.set_rc(MODES_RC_CHAN, SWITCH_POS_FBWA)
+        self.wait_mode('FBWA')
+        self.delay_sim_time(2)
+
+        self.progress("checking for rc mode manualblocking")
+        self.set_rc(MODES_RC_CHAN, SWITCH_POS_MANUAL)
+        self.wait_mode('MANUAL')
+        self.delay_sim_time(2)
+        # We want this mode change to fail
+        try:
+            self.change_mode("FBWA")
+            # if we got this far then we really should not have, throw a failure
+            raise NotAchievedException("should not have been able to change mode")
+        except WaitModeTimeout:
+            # we wanted the mode change to fail, catch it here and allow a pass
+            self.progress("We successfully prevented a mode change from manual set by RC")
+
+
     def TestGripperMission(self):
         '''Test Gripper mission items'''
         self.context_push()
@@ -5472,6 +5511,7 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             self.MAV_CMD_NAV_LOITER_UNLIM,
             self.MAV_CMD_NAV_RETURN_TO_LAUNCH,
             self.ParachuteLanding,
+            self.BlockingRCManual,
         ])
         return ret
 
