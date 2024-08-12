@@ -172,6 +172,10 @@ function check_engine(now_ms)
    end
 
    _rpm = RPM:get_rpm(math.max(LFS_RPM_CHAN:get() - 1, 0))
+   if (_rpm == nil) then
+      -- prevent script from failing due to comparison to nil
+      _rpm = 0
+   end
 
    if (_rpm < ICE_RPM_THRESH:get()) and (_rpm_failed_ms == 0) then
       _rpm_failed_ms = now_ms
