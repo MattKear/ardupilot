@@ -1442,7 +1442,7 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             "SIM_PARA_PIN": 9,
             "FS_LONG_ACTN": 3,
             "TECS_LAND_ARSPD":15,
-            "TRIM_ARSPD_CM":2400,
+            "AIRSPEED_CRUISE":24,
             "LAND_TYPE":2,
             "LOG_BITMASK":1081279,# ensure full rate attitude logging
         })
@@ -1462,7 +1462,7 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
 
             # Test for expected airspeeds around the mission
             checks = [
-                (3, self.get_parameter("TRIM_ARSPD_CM") * 0.01),
+                (3, self.get_parameter("AIRSPEED_CRUISE")),
                 (5, 18), # looking for do_change_speed value
                 (9, self.get_parameter("TECS_LAND_ARSPD")), # looking for approach speed
             ]
