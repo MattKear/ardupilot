@@ -987,8 +987,11 @@ bool Plane::do_change_speed(uint8_t speedtype, float speed_target_ms, float thro
             return true;
         } else if ((speed_target_ms >= aparm.airspeed_min.get()) &&
                    (speed_target_ms <= aparm.airspeed_max.get()))  {
-            new_airspeed_cm = speed_target_ms * 100; //new airspeed target for AUTO or GUIDED modes
-            gcs().send_text(MAV_SEVERITY_INFO, "Set airspeed %u m/s", (unsigned)speed_target_ms);
+            if (new_airspeed_cm != int32_t(speed_target_ms * 100)) {
+                // We maybe persistently trying to set the new target. Don't spam the GCS if the value is not changing
+                gcs().send_text(MAV_SEVERITY_INFO, "Set airspeed %u m/s", (unsigned)speed_target_ms);
+            }
+            new_airspeed_cm = speed_target_ms * 100; //new airspeed target for AUTO, GUIDED and RTL modes
             return true;
         }
         break;
