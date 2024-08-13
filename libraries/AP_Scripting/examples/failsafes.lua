@@ -124,8 +124,13 @@ function do_fs_short_action(now_ms, reason)
    end
 
    if _have_set_mode and not _set_speed_complete then
-      local airspeed_ms = LFS_CHUTE_SPD:get()
-      _set_speed_complete = vehicle:do_change_airspeed(airspeed_ms)
+      local desired_airspeed = LFS_CHUTE_SPD:get()
+      local speed_set = vehicle:do_change_airspeed(desired_airspeed)
+
+      local ahrs_airspeed = ahrs:airspeed_estimate()
+      if ((ahrs_airspeed ~= nil) and speed_set and (desired_airspeed*0.9 <= ahrs_airspeed) and (ahrs_airspeed <= desired_airspeed*1.1)) then
+         _set_speed_complete = true
+      end
 
       if (reason == REASON_RPM_FS) then
          -- Change TECS_SPDWEIGHT to ensure we prioritise the safe flying airspeed with pitch control
