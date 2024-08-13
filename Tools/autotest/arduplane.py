@@ -1433,6 +1433,7 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
 
     def ParachuteLanding(self):
         '''Test parachute landing method'''
+        self.context_push()
         self.start_subtest("Ensure TECS_LAND_ARSPD is adopted on approach")
         self.set_parameters({
             "CHUTE_ENABLED": 1,
@@ -1477,8 +1478,12 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             self.reboot_sitl()
             self.end_subtest("Completed parachute landing test %i" % t)
 
+        self.context_pop()
+        self.reboot_sitl()
+
     def BlockingRCManual(self):
         '''Test that RC manual mode changes are blocking'''
+        self.context_push()
         # Setup flight modes on RC switch
         MODES_RC_CHAN = int(self.get_parameter("FLTMODE_CH"))
         # switch positions based on defaults
@@ -1515,8 +1520,12 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             # we wanted the mode change to fail, catch it here and allow a pass
             self.progress("We successfully prevented a mode change from manual set by RC")
 
+        self.context_pop()
+        self.reboot_sitl()
+
     def LuaFailSafeScripts(self):
         '''Test extended failsafe behaviours added via scripting'''
+        self.context_push()
 
         # There is a race on some of the status message wait checks so we have a few helper functions
         # that we can pass so that the action is executed as part of the check
@@ -1533,8 +1542,6 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
         # Start the tests
         script_name = 'failsafes.lua'
         self.install_example_script(script_name)
-
-        self.context_push()
 
         self.set_parameters({
             # Enable scripting
@@ -1835,7 +1842,6 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
         self.wait_ready_to_arm(timeout=20)
         self.set_parameter("LFS_RPM_CHAN", 1)
 
-
         self.progress('Test that Manual via RC blocks chute deploy but not LFS state')
         # Testing that manual mode will block chute deployment but not FS state
         # Reset for next test - Fence testing
@@ -1884,8 +1890,8 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
         # raise NotAchievedException("PASSED: But I want to look at the log")
 
         self.disarm_vehicle(force=True)
-        self.context_pop()
         self.remove_installed_script(script_name)
+        self.context_pop()
         self.reboot_sitl()
 
 
