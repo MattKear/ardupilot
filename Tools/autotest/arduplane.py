@@ -1515,6 +1515,379 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             # we wanted the mode change to fail, catch it here and allow a pass
             self.progress("We successfully prevented a mode change from manual set by RC")
 
+    def LuaFailSafeScripts(self):
+        '''Test extended failsafe behaviours added via scripting'''
+
+        # There is a race on some of the status message wait checks so we have a few helper functions
+        # that we can pass so that the action is executed as part of the check
+        global action_done
+        action_done = False
+
+        def reset_rpm_fault():
+            global action_done
+            if not action_done:
+                self.set_parameter("LFS_RPM_CHAN", 1)
+                action_done = True
+
+
+        # Start the tests
+        script_name = 'failsafes.lua'
+        self.install_example_script(script_name)
+
+        self.context_push()
+
+        self.set_parameters({
+            # Enable scripting
+            "SCR_ENABLE" : 1,
+            "SCR_VM_I_COUNT" : 1000000,
+            # Set GCS sys id for GCS failsafes in script
+            "SYSID_MYGCS": self.mav.source_system,
+            # Setup sim RPM sensor
+            "RPM1_TYPE" : 10,
+            # Disable rc/gcs failsafes to prevent interactions
+            "FS_SHORT_ACTN" : 3, # (Disable)
+            "FS_LONG_ACTN" : 0, # (Continue)
+            # Disable throttle nudge as it screws with desired speed
+            "THROTTLE_NUDGE" : 0,
+            # Setup chute deployment
+            "CHUTE_ENABLED": 1,
+            "CHUTE_TYPE": 10,
+            "SERVO9_FUNCTION": 27,
+            "SIM_PARA_ENABLE": 1,
+            "SIM_PARA_PIN": 9,
+            # set landing parachute params incase of interactions
+            "TECS_LAND_ARSPD":15,
+            "LAND_TYPE":2,
+            })
+
+        self.wait_ready_to_arm()
+        self.reboot_sitl()
+
+        # Setup params for test
+        cruise_speed = self.get_parameter("AIRSPEED_CRUISE")
+        chute_speed = round(cruise_speed * 0.8)
+
+        # Set LFS script params now that that should be up and running
+        self.set_parameters({
+            "LFS_CHUTE_SPD" : chute_speed,
+            })
+
+        self.set_rc(3, 1000) # Lower throttle to arm
+        self.wait_ready_to_arm()
+
+        # Run GPS failsafe tests
+        self.progress("Testing GPS failsafes")
+        short_time = self.get_parameter('LFS_GPS_SHORT')
+        long_time = self.get_parameter('LFS_GPS_LONG')
+
+        self.progress("Taking off")
+        self.takeoff(alt=100)
+        self.change_mode("CRUISE")
+        self.wait_distance_to_home(500, 1000, timeout=200)
+        self.change_mode("LOITER")
+        # self.set_rc(3, 1500)
+        self.delay_sim_time(2)
+
+        self.progress("GPS short action test")
+        # Disable both GPSes
+        self.set_parameters({
+            "SIM_GPS_DISABLE" : 1,
+            "SIM_GPS2_DISABLE" : 1,
+            })
+
+        self.wait_statustext("LFS: GPS Lost, Short", timeout=short_time+1)
+        self.progress("achieved GPS short action")
+
+        # Check that we have achieved the speed chute speed
+        self.wait_airspeed(chute_speed-1, chute_speed+1, minimum_duration=3, timeout=20)
+        self.progress("achieved LFS Chute speed")
+        self.progress("Testing FS cancels")
+        # Re-enable GPS1 and check failsafe clears
+        self.set_parameter("SIM_GPS_DISABLE", 0)
+        self.wait_statustext("LFS: FS Cleared", timeout=5)
+        self.progress("GPS short action cleared")
+
+        # reset for next test
+        self.change_mode("LOITER")
+        self.delay_sim_time(2)
+
+        # test home bubble is ignored in the event of GPS failsafe (as we don't know where we are)
+        self.progress("testing home bubble with GPS FS")
+        # set enormous home bubble so that we are flying inside of it
+        self.set_parameters({
+            "LFS_HOME_ALT" : 1000,
+            "LFS_HOME_DIST" : 9000,
+            })
+        self.set_parameter("SIM_GPS_DISABLE", 1)
+        self.wait_statustext("LFS: GPS Lost, Short", timeout=short_time+1)
+        self.progress("Success: no bubble was ignored with GPS FS")
+
+        # reset for next test
+        self.set_parameter("SIM_GPS_DISABLE", 0)
+        self.set_parameters({
+            "LFS_HOME_ALT" : 20,
+            "LFS_HOME_DIST" : 50,
+            })
+        self.change_mode("CRUISE")
+        self.delay_sim_time(2)
+
+        # check for Long failsafe this time
+        self.progress("GPS long failsafe test")
+        self.set_parameter("SIM_GPS_DISABLE", 1)
+        # Ensure we get chute deployment
+        self.wait_statustext("BANG", timeout=long_time+1)
+        self.disarm_vehicle(force=True)
+        self.progress("GPS FS testing complete")
+
+        # Reset for next test
+        self.set_parameter("SIM_GPS_DISABLE", 0)
+        self.reboot_sitl()
+        self.set_rc(3, 1000) # Lower throttle to arm
+        self.wait_ready_to_arm()
+        self.takeoff(alt=100)
+        self.change_mode("CRUISE")
+        self.wait_distance_to_home(500, 1000, timeout=200)
+        self.change_mode("LOITER")
+
+        # Check for loss of RPM sensor failsafes
+        self.progress("Test RPM FS Short")
+        short_time = self.get_parameter('LFS_RPM_SHORT')
+        long_time = self.get_parameter('LFS_RPM_LONG')
+
+        # Fake a rpm sensor failure by changing the instance we look at
+        self.set_parameter("LFS_RPM_CHAN", 2)
+        self.wait_statustext("LFS: RPM Lost, Short", timeout=short_time+1)
+        self.wait_mode('RTL')
+        self.wait_airspeed(chute_speed-1, chute_speed+1, minimum_duration=3, timeout=20)
+        # Check we recover
+        self.progress("Test RPM recovers from FS")
+        # self.set_parameter("LFS_RPM_CHAN", 1)
+        self.wait_statustext("LFS: FS Cleared", timeout=5, the_function=reset_rpm_fault)
+        action_done = False
+        self.change_mode("LOITER")
+        try:
+            # We want to make sure we do not subsequently get long FS action having recovered
+            self.wait_statustext("LFS: RPM Lost, Long", timeout=long_time+5)
+        except AutoTestTimeoutException:
+            self.progress("Succesfully recovered from RPM short FS")
+
+        # test home bubble using RPM FS
+        self.progress("testing home bubble with non-GPS FS")
+        # set enormous home bubble so that we are flying inside of it
+        self.set_parameters({
+            "LFS_HOME_ALT" : 1000,
+            "LFS_HOME_DIST" : 9000,
+            })
+        self.set_parameter("LFS_RPM_CHAN", 2)
+        try:
+        # We want to make sure we do not subsequently get long FS action having recovered
+            self.wait_statustext("LFS: RPM Lost, Short", timeout=short_time+5)
+        except AutoTestTimeoutException:
+            self.progress("Success: no RPM FS within bubble")
+        # Now check that the failsafe trips when we shrink the bubble back down
+        self.set_parameters({
+            "LFS_HOME_ALT" : 20,
+            "LFS_HOME_DIST" : 50,
+            })
+        self.wait_statustext("LFS: RPM Lost, Short", timeout=short_time+5)
+        self.progress("Success: home bubble RPM FS test complete ")
+
+        self.progress("Test RPM long FS action")
+        # reset so that we can correctly check the time on the long failsafe
+        self.wait_statustext("LFS: FS Cleared", timeout=5, the_function=reset_rpm_fault)
+
+        self.set_parameter("LFS_RPM_CHAN", 2)
+        self.wait_statustext("LFS: RPM Lost, Long", timeout=long_time+1)
+        self.disarm_vehicle(force=True)
+        self.progress("RPM FS testing complete")
+
+        # Reset for next test - Fence testing
+        fence_rad = 1000
+        self.set_parameters({
+            # reset rpm sensor instance
+            "LFS_RPM_CHAN" : 1,
+            # Config fence
+            "FENCE_ENABLE" : 1,
+            "FENCE_ACTION" : 0, # Report only
+            "FENCE_TYPE" : 2, # circle only
+            "FENCE_RADIUS" : fence_rad
+            })
+
+        self.reboot_sitl()
+        self.set_rc(3, 1000) # Lower throttle to arm
+        self.wait_ready_to_arm()
+        self.takeoff(alt=100)
+        self.change_mode("CRUISE")
+        self.set_rc(3, 1500) # Nominal throttle setting
+
+        self.progress("Testing fence short action")
+        short_time = self.get_parameter('LFS_FENCE_SHORT')
+        long_time = self.get_parameter('LFS_FENCE_LONG')
+        self.wait_distance_to_home(fence_rad, fence_rad+10, timeout=200)
+        self.wait_statustext("LFS: Fence Breach, Short", timeout=short_time+1)
+
+        self.progress("Testing fence short recovery")
+        self.wait_statustext("LFS: FS Cleared", timeout=long_time)
+        self.wait_mode('RTL')
+
+        self.progress("Testing home bubble and fence interaction")
+        # setting a very large bubble to let the aircraft travel far outside of the 
+        # fence boundary. Late when the bubble is removed the vehicle will be far enough 
+        # away that it trips the long fence action before it gets inside
+
+        # Need to calculate a distance far enough away that the aircraft cant fly back within the breach
+        fly_back_dist = chute_speed * long_time * 1.2
+
+        self.set_parameters({
+            "LFS_HOME_ALT" : 1000,
+            "LFS_HOME_DIST" : fly_back_dist+fence_rad,
+            })
+
+        # let aircraft fly off into the distance
+        self.change_mode("CRUISE")
+        # Make sure we can actually fly past our fence rad
+        mid_dist = (fence_rad + 2 * fly_back_dist) * 0.5
+        self.wait_distance_to_home(mid_dist, mid_dist+10, timeout=300)
+
+        self.progress("Testing fence long FS action")
+        # We know we have gotten past the bubble when we get FS short action
+        self.wait_statustext("LFS: Fence Breach, Short", timeout=300)
+        # Shrink the bubble back down
+        self.set_parameters({
+            "LFS_HOME_ALT" : 20,
+            "LFS_HOME_DIST" : 50,
+            })
+        # Looking for chute deployment
+        self.wait_statustext("BANG", timeout=long_time+1)
+
+
+         # Reset for next test - Fence testing
+        self.disarm_vehicle(force=True)
+        self.set_parameters({
+            # disable fence
+            "FENCE_ENABLE" : 0,
+            })
+        self.reboot_sitl()
+        self.set_rc(3, 1000) # Lower throttle to arm
+        self.wait_ready_to_arm()
+        self.takeoff(alt=100)
+        self.change_mode("CRUISE")
+        self.set_rc(3, 1500) # Nominal throttle setting
+
+        self.progress("Testing GCS short FS action")
+        short_time = self.get_parameter('LFS_TELEM_SHORT')
+        long_time = self.get_parameter('LFS_TELEM_LONG')
+        self.set_heartbeat_rate(0)
+        # This time we are going to check that the FS does not trip too early (same script code paths as the other actions, might as well add some variety to the tests)
+        try:
+            self.wait_statustext("LFS: GCS Lost, Short", timeout=short_time-1)
+        except AutoTestTimeoutException:
+            self.progress("Success:GCS FS did not trip early")
+
+        # Now we expect to still see a message. These messages repeat every 5 s from the script
+        self.wait_statustext("LFS: GCS Lost, Short", timeout=10)
+
+        self.progress("Testing GCS FS recovery")
+        self.set_heartbeat_rate(self.speedup)
+        self.wait_statustext("LFS: FS Cleared", timeout=long_time)
+
+        self.progress("Testing GCS Long action")
+        self.set_heartbeat_rate(0)
+        # Looking for chute deployment
+        self.wait_statustext("BANG", timeout=long_time+1)
+        # Check that we do get the GCS lost reason from the script
+        self.wait_statustext("LFS: GCS Lost, Long", timeout=10)
+        self.set_heartbeat_rate(self.speedup)
+        self.disarm_vehicle(force=True)
+
+        # Testing pre-arms
+        self.progress("Testing LFS pre-arms")
+        self.reboot_sitl()
+        self.set_rc(3, 1000) # Lower throttle to arm
+        self.wait_ready_to_arm()
+
+        # Now we know that all other pre-arms are cleared we can cause our LFS failures
+        self.progress("Testing LFS GPS pre-arm")
+        self.set_parameter("SIM_GPS_DISABLE", 1)
+        try:
+            self.wait_ready_to_arm(timeout=20)
+        except AutoTestTimeoutException:
+            self.progress("LFS GPS pre-arm works")
+        # Ensure it was a LFS script prearm reason
+        self.wait_statustext("In LFS failsafe", timeout=20)
+        self.set_parameter("SIM_GPS_DISABLE", 0)
+
+        self.progress("Testing LFS GCS pre-arm")
+        self.wait_ready_to_arm()
+        self.set_heartbeat_rate(0)
+        try:
+            self.wait_ready_to_arm(timeout=20)
+        except AutoTestTimeoutException:
+            self.progress("LFS GCS pre-arm works")
+        # Ensure it was a LFS script prearm reason
+        self.wait_statustext("In LFS failsafe", timeout=20)
+        self.set_heartbeat_rate(self.speedup)
+
+        self.progress("Testing LFS RPM does not cause pre-arm")
+        self.wait_ready_to_arm()
+        self.set_parameter("LFS_RPM_CHAN", 2)
+        self.delay_sim_time(2)
+        self.wait_ready_to_arm(timeout=20)
+        self.set_parameter("LFS_RPM_CHAN", 1)
+
+
+        self.progress('Test that Manual via RC blocks chute deploy but not LFS state')
+        # Testing that manual mode will block chute deployment but not FS state
+        # Reset for next test - Fence testing
+        short_time = self.get_parameter('LFS_TELEM_SHORT')
+        long_time = self.get_parameter('LFS_TELEM_LONG')
+        self.set_rc(3, 1000) # Lower throttle to arm
+        self.change_mode('FBWA')
+        self.wait_ready_to_arm()
+        self.delay_sim_time(20)
+
+        self.takeoff(alt=100)
+        self.change_mode("CRUISE")
+        self.set_rc(1, 1500) # Nominal flight contorl settings
+        self.set_rc(2, 1500)
+        self.set_rc(3, 1500)
+        self.set_rc(4, 1500)
+        MODES_RC_CHAN = int(self.get_parameter("FLTMODE_CH"))
+        # switch positions based on defaults
+        SWITCH_POS_MANUAL = 2000
+        SWITCH_POS_FBWA = 1550
+        # set pwm value that does not corespond to manual so that we can change mode (currently rc8 = 1800)
+        self.set_rc(MODES_RC_CHAN, SWITCH_POS_FBWA)
+        self.delay_sim_time(5)
+        # set to manual via RC
+        self.set_rc(MODES_RC_CHAN, SWITCH_POS_MANUAL)
+        self.wait_mode('MANUAL')
+        # Use GCS FS
+        self.set_heartbeat_rate(0)
+        self.wait_statustext("LFS: GCS Lost, Short", timeout=short_time+1)
+        self.wait_statustext("LFS: GCS Lost, Long", timeout=long_time-short_time+1)
+        # Make sure we did not get chute deployment
+        try:
+            self.wait_statustext("Parachute: Released", timeout=10)
+            raise NotAchievedException('Chute should not have released with RC in manual')
+        except AutoTestTimeoutException:
+            self.progress('Success: Manual from RC has blocked chute deploy but not LFS state')
+
+        # Ensure that the chute will deploy when we come out of the manual via RC
+        self.set_rc(MODES_RC_CHAN, SWITCH_POS_FBWA)
+        self.wait_statustext("Parachute: Released", timeout=10)
+
+        # Reset for next test
+        self.disarm_vehicle(force=True)
+        self.reboot_sitl()
+
+        # raise NotAchievedException("PASSED: But I want to look at the log")
+
+        self.disarm_vehicle(force=True)
+        self.context_pop()
+        self.remove_installed_script(script_name)
+        self.reboot_sitl()
+
 
     def TestGripperMission(self):
         '''Test Gripper mission items'''
@@ -5512,6 +5885,7 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             self.MAV_CMD_NAV_RETURN_TO_LAUNCH,
             self.ParachuteLanding,
             self.BlockingRCManual,
+            self.LuaFailSafeScripts,
         ])
         return ret
 
