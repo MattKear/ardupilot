@@ -1,4 +1,4 @@
--- Lua Failsafe Script V2.0
+-- Lua Failsafe Script V2.1
 
 -- Change Log:
    -- V1.0
@@ -9,6 +9,9 @@
       -- Added time since calculation to logging
       -- Prearm checks for GPS, Fence, and GCS
       -- Use manual flight mode with mode reason from RC to block long failsafe action
+   -- V2.1
+      -- More graceful handling of rpm measurment returning nil
+      -- Persist with do_change_speed requests until we reach the measured airspeed
 
 -- Script to add failsafe functionaility in the event of the following:
    -- Loss of GPS
