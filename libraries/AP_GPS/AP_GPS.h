@@ -65,6 +65,8 @@
 #include "MovingBase.h"
 #endif // GPS_MOVING_BASELINE
 
+#include "AP_GPS_UBLOX_ILM.h"
+
 class AP_GPS_Backend;
 
 /// @class AP_GPS
@@ -181,7 +183,10 @@ public:
         bool  gps_yaw_configured;           ///< GPS is configured to provide yaw
         uint16_t hdop;                      ///< horizontal dilution of precision in cm
         uint16_t vdop;                      ///< vertical dilution of precision in cm
+        uint8_t cn0;                        ///< Signal Strength average of used sats
         uint8_t num_sats;                   ///< Number of visible satellites
+        bool antenna_connected;             ///< Is the antenna connected (default yes)
+        bool multi_constellation_fix;       ///< do we have a fix from multiple constellations
         Vector3f velocity;                  ///< 3D velocity in m/s, in NED format
         float speed_accuracy;               ///< 3D velocity RMS accuracy estimate in m/s
         float horizontal_accuracy;          ///< horizontal RMS accuracy estimate in m
@@ -218,6 +223,10 @@ public:
         float relPosD;                     ///< Reported Vertical distance in meters
         float accHeading;                  ///< Reported Heading Accuracy in degrees
         uint32_t relposheading_ts;        ///< True if new data has been received since last time it was false
+
+        //Jamming
+        bool isJammed;                     ///< Reported Jamming State
+        bool isSpoofed;                    ///< Reported Spoofing State
     };
 
     /// Startup initialisation.
@@ -445,6 +454,14 @@ public:
         return have_gps_yaw(primary_instance);
     }
 
+    // signal to noise ratio
+    uint8_t cn0(uint8_t instance) const {
+        return state[instance].cn0;
+    }
+    uint8_t cn0(void) const {
+        return cn0(primary_instance);
+    }
+
     // return true if the GPS is configured to provide yaw. This will
     // be true if we expect the GPS to provide yaw, even if it
     // currently is not able to provide yaw
@@ -593,6 +610,8 @@ protected:
 #if GPS_MOVING_BASELINE
     MovingBase mb_params[GPS_MAX_RECEIVERS];
 #endif // GPS_MOVING_BASELINE
+    AP_GPS_UBLOX_ILM_CONFIG ublox_ilm_config;
+    AP_Int8 _min_cn0;
 
     uint32_t _log_gps_bit = -1;
 
@@ -628,8 +647,17 @@ private:
     AP_GPS_Backend *drivers[GPS_MAX_RECEIVERS];
     AP_HAL::UARTDriver *_port[GPS_MAX_RECEIVERS];
 
+    AP_GPS_UBLOX_ILM ublox_ilm[GPS_MAX_RECEIVERS] = {
+        AP_GPS_UBLOX_ILM(ublox_ilm_config),
+        AP_GPS_UBLOX_ILM(ublox_ilm_config),
+    };
+
+
     /// primary GPS instance
     uint8_t primary_instance;
+
+    /// best instance scored by the ILM
+    uint8_t best_ilm_instance;
 
     /// number of GPS instances present
     uint8_t num_instances;
@@ -730,6 +758,7 @@ private:
         //USE_SECOND  = 3, deprecated for new primary param
         USE_PRIMARY_IF_3D_FIX = 4,
         USE_BEST_FIX = 5,
+        USE_ILM     = 6,
     };
 
     // used for flight testing with GPS loss

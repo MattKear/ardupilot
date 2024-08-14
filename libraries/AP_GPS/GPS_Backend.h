@@ -62,6 +62,9 @@ public:
     virtual bool supports_mavlink_gps_rtk_message() const { return false; }
     virtual void send_mavlink_gps_rtk(mavlink_channel_t chan);
 
+    // support an in-line monitor
+    virtual bool supports_in_line_monitoring(void) const { return false; }
+
     virtual void broadcast_configuration_failure_reason(void) const { return ; }
 
     virtual void handle_msg(const mavlink_message_t &msg) { return ; }

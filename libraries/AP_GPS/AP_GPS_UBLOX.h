@@ -24,6 +24,7 @@
 
 #include "AP_GPS.h"
 #include "GPS_Backend.h"
+#include "AP_GPS_UBLOX_COMMON_def.h"
 
 /*
  *  try to put a UBlox into binary mode. This is in two parts. 
@@ -49,6 +50,9 @@
 #define UBLOX_MAX_RXM_RAW_SATS 22
 #define UBLOX_MAX_RXM_RAWX_SATS 32
 #define UBLOX_GNSS_SETTINGS 1
+
+#define UBLOX_MAX_SEC_SIG_JAMS 16
+#define UBLOX_MAX_SATS 60
 
 #define UBLOX_MAX_GNSS_CONFIG_BLOCKS 7
 
@@ -143,6 +147,9 @@ public:
 
     // ublox specific healthy checks
     bool is_healthy(void) const override;
+
+    // ublox driver supports in-line monitoring
+    bool supports_in_line_monitoring(void) const override { return true; }
     
 private:
     // u-blox UBX protocol essentials
@@ -399,6 +406,47 @@ private:
         uint32_t tAcc;
     };
 
+    struct PACKED ubx_nav_clock {
+        uint32_t itow;
+        int32_t clkB;
+        int32_t clkD;
+        uint32_t tAcc;
+        uint32_t fAcc;
+    };
+
+    struct PACKED ubx_nav_sat {
+        uint32_t itow;
+        uint8_t version;
+        uint8_t numSvs;
+        uint8_t reserved0[2];
+        PACKED struct ubx_sec_sig_jams {
+            uint8_t gnssId;
+            uint8_t svId;
+            uint8_t cn0;
+            int8_t elev;
+            int16_t azim;
+            int16_t prRes;
+            uint8_t qualityInd:3;
+            bool svUsed:1;
+            uint8_t health:2;
+            bool diffCorr:1;
+            bool smoothed:1;
+            uint8_t orbitSource:3;
+            bool ephAvail:1;
+            bool almAvail:1;
+            bool anoAvail:1;
+            bool aopAvail:1;
+            bool sbasCorrUsed:1;
+            bool rtcmCorrUsed:1;
+            bool slasCorrUsed:1;
+            bool spartnCorrUsed:1;
+            bool prCorrUsed:1;
+            bool crCorrUsed:1;
+            bool doCorrUsed:1;
+            bool clasCorrUsed:1;
+        } sats[UBLOX_MAX_SATS];
+    };
+
     // Lea6 uses a 60 byte message
     struct PACKED ubx_mon_hw_60 {
         uint32_t pinSel;
@@ -456,12 +504,45 @@ private:
         char hwVersion[10];
         char extension; // extensions are not enabled
     };
+    struct PACKED ubx_mon_sys {
+        uint8_t version;
+        uint8_t bootType;
+        uint8_t cpuLoad;
+        uint8_t cpuLoadMax;
+        uint8_t memUsage;
+        uint8_t memUsageMax;
+        uint8_t ioUsage;
+        uint8_t ioUsageMax;
+        uint32_t runTime;
+        uint16_t noticeCount;
+        uint16_t warnCount;
+        uint16_t errorCount;
+        int8_t  tempValue;
+        uint8_t  reserved0[5];
+    };
     struct PACKED ubx_nav_svinfo_header {
         uint32_t itow;
         uint8_t numCh;
         uint8_t globalFlags;
         uint16_t reserved;
     };
+
+    struct PACKED ubx_sec_sig {
+        uint8_t version;
+        uint8_t flags;
+        uint8_t reserved0;
+        uint8_t jamNumCentFreqs;
+        PACKED struct ubx_sec_sig_jams {
+            unsigned int cf : 23;
+            bool jammed;
+        } jaminfo[UBLOX_MAX_SEC_SIG_JAMS];
+    };
+
+    struct PACKED ubx_sec_uniqid {
+        uint8_t reserved0[3];
+        uint8_t uniqueId[5];
+    };
+
 #if UBLOX_RXM_RAW_LOGGING
     struct PACKED ubx_rxm_raw {
         int32_t iTOW;
@@ -526,6 +607,8 @@ private:
         ubx_nav_pvt pvt;
         ubx_nav_timegps timegps;
         ubx_nav_velned velned;
+        ubx_nav_clock nav_clock;
+        ubx_nav_sat sat;
         ubx_cfg_msg_rate msg_rate;
         ubx_cfg_msg_rate_6 msg_rate_6;
         ubx_cfg_nav_settings nav_settings;
@@ -535,18 +618,21 @@ private:
         ubx_mon_hw_68 mon_hw_68;
         ubx_mon_hw2 mon_hw2;
         ubx_mon_ver mon_ver;
+        ubx_mon_sys mon_sys;
         ubx_cfg_tp5 nav_tp5;
-#if UBLOX_GNSS_SETTINGS
+    #if UBLOX_GNSS_SETTINGS
         ubx_cfg_gnss gnss;
-#endif
+    #endif
         ubx_cfg_sbas sbas;
         ubx_cfg_valget valget;
         ubx_nav_svinfo_header svinfo_header;
         ubx_nav_relposned relposned;
-#if UBLOX_RXM_RAW_LOGGING
+    #if UBLOX_RXM_RAW_LOGGING
         ubx_rxm_raw rxm_raw;
         ubx_rxm_rawx rxm_rawx;
-#endif
+    #endif
+        ubx_sec_sig sec_sig;
+        ubx_sec_uniqid sec_uniqid;
         ubx_ack_ack ack;
     } _buffer;
 
@@ -565,7 +651,7 @@ private:
         relPosNormalized   = 1U << 9
     };
 
-    enum ubs_protocol_bytes {
+    enum ubx_protocol_bytes {
         PREAMBLE1 = 0xb5,
         PREAMBLE2 = 0x62,
         CLASS_NAV = 0x01,
@@ -573,6 +659,7 @@ private:
         CLASS_CFG = 0x06,
         CLASS_MON = 0x0A,
         CLASS_RXM = 0x02,
+        CLASS_SEC = 0x27,
         MSG_ACK_NACK = 0x00,
         MSG_ACK_ACK = 0x01,
         MSG_POSLLH = 0x2,
@@ -581,6 +668,8 @@ private:
         MSG_SOL = 0x6,
         MSG_PVT = 0x7,
         MSG_TIMEGPS = 0x20,
+        MSG_CLOCK = 0x22,
+        MSG_SAT = 0x35,
         MSG_RELPOSNED = 0x3c,
         MSG_VELNED = 0x12,
         MSG_CFG_CFG = 0x09,
@@ -596,9 +685,12 @@ private:
         MSG_MON_HW = 0x09,
         MSG_MON_HW2 = 0x0B,
         MSG_MON_VER = 0x04,
+        MSG_MON_SYS = 0x39,
         MSG_NAV_SVINFO = 0x30,
         MSG_RXM_RAW = 0x10,
-        MSG_RXM_RAWX = 0x15
+        MSG_RXM_RAWX = 0x15,
+        MSG_SEC_SIG = 0x09,
+        MSG_SEC_UNIQID = 0x03
     };
     enum ubx_gnss_identifier {
         GNSS_GPS     = 0x00,
@@ -609,14 +701,7 @@ private:
         GNSS_QZSS    = 0x05,
         GNSS_GLONASS = 0x06
     };
-    enum ubs_nav_fix_type {
-        FIX_NONE = 0,
-        FIX_DEAD_RECKONING = 1,
-        FIX_2D = 2,
-        FIX_3D = 3,
-        FIX_GPS_DEAD_RECKONING = 4,
-        FIX_TIME = 5
-    };
+
     enum ubx_nav_status_bits {
         NAV_STATUS_FIX_VALID = 1,
         NAV_STATUS_DGPS_USED = 2
@@ -681,6 +766,8 @@ private:
     uint8_t         _ublox_port;
     bool            _have_version;
     struct ubx_mon_ver _version;
+    bool            _have_uuid;
+    struct ubx_sec_uniqid _uuid;
     uint32_t        _unconfigured_messages;
     uint8_t         _hardware_generation;
     uint32_t        _last_pvt_itow;
@@ -721,6 +808,7 @@ private:
     void        _request_next_config(void);
     void        _request_port(void);
     void        _request_version(void);
+    void        _request_uuid(void);
     void        _save_cfg(void);
     void        _verify_rate(uint8_t msg_class, uint8_t msg_id, uint8_t rate);
     void        _check_new_itow(uint32_t itow);
@@ -728,6 +816,7 @@ private:
     void unexpected_message(void);
     void log_mon_hw(void);
     void log_mon_hw2(void);
+    void log_mon_sys(void);
     void log_rxm_raw(const struct ubx_rxm_raw &raw);
     void log_rxm_rawx(const struct ubx_rxm_rawx &raw);
 

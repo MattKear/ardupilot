@@ -110,7 +110,7 @@ const AP_Param::GroupInfo AP_GPS::var_info[] = {
     // @Param: _AUTO_SWITCH
     // @DisplayName: Automatic Switchover Setting
     // @Description: Automatic switchover to GPS reporting best lock, 1:UseBest selects the GPS with highest status, if both are equal the GPS with highest satellite count is used 4:Use primary if 3D fix or better, will revert to 'UseBest' behaviour if 3D fix is lost on primary
-    // @Values: 0:Use primary, 1:UseBest, 2:Blend, 4:Use primary if 3D fix or better, 5:Use best fix
+    // @Values: 0:Use primary, 1:UseBest, 2:Blend, 4:Use primary if 3D fix or better, 5:Use best fix, 6:Use Ilm
     // @User: Advanced
     AP_GROUPINFO("_AUTO_SWITCH", 3, AP_GPS, _auto_switch, (int8_t)GPSAutoSwitch::USE_BEST),
 #endif
@@ -387,6 +387,18 @@ const AP_Param::GroupInfo AP_GPS::var_info[] = {
 #endif // GPS_MAX_RECEIVERS > 1
 #endif // HAL_ENABLE_LIBUAVCAN_DRIVERS
 
+    // @Param: _MIN_CN0
+    // @DisplayName: Minimum CN0
+    // @Description: Minimum CN0 beneath which it will generate a pre-arm error. 0 to disable.
+    // @Range: 0 50
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("_MIN_CN0", 32, AP_GPS, _min_cn0, 0),
+
+    // @Group: _ILM_
+    // @Path: AP_GPS_UBLOX_ILM.cpp
+    AP_SUBGROUPINFO(ublox_ilm_config, "_ILM_", 33, AP_GPS, AP_GPS_UBLOX_ILM_CONFIG),
+    
     AP_GROUPEND
 };
 
@@ -1152,6 +1164,66 @@ void AP_GPS::update_primary(void)
             primary_instance = primary_param;
             _last_instance_swap_ms = now;
         }
+        return;
+    }
+
+    // Calculate ILM scores
+    if ((GPSAutoSwitch)_auto_switch.get() == GPSAutoSwitch::USE_ILM){
+        uint8_t ilm_instances = 0;
+        bool supports_in_line_monitoring[GPS_MAX_RECEIVERS] = {false};
+        int16_t in_line_monitor_scores[GPS_MAX_RECEIVERS] = {0};
+
+        for (uint8_t i=0; i<GPS_MAX_RECEIVERS; i++) {
+            if (drivers[i] == nullptr) {
+                continue;
+            }
+            if (!drivers[i]->supports_in_line_monitoring()) {
+                continue;
+            }
+            ilm_instances++;
+            supports_in_line_monitoring[i] = true;
+            in_line_monitor_scores[i] = ublox_ilm[i].get_score();
+        }
+
+        // Need at least 2 instances to do a comparison
+        if (ilm_instances < 2) {
+            primary_instance = primary_param;  // set based on the param if configured wrong
+            return;
+        }
+
+        // find the instance with the best ILM score
+        best_ilm_instance = primary_param;  // prefer the primary instance if scores are the same
+        for (uint8_t i=0; i<GPS_MAX_RECEIVERS; i++) {
+            if (supports_in_line_monitoring[i] && 
+                    in_line_monitor_scores[i] > in_line_monitor_scores[best_ilm_instance]) {
+                best_ilm_instance = i;
+            }
+        }
+
+        if (best_ilm_instance == primary_instance) {
+            return;
+        }
+
+        const int16_t ilm_score_diff =
+            in_line_monitor_scores[best_ilm_instance] - in_line_monitor_scores[primary_instance];
+
+        static constexpr int16_t ilm_small_diff = 5;
+        static constexpr int16_t ilm_medium_diff = 20;
+        static constexpr int16_t ilm_large_diff = 50;
+
+        static constexpr uint32_t ilm_small_diff_swap_time_ms = 20000;
+        static constexpr uint32_t ilm_medium_diff_swap_time_ms = 8000;
+        static constexpr uint32_t ilm_large_diff_swap_time_ms = 1000;
+
+        if (
+            (ilm_score_diff > ilm_small_diff && (now - _last_instance_swap_ms) >= ilm_small_diff_swap_time_ms) ||
+            (ilm_score_diff > ilm_medium_diff && (now - _last_instance_swap_ms) >= ilm_medium_diff_swap_time_ms) ||
+            (ilm_score_diff > ilm_large_diff && (now - _last_instance_swap_ms) >= ilm_large_diff_swap_time_ms)) {
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ILM Swap to system %d", best_ilm_instance);
+            primary_instance = best_ilm_instance;
+            _last_instance_swap_ms = now;
+        }
+
         return;
     }
 
@@ -1991,6 +2063,22 @@ bool AP_GPS::is_healthy(uint8_t instance) const
         return false;
     }
 
+    if (_min_cn0 > 0 && cn0(instance) < _min_cn0) {
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "GPS %i: Poor Quality Signal: %d dB", instance, cn0(instance));
+        return false;
+    }
+
+    if ((GPSAutoSwitch)_auto_switch.get() == GPSAutoSwitch::USE_ILM &&
+        instance != GPS_BLENDED_INSTANCE && instance < GPS_MAX_RECEIVERS) {
+
+        if (drivers[instance] != nullptr &&
+            drivers[instance]->supports_in_line_monitoring() &&
+            ublox_ilm_config.min_ilm_score != 0 &&  // disables this check if min_ilm_score is set to 0
+            ublox_ilm[instance].get_score() < ublox_ilm_config.min_ilm_score) {
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "GPS %d: ILM: below minimum score", instance);
+        }
+    }
+
     /*
       allow two lost frames before declaring the GPS unhealthy, but
       require the average frame rate to be close to 5Hz. We allow for
@@ -2140,8 +2228,60 @@ void AP_GPS::Write_GPS(uint8_t i)
         sample_ms     : last_message_time_ms(i),
         delta_ms      : last_message_delta_time_ms(i),
         undulation    : undulation,
+        cn0           : cn0(i),
     };
     AP::logger().WriteBlock(&pkt2, sizeof(pkt2));
+
+    // There is no ILM for the blended instance
+    if (i == GPS_BLENDED_INSTANCE || i >= GPS_MAX_RECEIVERS) {
+        return;
+    }
+
+    if (drivers[i] == nullptr) {
+        return;
+    }
+
+    // Check if the GNSS units is providing an ILM
+    if (!drivers[i]->supports_in_line_monitoring()) {
+        return;
+    }
+
+    // write ILM data for the physical GNSS receivers with an ILM
+    
+    struct log_GPS_ILM_PT1 pkt3{
+        LOG_PACKET_HEADER_INIT(LOG_GPS_ILM1_MSG),
+        time_us     : time_us,
+        instance    : i,
+        hSc         : ublox_ilm[i].get_hacc_score(),
+        vSc         : ublox_ilm[i].get_vacc_score(),
+        dpSc        : ublox_ilm[i].get_dop_score(),
+        ywSc        : ublox_ilm[i].get_yaw_score(),
+    };
+    AP::logger().WriteBlock(&pkt3, sizeof(pkt3));
+
+    struct log_GPS_ILM_PT2 pkt4{
+        LOG_PACKET_HEADER_INIT(LOG_GPS_ILM2_MSG),
+        time_us     : time_us,
+        instance    : i,
+        antSc       : ublox_ilm[i].get_antenna_score(),
+        jmSc        : ublox_ilm[i].get_jamming_score(),
+        spSc        : ublox_ilm[i].get_spoofing_score(),
+        satSc       : ublox_ilm[i].get_sats_score(),
+        cpuSc       : ublox_ilm[i].get_cpu_score(),
+        snSc        : ublox_ilm[i].get_cn0_score(),
+        fSc         : ublox_ilm[i].get_fix_score(),
+        cSc         : ublox_ilm[i].get_corrections_score(),
+        clkSc       : ublox_ilm[i].get_clock_score(),
+    };
+    AP::logger().WriteBlock(&pkt4, sizeof(pkt4));
+
+    struct log_GPS_ILM_PT3 pkt5{
+        LOG_PACKET_HEADER_INIT(LOG_GPS_ILM3_MSG),
+        time_us     : time_us,
+        instance    : i,
+        tot         : ublox_ilm[i].get_score(),
+    };
+    AP::logger().WriteBlock(&pkt5, sizeof(pkt5));
 }
 
 /*

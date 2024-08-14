@@ -11,6 +11,10 @@
     LOG_GPS_RAWS_MSG,                           \
     LOG_GPS_UBX1_MSG,                           \
     LOG_GPS_UBX2_MSG,                           \
+    LOG_GPS_USYS_MSG,                           \
+    LOG_GPS_ILM1_MSG,                           \
+    LOG_GPS_ILM2_MSG,                           \
+    LOG_GPS_ILM3_MSG,                           \
     LOG_IDS_FROM_GPS_SBP
 
 
@@ -63,6 +67,7 @@ struct PACKED log_GPS {
 // @Field: SMS: time since system startup this sample was taken
 // @Field: Delta: system time delta between the last two reported positions
 // @Field: Und: Undulation
+// @Field: cn0: signal to noise ratio of received signal
 struct PACKED log_GPA {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -76,6 +81,7 @@ struct PACKED log_GPA {
     uint32_t sample_ms;
     uint16_t delta_ms;
     float undulation;
+    uint8_t  cn0;
 };
 
 /*
@@ -89,6 +95,7 @@ struct PACKED log_GPA {
 // @Field: noisePerMS: noise level as measured by GPS
 // @Field: jamInd: jamming indicator; higher is more likely jammed
 // @Field: aPower: antenna power indicator; 2 is don't know
+// @Field: aStatus: antenna supervisor indicator; 1 is don't know, 2=ok 3=short, 4=open
 // @Field: agcCnt: automatic gain control monitor
 // @Field: config: bitmask for messages which haven't been seen
 struct PACKED log_Ubx1 {
@@ -98,6 +105,7 @@ struct PACKED log_Ubx1 {
     uint16_t noisePerMS;
     uint8_t  jamInd;
     uint8_t  aPower;
+    uint8_t  aStatus;
     uint16_t agcCnt;
     uint32_t config;
 };
@@ -118,6 +126,33 @@ struct PACKED log_Ubx2 {
     uint8_t  magI;
     int8_t   ofsQ;
     uint8_t  magQ;
+};
+
+
+// @LoggerMessage: USYS
+// @Description: uBlox-specific System Info
+// @Field: TimeUS: Time since system startup
+// @Field: Instance: GPS instance number
+// @Field: boot: Type of Boot 
+// @Field: cpu: Load on CPU
+// @Field: mem: current memory usage
+// @Field: runtime: seconds since reboot
+// @Field: notice: Number of notices occured since last restart
+// @Field: warn: Number of warnings occured since last restart
+// @Field: error: Number of errors occured since last restart
+// @Field: temp: Temperature (degC)
+struct PACKED log_USYS {
+    LOG_PACKET_HEADER;
+    uint64_t  time_us;
+    uint8_t   instance;
+    uint8_t   boot;
+    uint8_t   cpu;
+    uint8_t   mem;
+    uint32_t  runtime;
+    uint16_t  notice;
+    uint16_t  warn;
+    uint16_t  error;
+    int8_t    temp;
 };
 
 // @LoggerMessage: GRAW
@@ -198,19 +233,83 @@ struct PACKED log_GPS_RAWS {
     uint8_t trkStat;
 };
 
+// @LoggerMessage: ILM1
+// @Description: In Line Monitor data part 1
+// @Field: TimeUS: Time since system startup
+// @Field: I: Time since system startup
+// @Field: hSc: score for hacc
+// @Field: vSc: score for vacc
+// @Field: dpSc: score for dop
+// @Field: ywSc: score for Yaw system
+struct PACKED log_GPS_ILM_PT1 {
+    LOG_PACKET_HEADER;
+    uint64_t time_us;
+    uint8_t  instance;
+    int8_t hSc;
+    int8_t vSc;
+    int8_t dpSc;
+    int8_t ywSc;
+};
+
+// @LoggerMessage: ILM2
+// @Field: TimeUS: Time since system startup
+// @Field: I: ILM instance number
+// @Field: antSc: score for antenna
+// @Field: jmSc: score for Jamming
+// @Field: spSc: score for Spoofing
+// @Field: satSc: score for number of sats
+// @Field: cpuSc: score for overloaded CPU
+// @Field: snSc: score for signal strength
+// @Field: fSc: score for fix type
+// @Field: cSc: score for differential corrections
+// @Field: clkSc: score for clock accuracy
+struct PACKED log_GPS_ILM_PT2 {
+    LOG_PACKET_HEADER;
+    uint64_t time_us;
+    uint8_t  instance;
+    int8_t antSc;
+    int8_t jmSc;
+    int8_t spSc;
+    int8_t satSc;
+    int8_t cpuSc;
+    int8_t snSc;
+    int8_t fSc;
+    int8_t cSc;
+    int8_t clkSc;
+};
+
+// @LoggerMessage: ILM3
+// @Field: TimeUS: Time since system startup
+// @Field: I: ILM instance number
+// @Field: tot: total score
+struct PACKED log_GPS_ILM_PT3 {
+    LOG_PACKET_HEADER;
+    uint64_t time_us;
+    uint8_t  instance;
+    int16_t tot;
+};
+
 #define LOG_STRUCTURE_FROM_GPS \
     { LOG_GPS_MSG, sizeof(log_GPS), \
       "GPS",  "QBBIHBcLLeffffB", "TimeUS,I,Status,GMS,GWk,NSats,HDop,Lat,Lng,Alt,Spd,GCrs,VZ,Yaw,U", "s#---SmDUmnhnh-", "F----0BGGB000--" , true }, \
     { LOG_GPA_MSG,  sizeof(log_GPA), \
-      "GPA",  "QBCCCCfBIHf", "TimeUS,I,VDop,HAcc,VAcc,SAcc,YAcc,VV,SMS,Delta,Und", "s#mmmnd-ssm", "F-BBBB0-CC0" , true }, \
+      "GPA",  "QBCCCCfBIHfB", "TimeUS,I,VDop,HAcc,VAcc,SAcc,YAcc,VV,SMS,Delta,Und,cn0", "s#mmmnd-ssm-", "F-BBBB0-CC0-" , true }, \
     { LOG_GPS_UBX1_MSG, sizeof(log_Ubx1), \
-      "UBX1", "QBHBBHI",  "TimeUS,Instance,noisePerMS,jamInd,aPower,agcCnt,config", "s#-----", "F------"  , true }, \
+      "UBX1", "QBHBBBHI",  "TimeUS,Instance,noisePerMS,jamInd,aPower,aStatus,agcCnt,config", "s#------", "F-------"  , true }, \
     { LOG_GPS_UBX2_MSG, sizeof(log_Ubx2), \
       "UBX2", "QBbBbB", "TimeUS,Instance,ofsI,magI,ofsQ,magQ", "s#----", "F-----" , true }, \
+    { LOG_GPS_USYS_MSG, sizeof(log_USYS), \
+      "USYS", "QBBBBIHHHb", "TimeUS,Instance,boot,cpu,mem,runtime,notice,warn,error,temp", "s#-%%s---O", "F---------" , true }, \
     { LOG_GPS_RAW_MSG, sizeof(log_GPS_RAW), \
       "GRAW", "QIHBBddfBbB", "TimeUS,WkMS,Week,numSV,sv,cpMes,prMes,doMes,mesQI,cno,lli", "s--S-------", "F--0-------" , true }, \
     { LOG_GPS_RAWH_MSG, sizeof(log_GPS_RAWH), \
       "GRXH", "QdHbBB", "TimeUS,rcvTime,week,leapS,numMeas,recStat", "s-----", "F-----" , true }, \
     { LOG_GPS_RAWS_MSG, sizeof(log_GPS_RAWS), \
       "GRXS", "QddfBBBHBBBBB", "TimeUS,prMes,cpMes,doMes,gnss,sv,freq,lock,cno,prD,cpD,doD,trk", "s------------", "F------------" , true }, \
+    { LOG_GPS_ILM1_MSG, sizeof(log_GPS_ILM_PT1), \
+      "ILM1", "QBbbbb", "TimeUS,I,hSc,vSc,dpSc,ywSc", "s#----", "F-----" , true }, \
+    { LOG_GPS_ILM2_MSG, sizeof(log_GPS_ILM_PT2), \
+      "ILM2", "QBbbbbbbbbb", "TimeUS,I,antSc,jmSc,spSc,satSc,cpuSc,snSc,fSc,cSc,clkSc", "s#---------", "F----------" , true }, \
+    { LOG_GPS_ILM3_MSG, sizeof(log_GPS_ILM_PT3), \
+      "ILM3", "QBh", "TimeUS,I,tot", "s#-", "F--" , true }, \
     LOG_STRUCTURE_FROM_GPS_SBP,
