@@ -595,6 +595,7 @@ bool ModeAuto::start_command(const AP_Mission::Mission_Command& cmd)
 #endif
 
     case MAV_CMD_NAV_DELAY:                    // 93 Delay the next navigation command
+    case MAV_CMD_MNA_NAV_DELAY:                // 95 Delay the next navigation command
         do_nav_delay(cmd);
         break;
 
@@ -836,7 +837,8 @@ bool ModeAuto::verify_command(const AP_Mission::Mission_Command& cmd)
         break;
 #endif
 
-     case MAV_CMD_NAV_DELAY:
+    case MAV_CMD_NAV_DELAY:
+    case MAV_CMD_MNA_NAV_DELAY:
         cmd_complete = verify_nav_delay(cmd);
         break;
 
@@ -1566,12 +1568,35 @@ void ModeAuto::do_nav_delay(const AP_Mission::Mission_Command& cmd)
 {
     nav_delay_time_start_ms = millis();
 
-    if (cmd.content.nav_delay.seconds > 0) {
-        // relative delay
-        nav_delay_time_max_ms = cmd.content.nav_delay.seconds * 1000; // convert seconds to milliseconds
-    } else {
-        // absolute delay to utc time
-        nav_delay_time_max_ms = AP::rtc().get_time_utc(cmd.content.nav_delay.hour_utc, cmd.content.nav_delay.min_utc, cmd.content.nav_delay.sec_utc, 0);
+    if (cmd.id == MAV_CMD_NAV_DELAY) {
+        if (cmd.content.nav_delay.seconds > 0) {
+            // relative delay
+            nav_delay_time_max_ms = cmd.content.nav_delay.seconds * 1000; // convert seconds to milliseconds
+        } else {
+            // absolute delay to utc time
+            nav_delay_time_max_ms = AP::rtc().get_time_utc(
+                                    cmd.content.nav_delay.hour_utc,
+                                    cmd.content.nav_delay.min_utc,
+                                    cmd.content.nav_delay.sec_utc, 0);
+        }
+    } else if (cmd.id == MAV_CMD_MNA_NAV_DELAY) {
+
+        uint64_t epoch_time_s = 86400 * cmd.content.manna_nav_delay.days_since_epoch;
+        epoch_time_s += 3600 * cmd.content.manna_nav_delay.hour_utc;
+        epoch_time_s += 60 * cmd.content.manna_nav_delay.min_utc;
+        epoch_time_s += cmd.content.manna_nav_delay.sec_utc;
+
+        uint64_t epoch_time_now_us = 0;
+        uint64_t epoch_time_now_s = 0;
+        if (AP::rtc().get_utc_usec(epoch_time_now_us)) {
+            epoch_time_now_s = epoch_time_now_us / 1e6;
+        }
+
+        if (epoch_time_s > epoch_time_now_s) {
+            nav_delay_time_max_ms = (epoch_time_s - epoch_time_now_s) * 1000;
+        } else {
+            nav_delay_time_max_ms = 0;
+        }
     }
     gcs().send_text(MAV_SEVERITY_INFO, "Delaying %u sec", (unsigned)(nav_delay_time_max_ms/1000));
 }

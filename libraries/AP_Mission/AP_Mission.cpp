@@ -168,6 +168,7 @@ bool AP_Mission::is_takeoff_next(uint16_t cmd_index)
         // any of these are considered "skippable" when determining if
         // we "start with a takeoff command"
         case MAV_CMD_NAV_DELAY:
+        case MAV_CMD_MNA_NAV_DELAY:
             continue;
         default:
             return false;
@@ -449,7 +450,8 @@ int32_t AP_Mission::get_next_ground_course_cd(int32_t default_angle)
     }
     // special handling for nav commands with no target location
     if (cmd.id == MAV_CMD_NAV_GUIDED_ENABLE ||
-        cmd.id == MAV_CMD_NAV_DELAY) {
+        cmd.id == MAV_CMD_NAV_DELAY ||
+        cmd.id == MAV_CMD_MNA_NAV_DELAY) {
         return default_angle;
     }
     if (cmd.id == MAV_CMD_NAV_SET_YAW_SPEED) {
@@ -1008,6 +1010,13 @@ MAV_MISSION_RESULT AP_Mission::mavlink_int_to_mission_cmd(const mavlink_mission_
         cmd.content.nav_delay.sec_utc = packet.param4; // absolute time's second (utc)
         break;
 
+    case MAV_CMD_MNA_NAV_DELAY:                                       // MAV ID: 95
+        cmd.content.manna_nav_delay.days_since_epoch = packet.param1; // days since epoch (utc)
+        cmd.content.manna_nav_delay.hour_utc = packet.param2;         // absolute time's hour (utc)
+        cmd.content.manna_nav_delay.min_utc = packet.param3;          // absolute time's min (utc)
+        cmd.content.manna_nav_delay.sec_utc = packet.param4;          // absolute time's second (utc)
+        break;
+
     case MAV_CMD_CONDITION_DELAY:                       // MAV ID: 112
         cmd.content.delay.seconds = packet.param1;      // delay in seconds
         break;
@@ -1473,6 +1482,13 @@ bool AP_Mission::mission_cmd_to_mavlink_int(const AP_Mission::Mission_Command& c
         packet.param2 = cmd.content.nav_delay.hour_utc; // absolute time's day of week (utc)
         packet.param3 = cmd.content.nav_delay.min_utc; // absolute time's hour (utc)
         packet.param4 = cmd.content.nav_delay.sec_utc; // absolute time's min (utc)
+        break;
+
+    case MAV_CMD_MNA_NAV_DELAY:                                       // MAV ID: 95
+        packet.param1 = cmd.content.manna_nav_delay.days_since_epoch; // days since epoch (utc)
+        packet.param2 = cmd.content.manna_nav_delay.hour_utc;         // absolute time's hour (utc)
+        packet.param3 = cmd.content.manna_nav_delay.min_utc;          // absolute time's min (utc)
+        packet.param4 = cmd.content.manna_nav_delay.sec_utc;          // absolute time's second (utc)
         break;
 
     case MAV_CMD_CONDITION_DELAY:                       // MAV ID: 112
@@ -2654,6 +2670,7 @@ const char *AP_Mission::Mission_Command::type() const
     case MAV_CMD_DO_LAND_START:
         return "LandStart";
     case MAV_CMD_NAV_DELAY:
+    case MAV_CMD_MNA_NAV_DELAY:
         return "Delay";
     case MAV_CMD_DO_GRIPPER:
         return "Gripper";

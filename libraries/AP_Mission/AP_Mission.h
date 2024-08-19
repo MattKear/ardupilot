@@ -192,6 +192,14 @@ public:
         int8_t sec_utc; // absolute time's sec (utc)
     };
 
+    // manna navigation delay command structure
+    struct PACKED Manna_Navigation_Delay_Command {
+        uint32_t days_since_epoch; // days since epoch (utc)
+        uint8_t hour_utc; // absolute time's hour (utc)
+        uint8_t min_utc; // absolute time's min (utc)
+        uint8_t sec_utc; // absolute time's sec (utc)
+    };
+
     // DO_ENGINE_CONTROL support
     struct PACKED Do_Engine_Control {
         bool start_control; // start or stop engine
@@ -289,6 +297,9 @@ public:
 
         // navigation delay
         Navigation_Delay_Command nav_delay;
+
+        // manna navigation delay
+        Manna_Navigation_Delay_Command manna_nav_delay;
 
         // NAV_SET_YAW_SPEED support
         Set_Yaw_Speed set_yaw_speed;
