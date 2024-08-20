@@ -543,7 +543,7 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
     //MSG_AHRS,
     MSG_HWSTATUS,
     MSG_SYSTEM_TIME,
-    //MSG_WIND,
+    MSG_WIND,
     //MSG_RANGEFINDER,
     MSG_DISTANCE_SENSOR,
 #if AP_TERRAIN_AVAILABLE
