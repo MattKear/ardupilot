@@ -2485,29 +2485,26 @@ bool AP_Mission::distance_to_mission_leg(uint16_t start_index, float &rejoin_dis
         _jump_tracking_backup[i] = _jump_tracking[i];
     }
 
-    // return immediately if nav command index is invalid or mission not running
-    const uint16_t nav_cmd_index = get_current_nav_index();
-    const auto cmd_total = num_commands();
-    if ((nav_cmd_index == 0) || (nav_cmd_index >= cmd_total)) {
-        return false;
-    }
+    // hardcoded check for takeoff and landing sequence
+    // based on the number of commands in the mission
+    // and structure of the mission from the vms.
+    // THIS IS SENSITIVE TO CHANGE IN MISSION STRUCTURE
+    // TODO(charlie): review AUTO_RTL logic to find a more robust solution
+    constexpr uint8_t takeoff_sequence_size = 2;
+    constexpr uint8_t landing_sequence_size = 5;
+    bool in_takeoff_sequence = (get_current_nav_index() < takeoff_sequence_size);
+    bool in_landing_sequence = (get_current_nav_index() > num_commands() - landing_sequence_size - 1);
+    bool in_middle_of_mission = (!in_takeoff_sequence && !in_landing_sequence);
 
-    bool skip_landing = false;
-    if (cmd_total > 2 && _flags.state != MISSION_COMPLETE){
-        auto invalid_takeoff_index = 2;
-        auto invalid_land_index = cmd_total - 2;
-
-        if(nav_cmd_index < invalid_land_index && nav_cmd_index > invalid_takeoff_index){
-            skip_landing = true;
-            gcs().send_text(MAV_SEVERITY_INFO, "Mission: Landing seq not including final wp");
-        }
+    if (in_middle_of_mission) {
+        gcs().send_text(MAV_SEVERITY_INFO, "Excluding takeoff and landing sequence");
     }
 
     // run through remainder of mission to approximate a distance to landing
     uint16_t index = start_index;
     for (uint8_t i=0; i<255; i++) {
         // search until the end of the mission command list
-        for (uint16_t cmd_index = index; cmd_index <= cmd_total; cmd_index++) {
+        for (uint16_t cmd_index = index; cmd_index <= num_commands(); cmd_index++) {
             if (get_next_cmd(cmd_index, temp_cmd, true, false)) {
                 break;
             } else {
@@ -2516,8 +2513,11 @@ bool AP_Mission::distance_to_mission_leg(uint16_t start_index, float &rejoin_dis
             }
         }
         index = temp_cmd.index + 1;
-        if(skip_landing && is_landing_type_cmd(temp_cmd.id)){
-            prev_loc.zero();
+
+        // if in the middle of a mission, i.e. not in takeoff or landing sequence
+        // skip future landing type commands
+        // TODO(charlie): review AUTO_RTL logic to find a more robust solution
+        if(in_middle_of_mission && is_landing_type_cmd(temp_cmd.id)){
             continue;
         }
 
