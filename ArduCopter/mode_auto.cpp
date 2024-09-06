@@ -1567,6 +1567,7 @@ void ModeAuto::do_guided_limits(const AP_Mission::Mission_Command& cmd)
 void ModeAuto::do_nav_delay(const AP_Mission::Mission_Command& cmd)
 {
     nav_delay_time_start_ms = millis();
+    nav_delay_time_max_ms = 0;
 
     if (cmd.id == MAV_CMD_NAV_DELAY) {
         if (cmd.content.nav_delay.seconds > 0) {
@@ -1581,22 +1582,43 @@ void ModeAuto::do_nav_delay(const AP_Mission::Mission_Command& cmd)
         }
     } else if (cmd.id == MAV_CMD_MNA_NAV_DELAY) {
 
-        uint64_t epoch_time_s = 86400 * cmd.content.manna_nav_delay.days_since_epoch;
-        epoch_time_s += 3600 * cmd.content.manna_nav_delay.hour_utc;
-        epoch_time_s += 60 * cmd.content.manna_nav_delay.min_utc;
-        epoch_time_s += cmd.content.manna_nav_delay.sec_utc;
+        // pull out the variables from the command
+        const AP_Mission::Manna_Navigation_Delay_Command &delay_cmd = cmd.content.manna_nav_delay;
+        const uint64_t days_since_epoch = delay_cmd.days_since_epoch;
+        const uint64_t hour_utc = delay_cmd.hour_utc;
+        const uint64_t min_utc = delay_cmd.min_utc;
+        const uint64_t sec_utc = delay_cmd.sec_utc;
+
+        // print in a log the variables of the command
+        gcs().send_text(MAV_SEVERITY_INFO,
+            "Delaying until %lu days from epoch %02u:%02u:%02u",
+                (long unsigned int)delay_cmd.days_since_epoch,
+                delay_cmd.hour_utc,
+                delay_cmd.min_utc,
+                delay_cmd.sec_utc);
+
+        // calculate the epoch time to delay until in seconds
+        uint64_t epoch_time_s = 86400 * days_since_epoch;
+        epoch_time_s += 3600 * hour_utc;
+        epoch_time_s += 60 * min_utc;
+        epoch_time_s += sec_utc;
 
         uint64_t epoch_time_now_us = 0;
-        uint64_t epoch_time_now_s = 0;
-        if (AP::rtc().get_utc_usec(epoch_time_now_us)) {
-            epoch_time_now_s = epoch_time_now_us / 1e6;
+        if (!AP::rtc().get_utc_usec(epoch_time_now_us)) {
+            gcs().send_text(MAV_SEVERITY_INFO, "Failed to get current time: skipping delay");
+            return;
         }
+
+        uint64_t epoch_time_now_s = epoch_time_now_us / 1000000;
+
+        gcs().send_text(MAV_SEVERITY_INFO, "Current time %llu s", (long long unsigned int)epoch_time_now_s);
 
         if (epoch_time_s > epoch_time_now_s) {
             nav_delay_time_max_ms = (epoch_time_s - epoch_time_now_s) * 1000;
-        } else {
-            nav_delay_time_max_ms = 0;
         }
+
+        static const uint64_t MAXIMUM_POSSIBLE_DALAY_MS = 60000; // 60s
+        nav_delay_time_max_ms = MIN(nav_delay_time_max_ms, MAXIMUM_POSSIBLE_DALAY_MS);
     }
     gcs().send_text(MAV_SEVERITY_INFO, "Delaying %u sec", (unsigned)(nav_delay_time_max_ms/1000));
 }
