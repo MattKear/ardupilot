@@ -302,7 +302,7 @@ class AutoTestHelicopter(AutoTestCopter):
         self.progress("Lowering rotor speed")
         self.set_rc(8, 1000)
 
-    def AutoRotation(self, timeout=600):
+    def Autorotation(self, timeout=600):
         """Check engine-out behaviour"""
         self.context_push()
         start_alt = 100 # metres
@@ -361,7 +361,30 @@ class AutoTestHelicopter(AutoTestCopter):
         self.wait_disarmed()
         self.context_pop()
 
-    def ManAutoRotation(self, timeout=600):
+    def AutorotationPreArm(self):
+        """Check autorotation pre-arms are working"""
+        self.context_push()
+        self.progress("Check pass when autorotation mode not enabled")
+        self.set_parameters({"AROT_ENABLE":0,
+                             "RPM1_TYPE":0})
+        self.reboot_sitl()
+        try:
+            self.wait_statustext("PreArm: AROT: RPM1 not enabled", timeout=20)
+        except AutoTestTimeoutException:
+            # We want to hit the timeout on wait_statustext()
+            pass
+
+        self.progress("Check pre-arm fails when autorotation mode enabled")
+        self.set_parameter("AROT_ENABLE", 1)
+        self.wait_statustext("PreArm: AROT: RPM1 not enabled", timeout=20)
+
+        self.progress("Check pre-arm fails with bad HS_Sensor config")
+        self.set_parameter("AROT_HS_SENSOR", -1)
+        self.wait_statustext("PreArm: AROT: RPM instance <0", timeout=20)
+
+        self.context_pop()
+
+    def ManAutorotation(self, timeout=600):
         """Check autorotation power recovery behaviour"""
         RSC_CHAN = 8
 
@@ -389,7 +412,7 @@ class AutoTestHelicopter(AutoTestCopter):
                 # We have not got the throttle we expected
                 raise NotAchievedException("Wanted RSC output: %i, but got: %i" % (expected_pwm, pwm_received))
 
-        def TestAutoRotationConfig(self, arot_ramp_time, arot_idle):
+        def TestAutorotationConfig(self, arot_ramp_time, arot_idle, timeout):
             RAMP_TIME = 10
             RUNUP_TIME = 15
             AROT_RUNUP_TIME = arot_ramp_time + 4
@@ -481,13 +504,13 @@ class AutoTestHelicopter(AutoTestCopter):
         self.context_push()
         ramp_time = 2.0
         arot_idle = 0
-        TestAutoRotationConfig(self, ramp_time, arot_idle)
+        TestAutorotationConfig(self, ramp_time, arot_idle, timeout)
 
         # Now we test a config that would be used with an ESC with internal governor and an autorotation window
         self.progress("testing autorotation with ESC autorotation window config")
         ramp_time = 0.0
         arot_idle = 20
-        TestAutoRotationConfig(self, ramp_time, arot_idle)
+        TestAutorotationConfig(self, ramp_time, arot_idle, timeout)
         self.context_pop()
 
     def mission_item_home(self, target_system, target_component):
@@ -1063,8 +1086,9 @@ class AutoTestHelicopter(AutoTestCopter):
             self.PosHoldTakeOff,
             self.StabilizeTakeOff,
             self.SplineWaypoint,
-            self.AutoRotation,
-            self.ManAutoRotation,
+            self.AutorotationPreArm,
+            self.Autorotation,
+            self.ManAutorotation,
             self.governortest,
             self.FlyEachFrame,
             self.AirspeedDrivers,
