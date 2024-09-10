@@ -161,7 +161,7 @@ void AC_Autorotation::run_entry(float& pitch_target)
 {
     // Slowly change the target head speed until the target head speed matches the parameter defined value
     float norm_rpm = get_norm_head_speed();
-    if (norm_rpm > HEAD_SPEED_TARGET_RATIO*1.005f  ||  norm_rpm < HEAD_SPEED_TARGET_RATIO*0.995f) {
+    if (norm_rpm > HEAD_SPEED_TARGET_RATIO*1.05f  ||  norm_rpm < HEAD_SPEED_TARGET_RATIO*0.95f) {
         // Outside of 5% of target head speed so we slew target towards the set point
         _target_head_speed -= _hs_decay * _dt;
     } else {
@@ -267,25 +267,23 @@ void AC_Autorotation::log_write_autorotation(void) const
 // @Field: p: p-term of velocity response
 // @Field: ff: ff-term of velocity response
 // @Field: AccT: forward acceleration target
-// @Field: PitT: pitch target
 // @Field: LR: Landed Reason state flags
 // @FieldBitmaskEnum: LR: Copter::ModeAutorotate
 
     //Write to data flash log
     AP::logger().WriteStreaming("AROT",
-                       "TimeUS,P,hserr,ColOut,FFCol,SpdF,CmdV,p,ff,AccT,PitT,LR",
-                        "QffffffffffB",
+                       "TimeUS,P,hserr,ColOut,FFCol,SpdF,CmdV,p,ff,AccT,LR",
+                        "QfffffffffB",
                         AP_HAL::micros64(),
                         _p_term_hs,
                         _head_speed_error,
                         _collective_out,
                         _ff_term_hs,
-                        _speed_forward,
+                        get_speed_forward(),
                         _cmd_vel,
                         _vel_p,
                         _vel_ff,
                         _accel_target,
-                        _pitch_target,
                         _landed_reason);
 }
 #endif  // HAL_LOGGING_ENABLED
@@ -293,8 +291,7 @@ void AC_Autorotation::log_write_autorotation(void) const
 // Update speed controller
 void AC_Autorotation::update_forward_speed_controller(float& pitch_target)
 {
-    // Specify forward velocity component and determine delta velocity with respect to time
-    _speed_forward = get_speed_forward();
+    const float speed_forward = get_speed_forward();
 
     // Limiting the target velocity based on the max acceleration limit
     if (_cmd_vel < _vel_target) {
@@ -310,7 +307,7 @@ void AC_Autorotation::update_forward_speed_controller(float& pitch_target)
     }
 
     // Get p
-    _vel_p = _p_fw_vel.get_p(_cmd_vel - _speed_forward);
+    _vel_p = _p_fw_vel.get_p(_cmd_vel - speed_forward);
 
     // Get ff
     _vel_ff = _cmd_vel*_param_fwd_k_ff;
@@ -330,8 +327,8 @@ void AC_Autorotation::update_forward_speed_controller(float& pitch_target)
     }
 
     // Limiting acceleration based on velocity gained during the previous time step
-    const float delta_speed = _speed_forward - _speed_forward_last;
-    _speed_forward_last = _speed_forward;
+    const float delta_speed = speed_forward - _speed_forward_last;
+    _speed_forward_last = speed_forward;
     if (fabsf(delta_speed) > accel_max() * _dt) {
         _flag_limit_accel = true;
     } else {

@@ -43,7 +43,7 @@ public:
     void log_reason(uint8_t reason) { _landed_reason = reason; }
 
     // Helper functions
-    float accel_max(void) { return MIN(_param_accel_max.get(), 2.0); }
+    float accel_max(void) { return MAX(_param_accel_max.get(), 0.1); }
     void set_dt(float delta_sec) { _dt = delta_sec; }
 
     // Helper to get measured head speed that has been normalised by head speed set point
@@ -65,24 +65,21 @@ private:
     uint8_t _landed_reason;          // Bitmask of the reasons we think we have landed. Stored in lib for logging.
 
     //--------- Not Checked vars
-    float _current_rpm;
     float _collective_out;
-    float _head_speed_error;         // Error between target head speed and current head speed.  Normalised by head speed set point RPM.
-    float _col_cutoff_freq;          // Lowpass filter cutoff frequency (Hz) for collective.
+    float _head_speed_error;         // Error between target head speed and current head speed. Normalised by head speed set point RPM.
+
     float _target_head_speed;        // Normalised target head speed.  Normalised by head speed set point RPM.
     float _p_term_hs;                // Proportional contribution to collective setting.
     float _ff_term_hs;               // Following trim feed forward contribution to collective setting.
 
     float _vel_target;               // Forward velocity target.
-    float _pitch_target;             // Pitch angle target.
-    float _accel_max;                // Maximum acceleration limit.
     float _speed_forward_last;       // The forward speed calculated in the previous cycle.
+
     bool _flag_limit_accel;          // Maximum acceleration limit reached flag.
     float _accel_out_last;           // Acceleration value used to calculate pitch target in previous cycle.
     float _cmd_vel;                  // Command velocity, used to get PID values for acceleration calculation.
     float _accel_target;             // Acceleration target, calculated from PID.
 
-    float _speed_forward;            // Measured forward speed.
     float _vel_p;                    // Forward velocity P term.
     float _vel_ff;                   // Forward velocity Feed Forward term.
     float _accel_out;                // Acceleration value used to calculate pitch target.
