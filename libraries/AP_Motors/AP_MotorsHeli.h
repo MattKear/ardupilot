@@ -118,8 +118,8 @@ public:
     // support passing init_targets_on_arming flag to greater code
     bool init_targets_on_arming() const override { return _heliflags.init_targets_on_arming; }
 
-    // arot_man_enabled - gets contents of manual_autorotation_enabled parameter
-    bool arot_man_enabled() const { return _main_rotor.autorotation_enabled(); }
+    // rsc_arot_enabled - gets contents of manual_autorotation_enabled parameter
+    bool rsc_arot_enabled() const { return _main_rotor.autorotation_enabled(); }
 
     // helper for vehicle code to request autorotation states in the RSC.
     void set_autorotation_active(bool tf) { _main_rotor.set_autorotation_active(tf); }
@@ -135,8 +135,11 @@ public:
 
     // set land complete flag
     void set_land_complete(bool landed) { _heliflags.land_complete = landed; }
-	
-	//return zero lift collective position
+
+    // function to calculate the normalised collective position given a desired blade pitch angle (deg)
+    float calc_coll_from_ang(float col_ang_deg) const;
+
+    //return zero lift collective position
     float get_coll_mid() const { return _collective_zero_thrust_pct; }
 
     // enum for heli optional features

@@ -623,3 +623,10 @@ float AP_MotorsHeli::get_cyclic_angle_scaler(void) const {
     return ((float)(_collective_max-_collective_min))*1e-3 * (_collective_max_deg.get() - _collective_min_deg.get()) * 2.0;
 }
 #endif
+
+// function to calculate the normalised collective position given a desired blade pitch angle (deg)
+float AP_MotorsHeli::calc_coll_from_ang(float col_ang_deg) const
+{
+    float col_norm = col_ang_deg / MAX((_collective_max_deg.get() - _collective_min_deg.get()), 1.0);
+    return constrain_float(col_norm, 0.0, 1.0);
+}
