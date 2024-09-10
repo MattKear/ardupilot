@@ -8,14 +8,14 @@
 #include <Filter/Filter.h>
 #include <Filter/LowPassFilter.h>
 #include <AC_PID/AC_P.h>
-#include <AP_InertialNav/AP_InertialNav.h>
+#include <AC_AttitudeControl/AC_PosControl.h>
 
 class AC_Autorotation
 {
 public:
 
     //Constructor
-    AC_Autorotation(AP_InertialNav& inav, AP_AHRS& ahrs, AP_MotorsHeli*& motors);
+    AC_Autorotation(AP_AHRS& ahrs, AP_MotorsHeli*& motors, AC_PosControl*& pos_ctrl);
 
     void init(void);
 
@@ -102,7 +102,7 @@ private:
     LowPassFilterFloat col_trim_lpf;
 
     //--------References to Other Libraries--------
-    AP_InertialNav&    _inav;
     AP_AHRS&           _ahrs;
     AP_MotorsHeli*&    _motors_heli;
+    AC_PosControl*&    _pos_control;
 };
