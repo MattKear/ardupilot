@@ -222,7 +222,7 @@ void AC_Autorotation::update_headspeed_controller(void)
 
 
 // Helper to get measured head speed that has been normalised by head speed set point
-float AC_Autorotation::get_norm_head_speed(void)
+float AC_Autorotation::get_norm_head_speed(void) const
 {
     // assuming zero rpm is safer as it will drive collective in the direction of increasing head speed
     float current_rpm = 0.0;
@@ -348,7 +348,7 @@ void AC_Autorotation::update_forward_speed_controller(float& pitch_target)
 
 
 // Determine the forward ground speed component from measured components
-float AC_Autorotation::get_speed_forward(void)
+float AC_Autorotation::get_speed_forward(void) const
 {
     auto &ahrs = AP::ahrs();
     Vector2f groundspeed_vector = ahrs.groundspeed_vector();
