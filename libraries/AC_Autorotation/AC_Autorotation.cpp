@@ -2,19 +2,16 @@
 #include <AP_Logger/AP_Logger.h>
 #include <AP_RPM/AP_RPM.h>
 #include <AP_AHRS/AP_AHRS.h>
+#include <GCS_MAVLink/GCS.h>
 
 // Autorotation controller defaults
 // Head Speed (HS) controller specific default definitions
-#define HS_CONTROLLER_COLLECTIVE_CUTOFF_FREQ          2.0f     // low-pass filter on accel error (unit: hz)
-#define HS_CONTROLLER_HEADSPEED_P                     0.7f     // Default P gain for head speed controller (unit: -)
-#define HS_CONTROLLER_ENTRY_COL_FILTER                0.7f    // Default low pass filter frequency during the entry phase (unit: Hz)
-#define HS_CONTROLLER_GLIDE_COL_FILTER                0.1f    // Default low pass filter frequency during the glide phase (unit: Hz)
+#define HS_CONTROLLER_COLLECTIVE_CUTOFF_FREQ          2.0     // low-pass filter on accel error (unit: hz)
+#define HS_CONTROLLER_HEADSPEED_P                     0.7     // Default P gain for head speed controller (unit: -)
+#define HEAD_SPEED_TARGET_RATIO                       1.0    // Normalised target main rotor head speed
 
 // Speed Height controller specific default definitions for autorotation use
-#define FWD_SPD_CONTROLLER_GND_SPEED_TARGET           1100     // Default target ground speed for speed height controller (unit: cm/s)
-#define FWD_SPD_CONTROLLER_MAX_ACCEL                  60      // Default acceleration limit for speed height controller (unit: cm/s/s)
-#define AP_FW_VEL_P                       0.9f
-#define AP_FW_VEL_FF                      0.15f
+#define AP_FW_VEL_P                       9.0
 
 
 const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
@@ -23,7 +20,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @DisplayName: Enable settings for RSC Setpoint
     // @Description: Allows you to enable (1) or disable (0) the autonomous autorotation capability.
     // @Values: 0:Disabled,1:Enabled
-    // @User: Advanced
+    // @User: Standard
     AP_GROUPINFO_FLAGS("ENABLE", 1, AC_Autorotation, _param_enable, 0, AP_PARAM_FLAG_ENABLE),
 
     // @Param: HS_P
@@ -31,7 +28,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Description: Increase value to increase sensitivity of head speed controller during autonomous autorotation.
     // @Range: 0.3 1
     // @Increment: 0.01
-    // @User: Advanced
+    // @User: Standard
     AP_SUBGROUPINFO(_p_hs, "HS_", 2, AC_Autorotation, AC_P),
 
     // @Param: HS_SET_PT
@@ -40,17 +37,17 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Units: RPM
     // @Range: 1000 2800
     // @Increment: 1
-    // @User: Advanced
+    // @User: Standard
     AP_GROUPINFO("HS_SET_PT", 3, AC_Autorotation, _param_head_speed_set_point, 1500),
 
     // @Param: TARG_SP
     // @DisplayName: Target Glide Ground Speed
     // @Description: Target ground speed in cm/s for the autorotation controller to try and achieve/ maintain during the glide phase.
-    // @Units: cm/s
-    // @Range: 800 2000
-    // @Increment: 50
-    // @User: Advanced
-    AP_GROUPINFO("TARG_SP", 4, AC_Autorotation, _param_target_speed, FWD_SPD_CONTROLLER_GND_SPEED_TARGET),
+    // @Units: m/s
+    // @Range: 8 20
+    // @Increment: 0.5
+    // @User: Standard
+    AP_GROUPINFO("TARG_SP", 4, AC_Autorotation, _param_target_speed, 11),
 
     // @Param: COL_FILT_E
     // @DisplayName: Entry Phase Collective Filter
@@ -58,8 +55,8 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Units: Hz
     // @Range: 0.2 0.5
     // @Increment: 0.01
-    // @User: Advanced
-    AP_GROUPINFO("COL_FILT_E", 5, AC_Autorotation, _param_col_entry_cutoff_freq, HS_CONTROLLER_ENTRY_COL_FILTER),
+    // @User: Standard
+    AP_GROUPINFO("COL_FILT_E", 5, AC_Autorotation, _param_col_entry_cutoff_freq, 0.7),
 
     // @Param: COL_FILT_G
     // @DisplayName: Glide Phase Collective Filter
@@ -67,17 +64,17 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Units: Hz
     // @Range: 0.03 0.15
     // @Increment: 0.01
-    // @User: Advanced
-    AP_GROUPINFO("COL_FILT_G", 6, AC_Autorotation, _param_col_glide_cutoff_freq, HS_CONTROLLER_GLIDE_COL_FILTER),
+    // @User: Standard
+    AP_GROUPINFO("COL_FILT_G", 6, AC_Autorotation, _param_col_glide_cutoff_freq, 0.1),
 
     // @Param: AS_ACC_MAX
     // @DisplayName: Forward Acceleration Limit
     // @Description: Maximum forward acceleration to apply in speed controller.
-    // @Units: cm/s/s
-    // @Range: 30 60
-    // @Increment: 10
-    // @User: Advanced
-    AP_GROUPINFO("AS_ACC_MAX", 7, AC_Autorotation, _param_accel_max, FWD_SPD_CONTROLLER_MAX_ACCEL),
+    // @Units: m/s/s
+    // @Range: 0.3 2.0
+    // @Increment: 0.1
+    // @User: Standard
+    AP_GROUPINFO("AS_ACC_MAX", 7, AC_Autorotation, _param_accel_max, 0.6),
 
     // @Param: HS_SENSOR
     // @DisplayName: Main Rotor RPM Sensor 
@@ -85,7 +82,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Units: s
     // @Range: 0.5 3
     // @Increment: 0.1
-    // @User: Advanced
+    // @User: Standard
     AP_GROUPINFO("HS_SENSOR", 8, AC_Autorotation, _param_rpm_instance, 0),
 
     // @Param: FW_V_P
@@ -93,7 +90,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Description: Velocity (horizontal) P gain.  Determines the proportion of the target acceleration based on the velocity error.
     // @Range: 0.1 6.0
     // @Increment: 0.1
-    // @User: Advanced
+    // @User: Standard
     AP_SUBGROUPINFO(_p_fw_vel, "FW_V_", 9, AC_Autorotation, AC_P),
 
     // @Param: FW_V_FF
@@ -101,253 +98,241 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Description: Velocity (horizontal) input filter.  Corrects the target acceleration proportionally to the desired velocity.
     // @Range: 0 1
     // @Increment: 0.01
-    // @User: Advanced
-    AP_GROUPINFO("FW_V_FF", 10, AC_Autorotation, _param_fwd_k_ff, AP_FW_VEL_FF),
+    // @User: Standard
+    AP_GROUPINFO("FW_V_FF", 10, AC_Autorotation, _param_fwd_k_ff, 1.5),
 
     AP_GROUPEND
 };
 
 // Constructor
-AC_Autorotation::AC_Autorotation() :
+AC_Autorotation::AC_Autorotation(AP_InertialNav& inav, AP_AHRS& ahrs, AP_MotorsHeli*& motors) :
+    _inav(inav),
+    _ahrs(ahrs),
+    _motors_heli(motors),
     _p_hs(HS_CONTROLLER_HEADSPEED_P),
     _p_fw_vel(AP_FW_VEL_P)
     {
         AP_Param::setup_object_defaults(this, var_info);
     }
 
-
-// Initialisation of head speed controller
-void AC_Autorotation::init_hs_controller()
-{
-    // Set initial collective position to be the collective position on initialisation
-    _collective_out = 0.4f;
+void AC_Autorotation::init(void) {
+    // Initialisation of head speed controller
+    // Set initial collective position to be the current collective position for smooth init
+    _collective_out = _motors_heli->get_throttle_out();
 
     // Reset feed forward filter
     col_trim_lpf.reset(_collective_out);
 
-    // Reset flags
-    _flags.bad_rpm = false;
-
-    // Reset RPM health monitoring
-    _unhealthy_rpm_counter = 0;
-    _healthy_rpm_counter = 0;
-
     // Protect against divide by zero
-    _param_head_speed_set_point.set(MAX(_param_head_speed_set_point,500));
+    _param_head_speed_set_point.set(MAX(_param_head_speed_set_point, 500.0));
+
+    // Initialise forward speed controller
+    _accel_target = 0.0;
+
+    // Reset cmd vel and last accel to sensible values
+    _cmd_vel = get_speed_forward();
+    _accel_out_last = _cmd_vel * _param_fwd_k_ff;
+
 }
 
-
-bool AC_Autorotation::update_hs_glide_controller(float dt)
+// Functions and config that are only to be done once at the beginning of the entry
+void AC_Autorotation::init_entry(void)
 {
-    // Reset rpm health flag
-    _flags.bad_rpm = false;
-    _flags.bad_rpm_warning = false;
+    gcs().send_text(MAV_SEVERITY_INFO, "Entry Phase");
 
+    // Set desired forward speed target
+    _vel_target = _param_target_speed.get();
+
+    // Target head speed is set to rpm at initiation to prevent steps in controller
+    _target_head_speed = get_norm_head_speed();
+
+    // The decay rate to reduce the head speed from the current to the target
+    _hs_decay = (_target_head_speed - HEAD_SPEED_TARGET_RATIO) / (float(entry_time_ms)*1e-3);
+
+    // Set collective following trim low pass filter cut off frequency
+    col_trim_lpf.set_cutoff_frequency(_param_col_entry_cutoff_freq.get());
+
+    // set collective 
+    _motors_heli->set_throttle_filter_cutoff(HS_CONTROLLER_COLLECTIVE_CUTOFF_FREQ);
+}
+
+// The entry controller just a special case of the glide controller with head speed target slewing
+void AC_Autorotation::run_entry(float& pitch_target)
+{
+    // Slowly change the target head speed until the target head speed matches the parameter defined value
+    float norm_rpm = get_norm_head_speed();
+    if (norm_rpm > HEAD_SPEED_TARGET_RATIO*1.005f  ||  norm_rpm < HEAD_SPEED_TARGET_RATIO*0.995f) {
+        // Outside of 5% of target head speed so we slew target towards the set point
+        _target_head_speed -= _hs_decay * _dt;
+    } else {
+        _target_head_speed = HEAD_SPEED_TARGET_RATIO;
+    }
+
+    run_glide(pitch_target);
+}
+
+// Functions and config that are only to be done once at the beginning of the glide
+void AC_Autorotation::init_glide(void)
+{
+    gcs().send_text(MAV_SEVERITY_INFO, "Glide Phase");
+
+    // Set collective following trim low pass filter cut off frequency
+    col_trim_lpf.set_cutoff_frequency(_param_col_glide_cutoff_freq.get());
+
+    // Ensure target headspeed is set to setpoint, in case it didn't reach the target during entry
+    _target_head_speed = HEAD_SPEED_TARGET_RATIO;
+
+    // Ensure desired forward speed target is set to param value
+    _vel_target = _param_target_speed.get();
+}
+
+// Maintain head speed and forward speed as we glide to the ground
+void AC_Autorotation::run_glide(float& pitch_target)
+{
+    update_headspeed_controller();
+
+    update_forward_speed_controller(pitch_target);
+}
+
+void AC_Autorotation::update_headspeed_controller(void)
+{
     // Get current rpm and update healthy signal counters
-    _current_rpm = get_rpm(true);
+    const float head_speed_norm = get_norm_head_speed();
 
-    if (_unhealthy_rpm_counter <=30) {
-        // Normalised head speed
-        float head_speed_norm = _current_rpm / _param_head_speed_set_point;
-
-        // Set collective trim low pass filter cut off frequency
-        col_trim_lpf.set_cutoff_frequency(_col_cutoff_freq);
-
-        // Calculate the head speed error.  Current rpm is normalised by the set point head speed.  
-        // Target head speed is defined as a percentage of the set point.
+    if (head_speed_norm > 0.0) {
+        // Calculate the head speed error.
         _head_speed_error = head_speed_norm - _target_head_speed;
 
         _p_term_hs = _p_hs.get_p(_head_speed_error);
 
         // Adjusting collective trim using feed forward (not yet been updated, so this value is the previous time steps collective position)
-        _ff_term_hs = col_trim_lpf.apply(_collective_out, dt);
+        _ff_term_hs = col_trim_lpf.apply(_collective_out, _dt);
 
         // Calculate collective position to be set
-        _collective_out = _p_term_hs + _ff_term_hs;
+        _collective_out = constrain_value((_p_term_hs + _ff_term_hs), 0.0f, 1.0f) ;
 
     } else {
-        // RPM sensor is bad set collective to minimum
-        _collective_out = -1.0f;
-
-        _flags.bad_rpm_warning = true;
+         // RPM sensor is bad, set collective to angle of -2 deg and hope for the best
+         _collective_out = _motors_heli->calc_coll_from_ang(-2.0);
     }
 
     // Send collective to setting to motors output library
-    set_collective(HS_CONTROLLER_COLLECTIVE_CUTOFF_FREQ);
-
-    return _flags.bad_rpm_warning;
+    _motors_heli->set_throttle(_collective_out);
 }
 
 
-// Function to set collective and collective filter in motor library
-void AC_Autorotation::set_collective(float collective_filter_cutoff) const
+// Helper to get measured head speed that has been normalised by head speed set point
+float AC_Autorotation::get_norm_head_speed(void)
 {
-    AP_Motors *motors = AP::motors();
-    if (motors) {
-        motors->set_throttle_filter_cutoff(collective_filter_cutoff);
-        motors->set_throttle(_collective_out);
-    }
-}
-
-
-//function that gets rpm and does rpm signal checking to ensure signal is reliable
-//before using it in the controller
-float AC_Autorotation::get_rpm(bool update_counter)
-{
-    float current_rpm = 0.0f;
+    // assuming zero rpm is safer as it will drive collective in the direction of increasing head speed
+    float current_rpm = 0.0;
 
 #if AP_RPM_ENABLED
     // Get singleton for RPM library
     const AP_RPM *rpm = AP_RPM::get_singleton();
 
-    //Get current rpm, checking to ensure no nullptr
-    if (rpm != nullptr) {
-        //Check requested rpm instance to ensure either 0 or 1.  Always defaults to 0.
-        if ((_param_rpm_instance > 1) || (_param_rpm_instance < 0)) {
-            _param_rpm_instance.set(0);
-        }
-
-        //Get RPM value
-        uint8_t instance = _param_rpm_instance;
-
-        //Check RPM sensor is returning a healthy status
-        if (!rpm->get_rpm(instance, current_rpm) || current_rpm <= -1) {
-            //unhealthy, rpm unreliable
-            _flags.bad_rpm = true;
-        }
-
-    } else {
-        _flags.bad_rpm = true;
+    // checking to ensure no nullptr, we do have a pre-arm check for this so it will be very bad if RPM has gone away
+    if (rpm == nullptr) {
+        return 0.0;
     }
-#else
-    _flags.bad_rpm = true;
+
+    // Check RPM sensor is returning a healthy status
+    if (!rpm->get_rpm(_param_rpm_instance.get(), current_rpm)) {
+        return 0.0;
+    }
+
 #endif
 
-    if (_flags.bad_rpm) {
-        //count unhealthy rpm updates and reset healthy rpm counter
-        _unhealthy_rpm_counter++;
-        _healthy_rpm_counter = 0;
+    // Protect against div by zeros later in the code
+    float head_speed_set_point = MAX(1.0, _param_head_speed_set_point.get());
 
-    } else if (!_flags.bad_rpm && _unhealthy_rpm_counter > 0) {
-        //poor rpm reading may have cleared.  Wait 10 update cycles to clear.
-        _healthy_rpm_counter++;
-
-        if (_healthy_rpm_counter >= 10) {
-            //poor rpm health has cleared, reset counters
-            _unhealthy_rpm_counter = 0;
-            _healthy_rpm_counter = 0;
-        }
-    }
-    return current_rpm;
+    // Normalize the RPM by the setpoint
+    return current_rpm/head_speed_set_point;
 }
 
 
 #if HAL_LOGGING_ENABLED
-void AC_Autorotation::Log_Write_Autorotation(void) const
+void AC_Autorotation::log_write_autorotation(void) const
 {
 // @LoggerMessage: AROT
 // @Vehicles: Copter
-// @Description: Helicopter AutoRotation information
+// @Description: Helicopter Autorotation information
 // @Field: TimeUS: Time since system startup
 // @Field: P: P-term for headspeed controller response
 // @Field: hserr: head speed error; difference between current and desired head speed
 // @Field: ColOut: Collective Out
 // @Field: FFCol: FF-term for headspeed controller response
-// @Field: CRPM: current headspeed RPM
 // @Field: SpdF: current forward speed
 // @Field: CmdV: desired forward speed
 // @Field: p: p-term of velocity response
 // @Field: ff: ff-term of velocity response
-// @Field: AccO: forward acceleration output
 // @Field: AccT: forward acceleration target
 // @Field: PitT: pitch target
+// @Field: LR: Landed Reason state flags
+// @FieldBitmaskEnum: LR: Copter::ModeAutorotate
 
     //Write to data flash log
     AP::logger().WriteStreaming("AROT",
-                       "TimeUS,P,hserr,ColOut,FFCol,CRPM,SpdF,CmdV,p,ff,AccO,AccT,PitT",
-                         "Qffffffffffff",
+                       "TimeUS,P,hserr,ColOut,FFCol,SpdF,CmdV,p,ff,AccT,PitT,LR",
+                        "QffffffffffB",
                         AP_HAL::micros64(),
-                        (double)_p_term_hs,
-                        (double)_head_speed_error,
-                        (double)_collective_out,
-                        (double)_ff_term_hs,
-                        (double)_current_rpm,
-                        (double)_speed_forward,
-                        (double)_cmd_vel,
-                        (double)_vel_p,
-                        (double)_vel_ff,
-                        (double)_accel_out,
-                        (double)_accel_target,
-                        (double)_pitch_target);
+                        _p_term_hs,
+                        _head_speed_error,
+                        _collective_out,
+                        _ff_term_hs,
+                        _speed_forward,
+                        _cmd_vel,
+                        _vel_p,
+                        _vel_ff,
+                        _accel_target,
+                        _pitch_target,
+                        _landed_reason);
 }
 #endif  // HAL_LOGGING_ENABLED
 
-// Initialise forward speed controller
-void AC_Autorotation::init_fwd_spd_controller(void)
-{
-    // Reset I term and acceleration target
-    _accel_target = 0.0f;
-    
-    // Ensure parameter acceleration doesn't exceed hard-coded limit
-    _accel_max = MIN(_param_accel_max, 60.0f);
-
-    // Reset cmd vel and last accel to sensible values
-    _cmd_vel = calc_speed_forward(); //(cm/s)
-    _accel_out_last = _cmd_vel*_param_fwd_k_ff;
-}
-
-
-// set_dt - sets time delta in seconds for all controllers
-void AC_Autorotation::set_dt(float delta_sec)
-{
-    _dt = delta_sec;
-}
-
-
-// update speed controller
-void AC_Autorotation::update_forward_speed_controller(void)
+// Update speed controller
+void AC_Autorotation::update_forward_speed_controller(float& pitch_target)
 {
     // Specify forward velocity component and determine delta velocity with respect to time
-    _speed_forward = calc_speed_forward(); //(cm/s)
-
-    _delta_speed_fwd = _speed_forward - _speed_forward_last; //(cm/s)
-    _speed_forward_last = _speed_forward; //(cm/s)
+    _speed_forward = get_speed_forward();
 
     // Limiting the target velocity based on the max acceleration limit
     if (_cmd_vel < _vel_target) {
-        _cmd_vel += _accel_max * _dt;
+        _cmd_vel += accel_max() * _dt;
         if (_cmd_vel > _vel_target) {
             _cmd_vel = _vel_target;
         }
     } else {
-        _cmd_vel -= _accel_max * _dt;
+        _cmd_vel -= accel_max() * _dt;
         if (_cmd_vel < _vel_target) {
             _cmd_vel = _vel_target;
         }
     }
 
-    // get p
-    _vel_p = _p_fw_vel.get_p(_cmd_vel-_speed_forward);
+    // Get p
+    _vel_p = _p_fw_vel.get_p(_cmd_vel - _speed_forward);
 
-    // get ff
+    // Get ff
     _vel_ff = _cmd_vel*_param_fwd_k_ff;
 
-    //calculate acceleration target based on PI controller
+    // Calculate acceleration target based on PI controller
     _accel_target = _vel_ff + _vel_p;
 
-    // filter correction acceleration
+    // Filter correction acceleration
     _accel_target_filter.set_cutoff_frequency(10.0f);
     _accel_target_filter.apply(_accel_target, _dt);
 
-    //Limits the maximum change in pitch attitude based on acceleration
-    if (_accel_target > _accel_out_last + _accel_max) {
-        _accel_target = _accel_out_last + _accel_max;
-    } else if (_accel_target < _accel_out_last - _accel_max) {
-        _accel_target = _accel_out_last - _accel_max;
+    // Limits the maximum change in pitch attitude based on acceleration
+    if (_accel_target > _accel_out_last + accel_max()) {
+        _accel_target = _accel_out_last + accel_max();
+    } else if (_accel_target < _accel_out_last - accel_max()) {
+        _accel_target = _accel_out_last - accel_max();
     }
 
-    //Limiting acceleration based on velocity gained during the previous time step 
-    if (fabsf(_delta_speed_fwd) > _accel_max * _dt) {
+    // Limiting acceleration based on velocity gained during the previous time step
+    const float delta_speed = _speed_forward - _speed_forward_last;
+    _speed_forward_last = _speed_forward;
+    if (fabsf(delta_speed) > accel_max() * _dt) {
         _flag_limit_accel = true;
     } else {
         _flag_limit_accel = false;
@@ -360,19 +345,17 @@ void AC_Autorotation::update_forward_speed_controller(void)
     }
     _accel_out_last = _accel_out;
 
-    // update angle targets that will be passed to stabilize controller
-    _pitch_target = accel_to_angle(-_accel_out*0.01) * 100;
-
+    // Update angle targets that will be passed to stabilize controller
+    pitch_target = accel_to_angle(-_accel_out);
 }
 
 
 // Determine the forward ground speed component from measured components
-float AC_Autorotation::calc_speed_forward(void)
+float AC_Autorotation::get_speed_forward(void)
 {
     auto &ahrs = AP::ahrs();
     Vector2f groundspeed_vector = ahrs.groundspeed_vector();
-    float speed_forward = (groundspeed_vector.x*ahrs.cos_yaw() + groundspeed_vector.y*ahrs.sin_yaw())* 100; //(c/s)
-    return speed_forward;
+    return groundspeed_vector.x*ahrs.cos_yaw() + groundspeed_vector.y*ahrs.sin_yaw(); // (m/s)
 }
 
 // Arming checks for autorotation, mostly checking for miss-configurations
@@ -407,6 +390,12 @@ bool AC_Autorotation::arming_checks(size_t buflen, char *buffer) const
         return false;
     }
 #endif
+
+    // Check that heli motors is configured for autorotation
+    if (!_motors_heli->rsc_arot_enabled()) {
+        hal.util->snprintf(buffer, buflen, "H_RSC_AROT_* not configured");
+        return false;
+    }
 
     return true;
 }
