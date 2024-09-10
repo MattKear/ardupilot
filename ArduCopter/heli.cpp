@@ -201,7 +201,7 @@ void Copter::heli_update_autorotation()
     }
 
     // if we got this far we are flying, check for conditions to set autorotation state
-    if (!motors->get_interlock() && ((flightmode->has_manual_throttle() && motors->arot_man_enabled()) || in_autorotaion_mode)) {
+    if (!motors->get_interlock() && ((flightmode->has_manual_throttle() && motors->rsc_arot_enabled()) || in_autorotaion_mode)) {
         // set state in motors to facilitate manual and assisted autorotations
         motors->set_autorotation_active(true);
     } else {
