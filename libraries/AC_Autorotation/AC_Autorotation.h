@@ -9,13 +9,14 @@
 #include <Filter/LowPassFilter.h>
 #include <AC_PID/AC_P.h>
 #include <AC_AttitudeControl/AC_PosControl.h>
+#include <AC_AttitudeControl/AC_AttitudeControl.h>
 
 class AC_Autorotation
 {
 public:
 
     //Constructor
-    AC_Autorotation(AP_AHRS& ahrs, AP_MotorsHeli*& motors, AC_PosControl*& pos_ctrl);
+    AC_Autorotation(AP_AHRS& ahrs, AP_MotorsHeli*& motors, AC_PosControl*& pos_ctrl, AC_AttitudeControl*& att_crtl);
 
     void init(void);
 
@@ -23,17 +24,17 @@ public:
 
     // Init and run entry phase controller
     void init_entry(void);
-    void run_entry(float& pitch_target);
+    void run_entry(float pilot_yaw_rate);
 
     // Init and run the glide phase controller
     void init_glide(void);
-    void run_glide(float& pitch_target);
+    void run_glide(float pilot_yaw_rate);
 
     // Update controller used to drive head speed with collective
     void update_headspeed_controller(void);
 
     // Update controller used to control speed via vehicle pitch
-    void update_forward_speed_controller(float& pitch_target);  // Update forward speed controller
+    void update_xy_speed_controller(float pilot_yaw_rate);
 
     // Arming checks for autorotation, mostly checking for miss-configurations
     bool arming_checks(size_t buflen, char *buffer) const;
@@ -44,6 +45,7 @@ public:
 
     // Helper functions
     float accel_max(void) { return MAX(_param_accel_max.get(), 0.1); }
+    float jerk_max(void) { return MAX(_param_jerk_max.get(), 0.1); }
     void set_dt(float delta_sec) { _dt = delta_sec; }
 
     // Helper to get measured head speed that has been normalised by head speed set point
@@ -64,6 +66,11 @@ private:
 
     uint8_t _landed_reason;          // Bitmask of the reasons we think we have landed. Stored in lib for logging.
 
+    AC_AttitudeControl::HeadingCommand _desired_heading;
+
+    Vector2f desired_accel_bf;
+    Vector2f desired_velocity_bf;
+
     //--------- Not Checked vars
     float _collective_out;
     float _head_speed_error;         // Error between target head speed and current head speed. Normalised by head speed set point RPM.
@@ -72,12 +79,12 @@ private:
     float _p_term_hs;                // Proportional contribution to collective setting.
     float _ff_term_hs;               // Following trim feed forward contribution to collective setting.
 
-    float _vel_target;               // Forward velocity target.
+    float _fwd_spd_desired;          // Forward speed target.
     float _speed_forward_last;       // The forward speed calculated in the previous cycle.
 
     bool _flag_limit_accel;          // Maximum acceleration limit reached flag.
     float _accel_out_last;           // Acceleration value used to calculate pitch target in previous cycle.
-    float _cmd_vel;                  // Command velocity, used to get PID values for acceleration calculation.
+
     float _accel_target;             // Acceleration target, calculated from PID.
 
     float _vel_p;                    // Forward velocity P term.
@@ -97,6 +104,7 @@ private:
     AP_Float _param_accel_max;
     AP_Int8  _param_rpm_instance;
     AP_Float _param_fwd_k_ff;
+    AP_Float _param_jerk_max;
 
     // low pass filter for collective trim
     LowPassFilterFloat col_trim_lpf;
@@ -105,4 +113,5 @@ private:
     AP_AHRS&           _ahrs;
     AP_MotorsHeli*&    _motors_heli;
     AC_PosControl*&    _pos_control;
+    AC_AttitudeControl*& _attitude_control;
 };
