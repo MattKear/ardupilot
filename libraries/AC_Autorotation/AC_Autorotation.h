@@ -51,15 +51,18 @@ public:
     // Helper to get measured head speed that has been normalised by head speed set point
     float get_norm_head_speed(void) const;
 
-    // Calculates the forward ground speed in the horizontal plane
-    float get_speed_forward(void) const;
-
     // User Settable Parameters
     static const struct AP_Param::GroupInfo var_info[];
 
     static const uint32_t entry_time_ms = 2000; // (ms) Number of milliseconds that the entry phase operates for
 
 private:
+
+    // Calculates the forward ground speed in the horizontal plane
+    float get_speed_forward(void) const;
+
+    Vector3f get_bf_vel(void) const;
+    Vector3f get_bf_accel(void) const;
 
     float _hs_decay;                 // The head speed target acceleration during the entry phase
     float _dt;                       // Time step.
@@ -70,6 +73,13 @@ private:
 
     Vector2f desired_accel_bf;
     Vector2f desired_velocity_bf;
+
+    Vector2f last_desired_accel_bf;
+    Vector2f last_desired_velocity_bf;
+
+    // --- TEMP ---
+    Vector2f desired_velocity_ef;
+    Vector2f desired_accel_ef;
 
     //--------- Not Checked vars
     float _collective_out;

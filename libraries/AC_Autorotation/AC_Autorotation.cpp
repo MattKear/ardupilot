@@ -144,6 +144,10 @@ void AC_Autorotation::init(void) {
     // Init to current heading
     _desired_heading.yaw_angle_cd = _ahrs.get_yaw()*100.0;
     _desired_heading.yaw_rate_cds = 0.0;
+
+    // init last desired vels and accels to current values. This ensures that we smoothly apply our kinematic shaping to the desired
+    last_desired_velocity_bf = get_bf_vel().xy();
+    last_desired_accel_bf = get_bf_accel().xy();
 }
 
 // Functions and config that are only to be done once at the beginning of the entry
@@ -270,24 +274,34 @@ void AC_Autorotation::update_xy_speed_controller(float pilot_yaw_rate_cdegs)
     _desired_heading.yaw_rate_cds = pilot_yaw_rate_cdegs;
     _desired_heading.yaw_angle_cd = radians(_ahrs.get_yaw())*100 + pilot_yaw_rate_cdegs*_dt;
 
-    const float fwd_speed = get_speed_forward();
-    float fwd_speed_error = _fwd_spd_desired - fwd_speed;
-
-    // constrain the desired speed by the maximum accel limit
-    const float sign = is_positive(fwd_speed_error) ? 1.0 : -1.0;
-    fwd_speed_error = MIN(fabsf(fwd_speed_error), accel_max()*_dt) * sign;
-
-    // Update the target body-frame velocity based on the now constrained forward speed
-    desired_velocity_bf.x = fwd_speed + fwd_speed_error;
+    desired_velocity_bf.x = _fwd_spd_desired;
     desired_velocity_bf.y = 0.0; // Always want zero side slip
+    desired_accel_bf.x = accel_max();
+    // iterate over the body-frame forward speed to ensure it is converged on a kinematically consistant jerk and accel limited solution
+    for (uint8_t i=0; i<3; i++) {
+        float fwd_speed_error = desired_velocity_bf.x - last_desired_velocity_bf.x;
 
-    // We may not be constrained against the max accel to achieve the desired change in forward speed so we still check 
-    // that we are only requesting what accel we actually need to maintain a kinematically consistant request
-    if (!is_positive(_dt)) {
-        // If we have not had a valid dt update protect against div by zero by assuming 400 Hz update
-        _dt = 2.5e-3;
+        // constrain the desired speed by the maximum accel limit
+        float sign = is_positive(fwd_speed_error) ? 1.0 : -1.0;
+        fwd_speed_error = MIN(fabsf(fwd_speed_error), desired_accel_bf.x *_dt) * sign;
+
+        // Update the target body-frame velocity based on the now constrained forward speed
+        desired_velocity_bf.x = last_desired_velocity_bf.x + fwd_speed_error;
+
+        // We may not be constrained against the max accel to achieve the desired change in forward speed so we still check 
+        // that we are only requesting what accel we actually need to maintain a kinematically consistant request
+        if (!is_positive(_dt)) {
+            // If we have not had a valid dt update protect against div by zero by assuming 400 Hz update
+            _dt = 2.5e-3;
+        }
+        desired_accel_bf.x = fwd_speed_error / _dt;
+
+        // jerk limit the accel
+        float fwd_accel_error = desired_accel_bf.x - last_desired_accel_bf.x;
+        sign = is_positive(fwd_accel_error) ? 1.0 : -1.0;
+        fwd_accel_error = MIN(fabsf(fwd_accel_error), jerk_max() *_dt) * sign;
+        desired_accel_bf.x = last_desired_accel_bf.x + fwd_accel_error;
     }
-    desired_accel_bf.x = fwd_speed_error / _dt;
 
     // Compute the lateral accel that we need to maintain a coordinated turn, based on the pilots yaw rate request
     // Calc body-frame accels
@@ -300,17 +314,21 @@ void AC_Autorotation::update_xy_speed_controller(float pilot_yaw_rate_cdegs)
     // r = s / w
     // accel = (s / w) * w^2
     // accel = s * w
-    desired_accel_bf.y = pilot_yaw_rate_cdegs*0.01 * fwd_speed;
+    desired_accel_bf.y = pilot_yaw_rate_cdegs*0.01 * (desired_accel_bf.x); // desired velocity in the next time step
+
+    // store last
+    last_desired_velocity_bf = desired_velocity_bf;
+    last_desired_accel_bf = desired_accel_bf;
 
     // TODO???? maybe we want a circular constrain on the accel here.  This is probably taken care of in the pos controller but we should check
 
     // Convert from body-frame to earth-frame
-    Vector2f desired_velocity_ef = _ahrs.body_to_earth2D(desired_velocity_bf);
-    Vector2f desired_accel_ef = _ahrs.body_to_earth2D(desired_accel_bf);
+    desired_velocity_ef = _ahrs.body_to_earth2D(desired_velocity_bf) * 100.0;
+    desired_accel_ef = _ahrs.body_to_earth2D(desired_accel_bf) * 100.0;
 
-    // convert m to cm for position controller
-    desired_velocity_ef *= 100.0;
-    desired_accel_ef *= 100.0;
+    // // convert m to cm for position controller
+    // desired_velocity_ef *= 100.0;
+    // desired_accel_ef *= 100.0;
 
     // update the position controller
     _pos_control->input_vel_accel_xy(desired_velocity_ef, desired_accel_ef, false);
@@ -327,6 +345,22 @@ float AC_Autorotation::get_speed_forward(void) const
 {
     Vector2f groundspeed_vector = _ahrs.groundspeed_vector();
     return groundspeed_vector.x*_ahrs.cos_yaw() + groundspeed_vector.y*_ahrs.sin_yaw(); // (m/s)
+}
+
+Vector3f AC_Autorotation::get_bf_accel(void) const
+{
+    Vector3f ef_accel = _ahrs.get_accel_ef();
+    return _ahrs.earth_to_body(ef_accel);
+}
+
+Vector3f AC_Autorotation::get_bf_vel(void) const
+{
+    Vector3f ef_vel;
+    if (_ahrs.get_velocity_NED(ef_vel)) {
+        return _ahrs.earth_to_body(ef_vel);
+    }
+    // TODO: probably need to think of some smart handing case for returning false on this method
+    return ef_vel;
 }
 
 
@@ -364,6 +398,35 @@ void AC_Autorotation::log_write_autorotation(void) const
                         _vel_ff,
                         _accel_target,
                         _landed_reason);
+
+
+    // @LoggerMessage: ARO2
+    // @Vehicles: Copter
+    // @Description: Helicopter Autorotation information 2
+    // @Field: TimeUS: Time since system startup
+    // @Field: VXB: Desired velocity X in body frame
+    // @Field: VYB: Desired velocity Y in body frame
+    // @Field: AXB: Desired Acceleration X in body frame
+    // @Field: AYB: Desired Acceleration Y in body frame
+    // @Field: VXE: Desired velocity X in earth frame
+    // @Field: VYE: Desired velocity Y in earth frame
+    // @Field: AXE: Desired Acceleration X in earth frame
+    // @Field: AYE: Desired Acceleration Y in earth frame
+
+    //Write to data flash log
+    AP::logger().WriteStreaming("ARO2",
+                       "TimeUS,VXB,VYB,AXB,AYB,VXE,VYE,AXE,AYE,dt",
+                        "Qfffffffff",
+                        AP_HAL::micros64(),
+                        desired_velocity_bf.x,
+                        desired_velocity_bf.y,
+                        desired_accel_bf.x,
+                        desired_accel_bf.y,
+                        desired_velocity_ef.x,
+                        desired_velocity_ef.y,
+                        desired_accel_ef.x,
+                        desired_accel_ef.y,
+                        _dt);
 }
 #endif  // HAL_LOGGING_ENABLED
 
