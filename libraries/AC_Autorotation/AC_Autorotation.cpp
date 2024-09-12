@@ -139,7 +139,9 @@ void AC_Autorotation::init(void) {
 
     // Initialise xy pos controller
     _pos_control->init_xy_controller();
-    _pos_control->set_max_speed_accel_xy(_param_target_speed.get()*100.0, _param_accel_max*100.0);
+    // _pos_control->set_max_speed_accel_xy(_param_target_speed.get()*100.0, _param_accel_max*100.0);
+    _pos_control->set_correction_speed_accel_xy(_param_target_speed.get()*100.0, _param_accel_max*100.0);
+    _pos_control->set_pos_error_max_xy_cm(1000);
 
     // Init to current heading
     _desired_heading.yaw_angle_cd = _ahrs.get_yaw()*100.0;
@@ -314,7 +316,7 @@ void AC_Autorotation::update_xy_speed_controller(float pilot_yaw_rate_cdegs)
     // r = s / w
     // accel = (s / w) * w^2
     // accel = s * w
-    desired_accel_bf.y = pilot_yaw_rate_cdegs*0.01 * (desired_accel_bf.x); // desired velocity in the next time step
+    desired_accel_bf.y = pilot_yaw_rate_cdegs * 0.01 * M_PI / 180.0 * (desired_velocity_bf.x); // desired velocity in the next time step
 
     // store last
     last_desired_velocity_bf = desired_velocity_bf;
@@ -322,16 +324,18 @@ void AC_Autorotation::update_xy_speed_controller(float pilot_yaw_rate_cdegs)
 
     // TODO???? maybe we want a circular constrain on the accel here.  This is probably taken care of in the pos controller but we should check
 
-    // Convert from body-frame to earth-frame
+    // // Convert from body-frame to earth-frame
     desired_velocity_ef = _ahrs.body_to_earth2D(desired_velocity_bf) * 100.0;
     desired_accel_ef = _ahrs.body_to_earth2D(desired_accel_bf) * 100.0;
 
-    // // convert m to cm for position controller
-    // desired_velocity_ef *= 100.0;
-    // desired_accel_ef *= 100.0;
+    // Vector2p target_pos = _pos_control->get_pos_target_cm().xy();
 
     // update the position controller
-    _pos_control->input_vel_accel_xy(desired_velocity_ef, desired_accel_ef, false);
+    // _pos_control->input_vel_accel_xy(desired_velocity_ef, desired_accel_ef, false);
+    // _pos_control->input_vel_accel_xy(desired_velocity_ef, desired_accel_ef, true);
+    // _pos_control->set_pos_vel_accel_xy(target_pos, desired_velocity_ef, desired_accel_ef);
+    _pos_control->set_vel_desired_xy_cms(desired_velocity_ef);
+    _pos_control->set_accel_desired_xy_cmss(desired_accel_ef);
 
     _pos_control->update_xy_controller();
 
