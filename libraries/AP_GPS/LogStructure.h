@@ -6,6 +6,7 @@
 #define LOG_IDS_FROM_GPS                        \
     LOG_GPS_MSG,                                \
     LOG_GPA_MSG,                                \
+    LOG_GPST_MSG,                                \
     LOG_GPS_RAW_MSG,                            \
     LOG_GPS_RAWH_MSG,                           \
     LOG_GPS_RAWS_MSG,                           \
@@ -82,6 +83,34 @@ struct PACKED log_GPA {
     uint16_t delta_ms;
     float undulation;
     uint8_t  cn0;
+};
+
+// @LoggerMessage: GPST
+// @Description: GPS timing information
+// @Field: TimeUS: Time since system startup
+// @Field: I: GPS instance number
+// @Field: itow: GPS time of week
+// @Field: lcgt: last corrected GPS time in milliseconds
+// @Field: lgt: last GPS time in milliseconds
+// @Field: lpi: last pseudo itow
+// @Field: lft: last fix time in milliseconds
+// @Field: lmt: last message time in milliseconds
+// @Field: lmdt: last message delta time in milliseconds
+// @Field: adt: average delta time in milliseconds
+// @Field: dc: delayed count
+struct PACKED log_GPST {
+    LOG_PACKET_HEADER;
+    uint64_t time_us;
+    uint8_t instance;
+    uint32_t itow;
+    uint32_t last_corrected_gps_time_ms;
+    uint32_t last_gps_time_ms;
+    uint32_t last_pseudo_itow;
+    uint32_t last_fix_time_ms;
+    uint32_t last_message_time_ms;
+    uint16_t last_message_delta_time_ms;
+    uint16_t average_delta_ms;
+    uint8_t delayed_count;
 };
 
 /*
@@ -294,6 +323,8 @@ struct PACKED log_GPS_ILM_PT3 {
       "GPS",  "QBBIHBcLLeffffB", "TimeUS,I,Status,GMS,GWk,NSats,HDop,Lat,Lng,Alt,Spd,GCrs,VZ,Yaw,U", "s#---SmDUmnhnh-", "F----0BGGB000--" , true }, \
     { LOG_GPA_MSG,  sizeof(log_GPA), \
       "GPA",  "QBCCCCfBIHfB", "TimeUS,I,VDop,HAcc,VAcc,SAcc,YAcc,VV,SMS,Delta,Und,cn0", "s#mmmnd-ssm-", "F-BBBB0-CC0-" , true }, \
+    { LOG_GPST_MSG, sizeof(log_GPST), \
+      "GPST", "QBIIIIIIHHB", "TimeUS,I,itow,lcgt,lgt,lpi,lft,lmt,lmdt,adt,dc", "s#ssssssss-","F-CCCCCCCC-", true }, \
     { LOG_GPS_UBX1_MSG, sizeof(log_Ubx1), \
       "UBX1", "QBHBBBHI",  "TimeUS,Instance,noisePerMS,jamInd,aPower,aStatus,agcCnt,config", "s#------", "F-------"  , true }, \
     { LOG_GPS_UBX2_MSG, sizeof(log_Ubx2), \

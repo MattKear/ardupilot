@@ -561,6 +561,7 @@ public:
 
     // get iTOW, if supported, zero otherwie
     uint32_t get_itow(uint8_t instance) const;
+    uint32_t get_itow_raw(uint8_t instance) const;
 
     bool get_error_codes(uint8_t instance, uint32_t &error_codes) const;
     bool get_error_codes(uint32_t &error_codes) const { return get_error_codes(primary_instance, error_codes); }
@@ -769,6 +770,7 @@ private:
 
     // logging support
     void Write_GPS(uint8_t instance);
+    void Write_GPSTime(uint8_t instance);
 
 };
 

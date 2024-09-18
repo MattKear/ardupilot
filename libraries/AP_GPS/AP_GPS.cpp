@@ -953,6 +953,9 @@ void AP_GPS::update_instance(uint8_t instance)
 #ifndef HAL_BUILD_AP_PERIPH
     if (state[instance].status >= GPS_OK_FIX_3D) {
         const uint64_t now = time_epoch_usec(instance);
+        if (should_log()) {
+            Write_GPSTime(instance);
+        }
         if (now != 0) {
             AP::rtc().set_utc_usec(now, AP_RTC::SOURCE_GPS);
         }
@@ -2157,6 +2160,14 @@ uint32_t AP_GPS::get_itow(uint8_t instance) const
     return drivers[instance]->get_last_itow_ms();
 }
 
+uint32_t AP_GPS::get_itow_raw(uint8_t instance) const
+{
+    if (instance >= GPS_MAX_RECEIVERS || drivers[instance] == nullptr) {
+        return 0;
+    }
+    return drivers[instance]->get_last_itow_ms_raw();
+}
+
 bool AP_GPS::get_error_codes(uint8_t instance, uint32_t &error_codes) const
 {
     if (instance >= GPS_MAX_RECEIVERS || drivers[instance] == nullptr) {
@@ -2282,6 +2293,36 @@ void AP_GPS::Write_GPS(uint8_t i)
         tot         : ublox_ilm[i].get_score(),
     };
     AP::logger().WriteBlock(&pkt5, sizeof(pkt5));
+}
+
+void AP_GPS::Write_GPSTime(uint8_t instance)
+{
+    const uint64_t time_us = AP_HAL::micros64();
+    const uint32_t itow = get_itow(instance);
+    const uint32_t last_corrected_gps_time_ms = state[instance].last_corrected_gps_time_us/1000U;
+    const uint32_t last_gps_time_ms = state[instance].last_gps_time_ms;
+    const uint32_t last_pseudo_itow = get_itow_raw(instance);
+    const uint32_t last_fix_time_ms = timing[instance].last_fix_time_ms;
+    const uint32_t last_message_time_ms = timing[instance].last_message_time_ms;
+    const uint16_t last_message_delta_time_ms = timing[instance].delta_time_ms;
+    const uint16_t average_delta_ms = timing[instance].average_delta_ms;
+    const uint8_t delayed_count = timing[instance].delayed_count;
+
+    const struct log_GPST pkt {
+        LOG_PACKET_HEADER_INIT(LOG_GPST_MSG),
+        time_us       : time_us,
+        instance      : instance,
+        itow          : itow,
+        last_corrected_gps_time_ms : last_corrected_gps_time_ms,
+        last_gps_time_ms : last_gps_time_ms,
+        last_pseudo_itow : last_pseudo_itow,
+        last_fix_time_ms : last_fix_time_ms,
+        last_message_time_ms : last_message_time_ms,
+        last_message_delta_time_ms : last_message_delta_time_ms,
+        average_delta_ms : average_delta_ms,
+        delayed_count : delayed_count
+    };
+    AP::logger().WriteBlock(&pkt, sizeof(pkt));
 }
 
 /*

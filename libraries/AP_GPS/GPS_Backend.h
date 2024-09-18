@@ -100,6 +100,7 @@ public:
     uint32_t get_last_itow_ms(void) const {
         return (_pseudo_itow_delta_ms == 0)?(_last_itow_ms):((_pseudo_itow/1000ULL) + _pseudo_itow_delta_ms);
     }
+    uint32_t get_last_itow_ms_raw() const { return _last_itow_ms; };
 
     enum DriverOptions : int16_t {
         UBX_MBUseUart2    = (1U << 0U),
