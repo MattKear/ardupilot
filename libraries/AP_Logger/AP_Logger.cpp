@@ -175,6 +175,14 @@ void AP_Logger::Init(const struct LogStructure *structures, uint8_t num_types)
     if (hal.util->was_watchdog_armed()) {
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Forcing logging for watchdog reset");
         _params.log_disarmed.set(1);
+        _boot_logging = false;  // don't override boot logging on watchdog reset logging
+    }
+    if (_boot_logging) {
+        if (_params.log_disarmed.get() != 1) {
+            _boot_logging_param_old = _params.log_disarmed.get();
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Forcing logging for boot logging");
+            _params.log_disarmed.set(1);
+        }
     }
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
     validate_structures(structures, num_types);
@@ -1347,6 +1355,7 @@ bool AP_Logger::check_crash_dump_save(void)
 void AP_Logger::io_thread(void)
 {
     uint32_t last_run_us = AP_HAL::micros();
+    uint32_t _boot_logging_start_us = last_run_us;
     uint32_t last_stack_us = last_run_us;
     uint32_t last_crash_check_us = last_run_us;
     bool done_crash_dump_save = false;
@@ -1374,6 +1383,14 @@ void AP_Logger::io_thread(void)
             now - last_crash_check_us > 5000000U) {
             last_crash_check_us = now;
             done_crash_dump_save = check_crash_dump_save();
+        }
+        if (_boot_logging && now - _boot_logging_start_us > 900000000U) {
+            // we've been logging for 90s after boot, stop now
+            _boot_logging = false;
+            _params.log_disarmed.set(_boot_logging_param_old);
+            if (!vehicle_is_armed()) {
+                FOR_EACH_BACKEND(vehicle_was_disarmed());
+            }
         }
 #if HAL_LOGGER_FILE_CONTENTS_ENABLED
         file_content_update();

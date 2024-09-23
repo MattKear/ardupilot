@@ -640,6 +640,9 @@ private:
     void log_file_content(FileContent &file_content, const char *filename);
     void file_content_update(FileContent &file_content);
 #endif
+
+    bool _boot_logging = true;
+    uint8_t _boot_logging_param_old;
 };
 
 namespace AP {
