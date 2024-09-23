@@ -2307,6 +2307,8 @@ void AP_GPS::Write_GPSTime(uint8_t instance)
     const uint16_t last_message_delta_time_ms = timing[instance].delta_time_ms;
     const uint16_t average_delta_ms = timing[instance].average_delta_ms;
     const uint8_t delayed_count = timing[instance].delayed_count;
+    uint64_t time_utc;
+    AP::rtc().get_utc_usec(time_utc);
 
     const struct log_GPST pkt {
         LOG_PACKET_HEADER_INIT(LOG_GPST_MSG),
@@ -2320,7 +2322,9 @@ void AP_GPS::Write_GPSTime(uint8_t instance)
         last_message_time_ms : last_message_time_ms,
         last_message_delta_time_ms : last_message_delta_time_ms,
         average_delta_ms : average_delta_ms,
-        delayed_count : delayed_count
+        delayed_count : delayed_count,
+        time_utc      : time_utc
+
     };
     AP::logger().WriteBlock(&pkt, sizeof(pkt));
 }

@@ -111,6 +111,7 @@ struct PACKED log_GPST {
     uint16_t last_message_delta_time_ms;
     uint16_t average_delta_ms;
     uint8_t delayed_count;
+    uint64_t time_utc;
 };
 
 /*
@@ -324,7 +325,7 @@ struct PACKED log_GPS_ILM_PT3 {
     { LOG_GPA_MSG,  sizeof(log_GPA), \
       "GPA",  "QBCCCCfBIHfB", "TimeUS,I,VDop,HAcc,VAcc,SAcc,YAcc,VV,SMS,Delta,Und,cn0", "s#mmmnd-ssm-", "F-BBBB0-CC0-" , true }, \
     { LOG_GPST_MSG, sizeof(log_GPST), \
-      "GPST", "QBIIIIIIHHB", "TimeUS,I,itow,lcgt,lgt,lpi,lft,lmt,lmdt,adt,dc", "s#ssssssss-","F-CCCCCCCC-", true }, \
+      "GPST", "QBIIIIIIHHBQ", "TimeUS,I,itow,lcgt,lgt,lpi,lft,lmt,lmdt,adt,dc,utc", "s#ssssssss-q","F-CCCCCCCC-F", true }, \
     { LOG_GPS_UBX1_MSG, sizeof(log_Ubx1), \
       "UBX1", "QBHBBBHI",  "TimeUS,Instance,noisePerMS,jamInd,aPower,aStatus,agcCnt,config", "s#------", "F-------"  , true }, \
     { LOG_GPS_UBX2_MSG, sizeof(log_Ubx2), \
