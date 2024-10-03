@@ -332,7 +332,7 @@ private:
     // used by DO_SET_SERVO commands
     bool ign_small_rcin_changes;
 
-    // if true we should ignore all imputs on this channel
+    // if true we should ignore all inputs on this channel
     bool override_active;
 
     void set_override(bool b) {override_active = b;};
@@ -361,6 +361,15 @@ public:
 
     // set output value for a specific function channel as a pwm value for specified override time in ms
     static void set_output_pwm_chan_timeout(uint8_t chan, uint16_t value, uint16_t timeout_ms);
+
+    // set output value for a specific function channel as a pwm value for indefinite override
+    static void set_output_pwm_chan_override(uint8_t chan, uint16_t value);
+
+    // release override on a specific function channel
+    static void release_chan_override(uint8_t chan);
+
+    // release override on all channels
+    static void release_all_chan_override();
 
     // set output value for a function channel as a scaled value. This
     // calls calc_pwm() to also set the pwm value

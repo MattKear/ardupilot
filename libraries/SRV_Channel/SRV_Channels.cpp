@@ -321,12 +321,15 @@ void SRV_Channels::calc_pwm(void)
     for (uint8_t i=0; i<NUM_SERVO_CHANNELS; i++) {
         // check if channel has been locked out for this loop
         // if it has, decrement the loop count for that channel
-        if (override_counter[i] == 0) {
-            channels[i].set_override(false);
-        } else {
-            channels[i].set_override(true);
+        // if the override counter is UINT16_MAX, the channel is indefinitely overridden
+        if (override_counter[i] > 0 && override_counter[i] < UINT16_MAX) {
             override_counter[i]--;
         }
+
+        if (override_counter[i] == 0) {
+            channels[i].set_override(false);
+        }
+
         if (channels[i].valid_function()) {
             channels[i].calc_pwm(functions[channels[i].function.get()].output_scaled);
         }
@@ -364,6 +367,49 @@ void SRV_Channels::set_output_pwm_chan_timeout(uint8_t chan, uint16_t value, uin
             // checking had_pwm means the PWM will not change after the timeout, this was the existing behaviour
             SRV_Channel::have_pwm_mask &= ~(1U<<chan);
         }
+    }
+}
+
+// set output value for a specific function channel as a pwm value for indefinite override
+void SRV_Channels::set_output_pwm_chan_override(uint8_t chan, uint16_t value)
+{
+    WITH_SEMAPHORE(_singleton->override_counter_sem);
+
+    if (chan < NUM_SERVO_CHANNELS) {
+        override_counter[chan] = UINT16_MAX;
+        channels[chan].set_override(true);
+        channels[chan].set_output_pwm(value,true);
+        const bool had_pwm = SRV_Channel::have_pwm_mask & (1U<<chan);
+        if (!had_pwm) {
+            // clear the have PWM mask so the channel will default back to the scaled value when timeout expires
+            // this is also cleared by set_output_scaled but that requires it to be re-called as some point
+            // after the timeout is applied
+            // note that we can't default back to a pre-override PWM value as it is not stored
+            // checking had_pwm means the PWM will not change after the timeout, this was the existing behaviour
+            SRV_Channel::have_pwm_mask &= ~(1U<<chan);
+        }
+    }
+}
+
+// release override on a specific function channel
+void SRV_Channels::release_chan_override(uint8_t chan)
+{
+    WITH_SEMAPHORE(_singleton->override_counter_sem);
+
+    if (chan < NUM_SERVO_CHANNELS) {
+        override_counter[chan] = 0;
+        channels[chan].set_override(false);
+    }
+}
+
+// release override on all function channels
+void SRV_Channels::release_all_chan_override(void)
+{
+    WITH_SEMAPHORE(_singleton->override_counter_sem);
+
+    for (uint8_t i=0; i<NUM_SERVO_CHANNELS; i++) {
+        override_counter[i] = 0;
+        channels[i].set_override(false);
     }
 }
 

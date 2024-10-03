@@ -1044,6 +1044,44 @@ MAV_RESULT GCS_MAVLINK_Copter::handle_command_long_packet(const mavlink_command_
         return MAV_RESULT_ACCEPTED;
     }
 
+    case MAV_CMD_MNA_SET_MOT_STOP:
+    {
+        bool stop = !is_zero(packet.param1);
+        
+        if (packet.param2 < 0.0f || packet.param2 >= pow(2, AP_MOTORS_MAX_NUM_MOTORS)) {
+            return MAV_RESULT_DENIED;
+        }
+
+        uint16_t mask = static_cast<uint16_t>(packet.param2);
+        uint16_t timeout = static_cast<uint16_t>(packet.param3);
+
+        if (!stop && mask == 0) {
+            SRV_Channels::release_all_chan_override();
+            return MAV_RESULT_ACCEPTED;
+        }
+        
+        for (uint8_t i = 0; i < AP_MOTORS_MAX_NUM_MOTORS; i++) {
+            if (mask & (1U << i)) {
+
+                if (!stop) {
+                    SRV_Channels::release_chan_override(i);
+                    continue;
+                }
+
+                const int16_t pwm = copter.motors->get_pwm_output_min();
+
+                if (timeout > 0) {
+                    SRV_Channels::set_output_pwm_chan_timeout(i, pwm, timeout);
+                    continue;
+                }
+
+                SRV_Channels::set_output_pwm_chan_override(i, pwm);
+            }
+        }
+
+        return MAV_RESULT_ACCEPTED;
+    }
+
     default:
         return GCS_MAVLINK::handle_command_long_packet(packet);
     }
