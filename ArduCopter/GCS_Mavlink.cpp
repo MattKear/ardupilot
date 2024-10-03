@@ -1057,14 +1057,19 @@ MAV_RESULT GCS_MAVLINK_Copter::handle_command_long_packet(const mavlink_command_
 
         if (!stop && mask == 0) {
             SRV_Channels::release_all_chan_override();
+            gcs().send_text(MAV_SEVERITY_INFO, "All motors enabled");
             return MAV_RESULT_ACCEPTED;
         }
         
         for (uint8_t i = 0; i < AP_MOTORS_MAX_NUM_MOTORS; i++) {
+            
+            const int8_t motor = SRV_Channels::srv_channel(i)->get_motor_num()+1;
+
             if (mask & (1U << i)) {
 
                 if (!stop) {
                     SRV_Channels::release_chan_override(i);
+                    gcs().send_text(MAV_SEVERITY_INFO, "Motor %d enabled", motor);
                     continue;
                 }
 
@@ -1072,10 +1077,12 @@ MAV_RESULT GCS_MAVLINK_Copter::handle_command_long_packet(const mavlink_command_
 
                 if (timeout > 0) {
                     SRV_Channels::set_output_pwm_chan_timeout(i, pwm, timeout);
+                    gcs().send_text(MAV_SEVERITY_INFO, "Motor %d stopped for %d ms", motor, timeout);
                     continue;
                 }
 
                 SRV_Channels::set_output_pwm_chan_override(i, pwm);
+                gcs().send_text(MAV_SEVERITY_INFO, "Motor %d stopped", motor);
             }
         }
 
