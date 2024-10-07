@@ -1065,7 +1065,18 @@ MAV_RESULT GCS_MAVLINK_Copter::handle_command_long_packet(const mavlink_command_
         
         for (uint8_t i = 0; i < AP_MOTORS_MAX_NUM_MOTORS; i++) {
             
-            const int8_t motor = SRV_Channels::srv_channel(i)->get_motor_num()+1;
+            const SRV_Channel *servo = SRV_Channels::srv_channel(i);
+            
+            if (servo == nullptr) {
+                continue;
+            }
+
+            // check the servo is a motor
+            if (!servo->is_motor(servo->get_function())) {
+                continue;
+            }
+
+            const int8_t motor = servo->get_motor_num()+1;
 
             if (mask & (1U << i)) {
 
