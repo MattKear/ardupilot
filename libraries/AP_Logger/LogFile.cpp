@@ -194,7 +194,8 @@ void AP_Logger::Write_RCOUT(void)
         chan11        : hal.rcout->read(10),
         chan12        : hal.rcout->read(11),
         chan13        : hal.rcout->read(12),
-        chan14        : hal.rcout->read(13)
+        chan14        : hal.rcout->read(13),
+        override_mask : SRV_Channels::get_override_mask()
     };
     WriteBlock(&pkt, sizeof(pkt));
 }

@@ -371,6 +371,9 @@ public:
     // release override on all channels
     static void release_all_chan_override();
 
+    // get channel override mask
+    static uint16_t get_override_mask();
+
     // set output value for a function channel as a scaled value. This
     // calls calc_pwm() to also set the pwm value
     static void set_output_scaled(SRV_Channel::Aux_servo_function_t function, float value);
@@ -623,7 +626,7 @@ private:
     SRV_Channel obj_channels[NUM_SERVO_CHANNELS];
 
     // override loop counter
-    static uint16_t override_counter[NUM_SERVO_CHANNELS];
+    static int32_t override_counter[NUM_SERVO_CHANNELS];
 
     static struct srv_function {
         // mask of what channels this applies to

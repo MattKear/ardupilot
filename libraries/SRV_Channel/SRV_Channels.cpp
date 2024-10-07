@@ -53,7 +53,7 @@ AP_RobotisServo *SRV_Channels::robotis_ptr;
 AP_FETtecOneWire *SRV_Channels::fetteconwire_ptr;
 #endif
 
-uint16_t SRV_Channels::override_counter[NUM_SERVO_CHANNELS];
+int32_t SRV_Channels::override_counter[NUM_SERVO_CHANNELS];
 
 #if HAL_SUPPORT_RCOUT_SERIAL
 AP_BLHeli *SRV_Channels::blheli_ptr;
@@ -321,13 +321,11 @@ void SRV_Channels::calc_pwm(void)
     for (uint8_t i=0; i<NUM_SERVO_CHANNELS; i++) {
         // check if channel has been locked out for this loop
         // if it has, decrement the loop count for that channel
-        // if the override counter is UINT16_MAX, the channel is indefinitely overridden
-        if (override_counter[i] > 0 && override_counter[i] < UINT16_MAX) {
-            override_counter[i]--;
-        }
-
         if (override_counter[i] == 0) {
             channels[i].set_override(false);
+        } else {
+            channels[i].set_override(true);
+            override_counter[i]--;
         }
 
         if (channels[i].valid_function()) {
@@ -376,7 +374,7 @@ void SRV_Channels::set_output_pwm_chan_override(uint8_t chan, uint16_t value)
     WITH_SEMAPHORE(_singleton->override_counter_sem);
 
     if (chan < NUM_SERVO_CHANNELS) {
-        override_counter[chan] = UINT16_MAX;
+        override_counter[chan] = -1;
         channels[chan].set_override(true);
         channels[chan].set_output_pwm(value,true);
         const bool had_pwm = SRV_Channel::have_pwm_mask & (1U<<chan);
@@ -411,6 +409,18 @@ void SRV_Channels::release_all_chan_override(void)
         override_counter[i] = 0;
         channels[i].set_override(false);
     }
+}
+
+// get channel override mask
+uint16_t SRV_Channels::get_override_mask(void)
+{
+    uint16_t mask = 0;
+    for (uint8_t i=0; i<NUM_SERVO_CHANNELS; i++) {
+        if (override_counter[i] != 0) {
+            mask |= 1U<<i;
+        }
+    }
+    return mask;
 }
 
 /*
