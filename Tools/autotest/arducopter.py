@@ -13,6 +13,7 @@ import os
 import shutil
 import threading
 import time
+import operator
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy
@@ -8716,6 +8717,120 @@ class AutoTestCopter(AutoTest):
         self.FETtecESC_esc_power_checks()
         self.FETtecESC_btw_mask_checks()
         self.FETtecESC_flight()
+        
+    def MAV_CMD_MNA_SET_MOT_STOP(self):
+        
+        self.start_subtest("Test MAV_CMD_MNA_SET_MOT_STOP")
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+        self.takeoff(100, mode='GUIDED')
+        self.wait_altitude(95, 105, relative=True, timeout=60)
+        
+        # loop over all single motors
+        for i in range(0, 3):
+            
+            mot_bitmask = 1 << i
+            motor = i + 1
+        
+            self.context_collect('STATUSTEXT')
+            self.run_cmd(
+                mavutil.mavlink.MAV_CMD_MNA_SET_MOT_STOP,
+                1,  # should stop motors
+                mot_bitmask,  # stop bitmask
+                0,  # indefinite
+                0,  # p4
+                0,  # p5
+                0,  # p6
+                0,  # p7
+            )
+            self.wait_statustext(f"Motor {motor} stopped", check_context=True)
+            self.wait_servo_channel_value(motor, 1000, timeout=1)
+            self.context_stop_collecting('STATUSTEXT')
+        
+            self.context_collect('STATUSTEXT')
+            self.run_cmd(
+                mavutil.mavlink.MAV_CMD_MNA_SET_MOT_STOP,
+                0,  # should start motors
+                mot_bitmask,  # start bitmask
+                0,  # indefinite
+                0,  # p4
+                0,  # p5
+                0,  # p6
+                0,  # p7
+            )
+            self.wait_statustext(f"Motor {motor} enabled", check_context=True)
+            # verify motor 1 is enabled with pwm > 1000
+            self.wait_servo_channel_value(motor, 1000, timeout=1, comparator=operator.gt)
+            self.context_stop_collecting('STATUSTEXT')
+            
+        # Fail two motors simultaneously
+        self.context_collect('STATUSTEXT')
+        bitmask = 3 # Motors 1 & 2
+        self.run_cmd(
+            mavutil.mavlink.MAV_CMD_MNA_SET_MOT_STOP,
+            1,  # should stop motors
+            bitmask,  # stop bitmask
+            0,  # indefinite
+            0,  # p4
+            0,  # p5
+            0,  # p6
+            0,  # p7
+        )
+        self.wait_statustext("Motor 1 stopped", check_context=True)
+        self.wait_servo_channel_value(1, 1000, timeout=1)
+        self.wait_statustext("Motor 2 stopped", check_context=True)
+        self.wait_servo_channel_value(2, 1000, timeout=1)
+        self.context_clear_collection('STATUSTEXT')
+        
+        # Enable two motors simultaneously
+        self.context_collect('STATUSTEXT')
+        self.run_cmd(
+            mavutil.mavlink.MAV_CMD_MNA_SET_MOT_STOP,
+            0,  # should start motors
+            bitmask,  # start bitmask
+            0,  # indefinite
+            0,  # p4
+            0,  # p5
+            0,  # p6
+            0,  # p7
+        )
+        self.wait_statustext("Motor 1 enabled", check_context=True)
+        self.wait_servo_channel_value(1, 1000, timeout=1, comparator=operator.gt)
+        self.wait_statustext("Motor 2 enabled", check_context=True)
+        self.wait_servo_channel_value(2, 1000, timeout=1, comparator=operator.gt)
+        self.context_clear_collection('STATUSTEXT')
+        
+        # Enable all motors
+        self.context_collect('STATUSTEXT')
+        self.run_cmd(
+            mavutil.mavlink.MAV_CMD_MNA_SET_MOT_STOP,
+            0,  # should start motors
+            0,  # all motors
+            0,  # indefinite
+            0,  # p4
+            0,  # p5
+            0,  # p6
+            0,  # p7
+        )
+        self.wait_statustext("All motors enabled", check_context=True)
+        self.context_clear_collection('STATUSTEXT')
+        
+        # Set motor to restart for a timeout (500ms)
+        self.run_cmd(
+            mavutil.mavlink.MAV_CMD_MNA_SET_MOT_STOP,
+            1,  # should stop motors
+            1,  # stop bitmask
+            500,  # 500ms
+            0,  # p4
+            0,  # p5
+            0,  # p6
+            0,  # p7
+        )
+        self.wait_servo_channel_value(1, 1000, timeout=1)
+        self.wait_servo_channel_value(1, 1000, timeout=1, comparator=operator.gt)
+        
+        self.do_RTL()
+        self.wait_disarmed()
 
     def PerfInfo(self):
         self.set_parameter('SCHED_OPTIONS', 1)  # enable gathering
@@ -8817,6 +8932,10 @@ class AutoTestCopter(AutoTest):
             ("GCSFailsafe",
              "Test GCS Failsafe",
              self.fly_gcs_failsafe),  # 239s
+            
+            ("MAV_CMD_MNA_SET_MOT_STOP",
+             "Test MAV_CMD_MNA_SET_MOT_STOP",
+             self.MAV_CMD_MNA_SET_MOT_STOP),
 
             # this group has the smallest runtime right now at around
             #  5mins, so add more tests here, till its around
