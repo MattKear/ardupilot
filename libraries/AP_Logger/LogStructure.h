@@ -1118,6 +1118,7 @@ struct PACKED log_VER {
 // @Field: C12: channel 12 output
 // @Field: C13: channel 13 output
 // @Field: C14: channel 14 output
+// @Field: OMask: bitmask of channels that have an override applied
 
 // @LoggerMessage: RFND
 // @Description: Rangefinder sensor information
