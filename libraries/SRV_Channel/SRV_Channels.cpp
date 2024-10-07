@@ -323,7 +323,7 @@ void SRV_Channels::calc_pwm(void)
         // if it has, decrement the loop count for that channel
         if (override_counter[i] == 0) {
             channels[i].set_override(false);
-        } else {
+        } else if (override_counter[i] > 0) {
             channels[i].set_override(true);
             override_counter[i]--;
         }
