@@ -2021,6 +2021,7 @@ private:
     struct Controller_Flags {
             bool entry_init            : 1;
             bool glide_init            : 1;
+            bool flare_init            : 1;
             bool landed_init           : 1;
     } _flags;
 

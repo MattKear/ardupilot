@@ -40,6 +40,7 @@ bool ModeAutorotate::init(bool ignore_checks)
      // Set all initial flags to on
     _flags.entry_init = false;
     _flags.glide_init = false;
+    _flags.flare_init = false;
     _flags.landed_init = false;
 
     // Setting default starting switches
@@ -70,6 +71,15 @@ void ModeAutorotate::run()
     if (!_flags.glide_init && ((now - _entry_time_start_ms) > g2.arot.entry_time_ms)) {
         // Flight phase can be progressed to steady state glide
         phase_switch = Autorotation_Phase::SS_GLIDE;
+    }
+
+    // Check for flare initiation conditions
+    if (!_flags.flare_init && phase_switch != Autorotation_Phase::TOUCH_DOWN){
+        // should_flare function must be called within the nested if to prevent peak accel from 
+        // being updated once the flare is initiated
+        if (g2.arot.should_flare()){
+            phase_switch = Autorotation_Phase::FLARE;
+        }
     }
 
     // Check if we believe we have landed. We need the landed state to zero all
@@ -114,6 +124,14 @@ void ModeAutorotate::run()
         }
 
         case Autorotation_Phase::FLARE:
+        {
+            // Landed phase functions to be run only once
+            if (!_flags.flare_init) {
+                gcs().send_text(MAV_SEVERITY_INFO, "AROT: BANG we flare");
+                _flags.flare_init = true;
+            }
+            break;
+        }
         case Autorotation_Phase::TOUCH_DOWN:
         {
             break;
