@@ -82,15 +82,52 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("HS_SENSOR", 8, AC_Autorotation, _param_rpm_instance, 0),
 
+    // @Param: F_PERIOD
+    // @DisplayName: Time period to execute the flare
+    // @Description: The target time period in which the controller will attempt to complete the flare phase. Light disc loaded aircraft will require shorter times and heavier loaded aircraft will perform better over longer periods.
+    // @Units: s
+    // @Range: 1.0 8.0
+    // @Increment: 0.1
+    // @User: Advanced
+    AP_GROUPINFO("F_PERIOD", 9, AC_Autorotation, _param_flare_time_period, 4.0),
+
+    // @Param: TD_VEL_Z
+    // @DisplayName: Desired velocity to initiate the touch down phase
+    // @Description: 
+    // @Units: m/s
+    // @Range: 0.5 5
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("TD_VEL_Z", 10, AC_Autorotation, _param_vel_z_td, 1.0),
+
+    // @Param: F_ACCEL_MX
+    // @DisplayName: Maximum allowable body frame z acceleration to be applied during flare phase
+    // @Description: Multiplier of acceleration due to gravity 'g'. Cannot be smaller that 1.2.
+    // @Range: 1.2 2.5
+    // @Increment: 0.1
+    // @User: Advanced
+    AP_GROUPINFO("F_ACCEL_MX", 11, AC_Autorotation, _param_flare_peak_accel_max, 1.5),
+
+    // @Param: TD_ALT_TARG
+    // @DisplayName: Target altitude to initiate touch down phase
+    // @Description: The height at which the flare phase will exit and transition into the touch down phase. This should be set close to the ground.
+    // @Units: m
+    // @Range: 0.3 2.0
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("TD_ALT_TARG", 12, AC_Autorotation, _param_td_alt_targ, 1.0),
+
+
     AP_GROUPEND
 };
 
 // Constructor
-AC_Autorotation::AC_Autorotation(AP_AHRS& ahrs, AP_MotorsHeli*& motors, AC_PosControl*& pos_ctrl, AC_AttitudeControl*& att_crtl) :
+AC_Autorotation::AC_Autorotation(AP_AHRS& ahrs, AP_MotorsHeli*& motors, AC_PosControl*& pos_ctrl, AC_AttitudeControl*& att_crtl, AP_SurfaceDistance& surf) :
     _ahrs(ahrs),
     _motors_heli(motors),
     _pos_control(pos_ctrl),
     _attitude_control(att_crtl),
+    _surface_distance(surf),
     _p_hs(HS_CONTROLLER_HEADSPEED_P)
     {
         AP_Param::setup_object_defaults(this, var_info);
@@ -311,6 +348,122 @@ Vector2f AC_Autorotation::get_bf_accel(void) const
     return Vector2f {accel.x, accel.y};
 }
 
+// return the earth frame accels in forward direction and up
+Vector2f AC_Autorotation::get_ef_accel_fwd_up(void) const
+{
+    Vector3f accel = _ahrs.get_accel_ef();
+    const float fwd = accel.x*_ahrs.cos_yaw() + accel.y*_ahrs.sin_yaw(); // (m/s/s)
+    return Vector2f {fwd, accel.z*-1.0};
+}
+
+// return the height above ground measurement in meters
+float AC_Autorotation::get_height_above_ground(void) const
+{
+    // Determine the altitude that the flare would complete
+    int32_t hagl = 0;
+    if (_surface_distance.get_rangefinder_height_interpolated_cm(hagl)) {
+        return float(hagl) * 0.01;
+    }
+    // TODO add terrain accesor
+    float height_above_home = 0;
+    _ahrs.get_relative_position_D_home(height_above_home);
+    return height_above_home * -1.0;
+}
+
+// Determine whether or not the flare phase should be initiated
+bool AC_Autorotation::should_flare(void)
+{
+
+    // enum class for bitmask documentation in logging
+    enum class AC_Autorotation_Flare_Reason : uint8_t {
+        PEAK_ACCEL = 1<<0, // true if calculated peak resultant accel is between 1g and F_ACCEL_MX*g
+        MAX_PITCH  = 1<<1, // true if calculated max pitch angle < ANGLE_MAX
+        EXIT_HEIGHT  = 1<<2, // true if the predicted exit height = touch down target height +/- 0.5 m
+    };
+
+    bool ret = true;
+    uint8_t reason = 0;
+
+    // Measure velocities
+    Vector3f vel_NED;
+    float z_vel = 0;
+    // TODO: improve this handling if returns false
+    if (_ahrs.get_velocity_NED(vel_NED)) {
+        z_vel = vel_NED.z*-1.0;
+    }
+    float fwd_vel = get_speed_forward();
+
+    // Measure accelerations
+    const Vector2f bf_accel = get_ef_accel_fwd_up();
+    const float z_accel_measure = bf_accel.y;
+    const float fwd_accel_measure = bf_accel.x;
+
+    // Determine peak acceleration if the flare was initiated in this state (m/s/s)
+    // We store these as class variable so that we can access the updated values once we are in the flare
+    _flare_delta_accel_z_peak = 2.0 * (-1.0 * fabsf(_param_vel_z_td.get()) - z_vel) / get_flare_time(); // Ensure user can only ask for negative decent speeds
+    _flare_delta_accel_fwd_peak = 2.0 * (0.0 - fwd_vel) / get_flare_time();  // Assumed touch down forward speed of 0 m/s
+
+    //Account for gravity in peak z acceleration
+    const float accel_z_peak = _flare_delta_accel_z_peak + GRAVITY_MSS;
+
+    // Account for drag in forward acceleration
+    float current_drag = z_accel_measure * tanf(_ahrs.get_pitch()) + fwd_accel_measure; // (m/s/s)
+    float fwd_vel_prediction = _flare_delta_accel_fwd_peak * get_flare_time() / 4.0 + fwd_vel;  // (m/s) This is the approximate velocity at the peak acceleration
+    // float fwd_accel_delta = abs(_flare_delta_accel_fwd_peak) - current_drag * fwd_vel_prediction * fwd_vel_prediction / (fwd_vel * fwd_vel);  // This is approximately the delta deceleration force required
+    float fwd_accel_delta = - current_drag * fwd_vel_prediction * fwd_vel_prediction / (fwd_vel * fwd_vel);  // This is approximately the delta deceleration force required
+    fwd_accel_delta = fwd_accel_delta*-1;
+
+    // Resolve the magnitude of the total peak acceleration
+    const float resultant_accel_peak = sqrtf(accel_z_peak * accel_z_peak + fwd_accel_delta * fwd_accel_delta); // (m/s/s)
+
+    // Compare the calculated peak acceleration to the allowable limits
+    const float MIN_ACCEL_PEAK = 1.2;
+    if ((resultant_accel_peak < MIN_ACCEL_PEAK * GRAVITY_MSS)  || (resultant_accel_peak > get_peak_accel() * GRAVITY_MSS)) {
+        //gcs().send_text(MAV_SEVERITY_INFO, "Magnitude Fail");
+        ret = false;
+        reason |= uint8_t(AC_Autorotation_Flare_Reason::PEAK_ACCEL);
+    }
+
+    // Compute the maximum pitch angle
+    const float pitch_ang_max = degrees(acosf(fwd_accel_delta/resultant_accel_peak)) - 90.0;  // (deg)
+
+    // Compare the calculated max angle limit to the parameter defined limit
+    float angle_max = _attitude_control->lean_angle_max_cd() * 0.01;
+    if (fabsf(pitch_ang_max) > fabsf(angle_max)) {
+        //gcs().send_text(MAV_SEVERITY_INFO, "Angle Fail");
+        ret = false;
+        reason |= uint8_t(AC_Autorotation_Flare_Reason::MAX_PITCH);
+    }
+
+    float td_alt_predicted = 0.25 * (_flare_delta_accel_z_peak) * get_flare_time() * get_flare_time()  +  z_vel * get_flare_time() + get_height_above_ground();
+
+    // Compare the prediced altitude to the acceptable range
+    if (fabsf(td_alt_predicted - _param_td_alt_targ.get()) >= 0.5){
+        ret = false;
+        reason |= uint8_t(AC_Autorotation_Flare_Reason::EXIT_HEIGHT);
+    }
+
+    //Write to data flash log
+    AP::logger().Write("AFLR",
+                    "TimeUS,VZ,VTD,ACC,MIN,MAX,ALT,AZM,CD,FV,FA,Ptch,FR",
+                        "QfffffffffffB",
+                    AP_HAL::micros64(),
+                    (double)z_vel,
+                    (double)_param_vel_z_td,
+                    (double)resultant_accel_peak,
+                    (double)(MIN_ACCEL_PEAK * GRAVITY_MSS),
+                    (double)(get_peak_accel() * GRAVITY_MSS),
+                    (double)td_alt_predicted,
+                    accel_z_peak,
+                    current_drag,
+                    fwd_vel_prediction,
+                    fwd_accel_delta,
+                    pitch_ang_max,
+                    reason);
+
+    return ret;
+}
+
 #if HAL_LOGGING_ENABLED
 void AC_Autorotation::log_write_autorotation(void) const
 {
@@ -351,7 +504,7 @@ void AC_Autorotation::log_write_autorotation(void) const
     // @Field: AYE: Desired Acceleration Y in earth frame
 
     // Write to data flash log
-    AP::logger().WriteStreaming("ARO2",
+    AP::logger().WriteStreaming("AROT",
                        "TimeUS,P,hserr,FFCol,LR,VXB,VYB,AXB,AYB,VXE,VYE,AXE,AYE",
                         "QfffBffffffff",
                         AP_HAL::micros64(),

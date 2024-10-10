@@ -9,13 +9,14 @@
 #include <AC_PID/AC_P.h>
 #include <AC_AttitudeControl/AC_PosControl.h>
 #include <AC_AttitudeControl/AC_AttitudeControl.h>
+#include <AP_SurfaceDistance/AP_SurfaceDistance.h>
 
 class AC_Autorotation
 {
 public:
 
     //Constructor
-    AC_Autorotation(AP_AHRS& ahrs, AP_MotorsHeli*& motors, AC_PosControl*& pos_ctrl, AC_AttitudeControl*& att_crtl);
+    AC_Autorotation(AP_AHRS& ahrs, AP_MotorsHeli*& motors, AC_PosControl*& pos_ctrl, AC_AttitudeControl*& att_crtl, AP_SurfaceDistance& surf);
 
     void init(void);
 
@@ -53,6 +54,8 @@ public:
     // Helper to get measured head speed that has been normalised by head speed set point
     bool get_norm_head_speed(float& norm_rpm) const;
 
+    bool should_flare(void);
+
     // User Settable Parameters
     static const struct AP_Param::GroupInfo var_info[];
 
@@ -65,6 +68,15 @@ private:
 
     // Get measured accel from the EKF and convert it to body frame XY
     Vector2f get_bf_accel(void) const;
+
+    // return the earth frame accels in forward direction and up
+    Vector2f get_ef_accel_fwd_up(void) const;
+
+    float get_height_above_ground(void) const;
+
+    // return flare time period with protection against div by zero
+    float get_flare_time(void) const { return MAX(1.0, _param_flare_time_period.get()); }
+    float get_peak_accel(void) const { return MAX(1.2, _param_flare_peak_accel_max.get()); }
 
     float _dt; // (s) Time step, updated dynamically from vehicle
 
@@ -83,6 +95,10 @@ private:
     float _ff_term_hs;                // Following trim feed forward contribution to collective setting.
     LowPassFilterFloat col_trim_lpf;  // Low pass filter for collective trim
 
+    // Flare related variables
+    float _flare_delta_accel_z_peak;
+    float _flare_delta_accel_fwd_peak;
+
     // Flags used to check if we believe the aircraft has landed
     struct {
         bool min_speed;
@@ -99,10 +115,15 @@ private:
     AP_Float _param_col_glide_cutoff_freq;
     AP_Float _param_accel_max;
     AP_Int8  _param_rpm_instance;
+    AP_Float _param_vel_z_td;
+    AP_Float _param_flare_time_period;
+    AP_Float _param_flare_peak_accel_max;
+    AP_Float _param_td_alt_targ;
 
     // References to other libraries
     AP_AHRS&           _ahrs;
     AP_MotorsHeli*&    _motors_heli;
     AC_PosControl*&    _pos_control;
     AC_AttitudeControl*& _attitude_control;
+    AP_SurfaceDistance& _surface_distance;
 };
