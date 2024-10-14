@@ -1993,6 +1993,7 @@ public:
 
     bool init(bool ignore_checks) override;
     void run() override;
+    void exit() override;
 
     bool is_autopilot() const override { return true; }
     bool requires_GPS() const override { return false; }
@@ -2022,6 +2023,8 @@ private:
     struct Controller_Flags {
             bool entry_init            : 1;
             bool glide_init            : 1;
+            bool flare_init            : 1;
+            bool touch_down_init       : 1;
             bool landed_init           : 1;
     } _flags;
 
