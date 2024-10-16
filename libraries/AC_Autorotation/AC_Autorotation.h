@@ -16,7 +16,7 @@ class AC_Autorotation
 public:
 
     //Constructor
-    AC_Autorotation(AP_AHRS& ahrs, AP_MotorsHeli*& motors, AC_AttitudeControl*& att_crtl, AP_SurfaceDistance& surf_dist);
+    AC_Autorotation(AP_AHRS& ahrs, AP_MotorsHeli*& motors, AC_AttitudeControl*& att_crtl, AP_InertialNav& inav);
 
     void init(void);
 
@@ -61,6 +61,9 @@ public:
     // Update the height above ground estimate in meters
     void update_hagl(void);
 
+    // A helper function to tidy up on mode exit
+    void exit(void);
+
     // User Settable Parameters
     static const struct AP_Param::GroupInfo var_info[];
 
@@ -79,6 +82,8 @@ private:
         private:
             float height;
     };
+
+    AP_SurfaceDistance _ground_surface;
 
     // Determine the body frame forward speed in m/s
     float get_bf_speed_forward(void) const;
@@ -160,7 +165,7 @@ private:
 
     // References to other libraries
     AP_AHRS&              _ahrs;
+    AP_InertialNav&       _inertial_nav;
     AP_MotorsHeli*&       _motors_heli;
     AC_AttitudeControl*&  _attitude_control;
-    AP_SurfaceDistance&   _ground_surface;
 };

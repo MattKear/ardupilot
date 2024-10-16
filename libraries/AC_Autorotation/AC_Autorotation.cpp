@@ -193,11 +193,12 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
 };
 
 // Constructor
-AC_Autorotation::AC_Autorotation(AP_AHRS& ahrs, AP_MotorsHeli*& motors, AC_AttitudeControl*& att_crtl, AP_SurfaceDistance& surf_dist) :
+AC_Autorotation::AC_Autorotation(AP_AHRS& ahrs, AP_MotorsHeli*& motors, AC_AttitudeControl*& att_crtl, AP_InertialNav& inav) :
     _ahrs(ahrs),
     _motors_heli(motors),
     _attitude_control(att_crtl),
-    _ground_surface(surf_dist),
+    _inertial_nav(inav),
+    _ground_surface(ROTATION_PITCH_270, _inertial_nav, 2U), // taking the 3rd instance of SurfaceDistance to not conflict with the first two already in copter
     _p_hs(1.0),
     _fwd_speed_pid(2.0, 2.0, 0.2, 0.1, 4.0, 0.0, 10.0), // Default values for kp, ki, kd, kff, imax, filt E Hz, filt D Hz
     _p_col_td(0.1)
@@ -229,6 +230,9 @@ void AC_Autorotation::init(void)
     // Reset the guarded height measurements to ensure that they init to the min value
     _flare_hgt.reset();
     _touch_down_hgt.reset();
+
+    // ensure the AP_SurfaceDistance object is enabled
+    _ground_surface.enabled = true;
 
     // Calc initial estimate of what height we think we should flare at
     initial_flare_hgt_estimate();
@@ -933,6 +937,11 @@ void AC_Autorotation::set_dt(float delta_sec)
         return;
     }
     _dt = 2.5e-3; // Assume 400 Hz
+}
+
+void AC_Autorotation::exit(void)
+{
+    _ground_surface.enabled = false;
 }
 
 // Set height value with protections in place to ensure we do not exceed the minimum value
