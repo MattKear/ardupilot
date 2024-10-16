@@ -74,6 +74,7 @@ private:
         public:
             void set(float hgt);
             float get(void) const { return height; };
+            void reset(void) { set(0.0); }
             AP_Float min_height;
         private:
             float height;
@@ -108,9 +109,8 @@ private:
     float _hs_decay;                         // The head speed target acceleration during the entry phase
     float _head_speed_error;                 // Error between target head speed and current head speed. Normalised by head speed set point RPM.
     float _target_head_speed;                // Normalised target head speed.  Normalised by head speed set point RPM.
-    float _p_term_hs;                        // Proportional contribution to collective setting.
-    float _ff_term_hs;                       // Following trim feed forward contribution to collective setting.
     LowPassFilterFloat col_trim_lpf;         // Low pass filter for collective trim
+    AC_P _p_hs;                              // head speed-collective p controller
 
     // Flare controller functions and variables
     void initial_flare_hgt_estimate(void);
@@ -118,11 +118,18 @@ private:
     void update_flare_hgt(void);
     void set_flare_height(float hgt);
     GuardedHeight _flare_hgt;            // (m) Calculated height above ground at which the flare phase will begin
+    float _calculated_flare_hgt;          // (m) Used for logging the calculated flare height so that we can keep track of the calculations output. This value is not used for the flare phase decision.
     float _hover_thrust;                 // (N) Estimated thrust force the aircraft produces in the hover
     float _flare_entry_fwd_speed;        // The measured body frame forward speed of the vehicle as it enters the flare phase
+    LowPassFilterFloat _lagged_vel_z;    // (m/s) A slow filter on velocity that purposefully lags behind the latest measurements so that we can get an idea of whether we can be considered to be in steady conditions
 
     // Touch down controller functions and variables
     GuardedHeight _touch_down_hgt;       // (m) Height above ground for touchdown phase to begin
+    float _calculated_touch_down_hgt;    // (m) Used for logging the calculated touch down height so that we can keep track of the calculations output. This value is not used for the touch down phase decision.
+    float _touchdown_init_climb_rate;    // (m/s) The measured climb rate (positive up) when the touch down phase is init
+    float _touchdown_init_hgt;           // (m) The measured height above the ground when the touch down phase is init
+    AC_P _p_col_td;                      // Touch down collective p controller
+
 
     // Flags used to check if we believe the aircraft has landed
     struct {
@@ -133,7 +140,7 @@ private:
 
     // Parameter values
     AP_Int8  _param_enable;
-    AC_P _p_hs;
+    
     AP_Float _param_head_speed_set_point;
     AP_Float _param_target_speed;
     AP_Float _param_col_entry_cutoff_freq;
@@ -144,7 +151,7 @@ private:
     AP_Float _param_solidity;
     AP_Float _param_diameter;
     AP_Float _param_touchdown_time;
-
+    AP_Float _param_max_touchdown_angle;
 
     // Parameter accessors that provide value constraints
     float get_accel_max(void) const { return MAX(_param_accel_max.get(), 0.5); }
