@@ -43,7 +43,7 @@ void Copter::check_dynamic_flight(void)
     }
 
 #if AP_RANGEFINDER_ENABLED
-    if (!moving && rangefinder_state.enabled && rangefinder.status_orient(ROTATION_PITCH_270) == RangeFinder::Status::Good) {
+    if (!moving && rangefinder_state.is_enabled() && rangefinder.status_orient(ROTATION_PITCH_270) == RangeFinder::Status::Good) {
         // when we are more than 2m from the ground with good
         // rangefinder lock consider it to be dynamic flight
         moving = (rangefinder.distance_cm_orient(ROTATION_PITCH_270) > 200);

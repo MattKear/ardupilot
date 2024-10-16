@@ -14,11 +14,13 @@ void Copter::init_rangefinder(void)
    rangefinder.set_log_rfnd_bit(MASK_LOG_CTUN);
    rangefinder.init(ROTATION_PITCH_270);
    rangefinder_state.alt_cm_filt.set_cutoff_frequency(g2.rangefinder_filt);
-   rangefinder_state.enabled = rangefinder.has_orientation(ROTATION_PITCH_270);
+   // historically if  no RC channel was configured then the ranfinder state would default to enabled so long as we
+   // had a rangefinder of the right orientation configured. We enable by RC from this init so that we preserve that behaviour
+   rangefinder_state.set_enabled_from_rc(rangefinder.has_orientation(ROTATION_PITCH_270));
 
    // upward facing range finder
    rangefinder_up_state.alt_cm_filt.set_cutoff_frequency(g2.rangefinder_filt);
-   rangefinder_up_state.enabled = rangefinder.has_orientation(ROTATION_PITCH_90);
+   rangefinder_up_state.set_enabled_from_rc(rangefinder.has_orientation(ROTATION_PITCH_90));
 }
 
 // return rangefinder altitude in centimeters
@@ -31,7 +33,7 @@ void Copter::read_rangefinder(void)
 
 #if HAL_PROXIMITY_ENABLED
     if (rangefinder_state.enabled_and_healthy() || rangefinder_state.data_stale()) {
-        g2.proximity.set_rangefinder_alt(rangefinder_state.enabled, rangefinder_state.alt_healthy, rangefinder_state.alt_cm_filt.get());
+        g2.proximity.set_rangefinder_alt(rangefinder_state.is_enabled(), rangefinder_state.alt_healthy, rangefinder_state.alt_cm_filt.get());
     }
 #endif
 }
@@ -60,15 +62,15 @@ void Copter::update_rangefinder_terrain_offset()
     rangefinder_up_state.terrain_offset_cm += (terrain_offset_cm - rangefinder_up_state.terrain_offset_cm) * (copter.G_Dt / MAX(copter.g2.surftrak_tc, copter.G_Dt));
 
     if (rangefinder_state.alt_healthy || rangefinder_state.data_stale()) {
-        wp_nav->set_rangefinder_terrain_offset(rangefinder_state.enabled, rangefinder_state.alt_healthy, rangefinder_state.terrain_offset_cm);
+        wp_nav->set_rangefinder_terrain_offset(rangefinder_state.is_enabled(), rangefinder_state.alt_healthy, rangefinder_state.terrain_offset_cm);
 #if MODE_CIRCLE_ENABLED
-        circle_nav->set_rangefinder_terrain_offset(rangefinder_state.enabled && wp_nav->rangefinder_used(), rangefinder_state.alt_healthy, rangefinder_state.terrain_offset_cm);
+        circle_nav->set_rangefinder_terrain_offset(rangefinder_state.is_enabled() && wp_nav->rangefinder_used(), rangefinder_state.alt_healthy, rangefinder_state.terrain_offset_cm);
 #endif
     }
 }
 
 // helper function to get inertially interpolated rangefinder height.
-bool Copter::get_rangefinder_height_interpolated_cm(int32_t& ret) const
+bool Copter::get_rangefinder_height_interpolated_cm(int32_t& ret)
 {
 #if AP_RANGEFINDER_ENABLED
     return rangefinder_state.get_rangefinder_height_interpolated_cm(ret);

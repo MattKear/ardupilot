@@ -275,9 +275,9 @@ bool RC_Channel_Copter::do_aux_function(const AUX_FUNC ch_option, const AuxSwitc
             // enable or disable the rangefinder
             if ((ch_flag == AuxSwitchPos::HIGH) &&
                 copter.rangefinder.has_orientation(ROTATION_PITCH_270)) {
-                copter.rangefinder_state.enabled = true;
+                copter.rangefinder_state.set_enabled_from_rc(true);
             } else {
-                copter.rangefinder_state.enabled = false;
+                copter.rangefinder_state.set_enabled_from_rc(false);
             }
             break;
 #endif // AP_RANGEFINDER_ENABLED

@@ -1349,7 +1349,7 @@ void PayloadPlace::run()
             place_start_time_ms = now_ms;
             break;
         } else if (is_positive(g2.pldp_range_finder_maximum_m)) {
-            if (!copter.rangefinder_state.enabled) {
+            if (!copter.rangefinder_state.is_enabled()) {
                 // abort payload place because rangefinder is not enabled
                 state = State::Ascent_Start;
                 gcs().send_text(MAV_SEVERITY_WARNING, "%s PLDP_RNG_MAX set and rangefinder not enabled", prefix_str);
