@@ -68,6 +68,7 @@ void ModeAutorotate::run()
     float const last_loop_time_s = AP::scheduler().get_last_loop_time_s();
     g2.arot.set_dt(last_loop_time_s);
 
+    // Update the height above ground measurement in the autorotation lib
     g2.arot.update_hagl();
 
     //----------------------------------------------------------------
@@ -83,16 +84,16 @@ void ModeAutorotate::run()
     }
 
     // Check if we are between the flare start height and the touchdown height
-    if (!_flags.flare_init && g2.arot.below_flare_height()) {// && !g2.arot.should_begin_touchdown()) {
+    if (!_flags.flare_init && g2.arot.below_flare_height() && !g2.arot.should_begin_touchdown()) {
         phase_switch = Autorotation_Phase::FLARE;
     }
 
     // TODO: hover entry init
 
     // Begin touch down if within touch down time
-    // if (!_flags.touch_down_init && g2.arot.should_begin_touchdown()) {
-    //     phase_switch = Autorotation_Phase::TOUCH_DOWN;
-    // }
+    if (!_flags.touch_down_init && g2.arot.should_begin_touchdown()) {
+        phase_switch = Autorotation_Phase::TOUCH_DOWN;
+    }
 
     // Check if we believe we have landed. We need the landed state to zero all
     // controls and make sure that the copter landing detector will trip
