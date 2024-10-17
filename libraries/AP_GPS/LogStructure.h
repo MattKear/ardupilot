@@ -98,6 +98,7 @@ struct PACKED log_GPA {
 // @Field: lmdt: last message delta time in milliseconds
 // @Field: adt: average delta time in milliseconds
 // @Field: dc: delayed count
+// @Field: utc: time in UTC
 struct PACKED log_GPST {
     LOG_PACKET_HEADER;
     uint64_t time_us;

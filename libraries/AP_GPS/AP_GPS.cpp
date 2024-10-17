@@ -947,15 +947,13 @@ void AP_GPS::update_instance(uint8_t instance)
 #if HAL_LOGGING_ENABLED
     if (data_should_be_logged && should_log()) {
         Write_GPS(instance);
+        Write_GPSTime(instance);
     }
 #endif
 
 #ifndef HAL_BUILD_AP_PERIPH
     if (state[instance].status >= GPS_OK_FIX_3D) {
         const uint64_t now = time_epoch_usec(instance);
-        if (should_log()) {
-            Write_GPSTime(instance);
-        }
         if (now != 0) {
             AP::rtc().set_utc_usec(now, AP_RTC::SOURCE_GPS);
         }
