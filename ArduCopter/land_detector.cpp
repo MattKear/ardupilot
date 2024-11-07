@@ -201,8 +201,8 @@ void Copter::update_throttle_mix()
         // autopilot controlled throttle
 
         // check for aggressive flight requests - requested roll or pitch angle below 15 degrees
-        const Vector3f angle_target = attitude_control->get_att_target_euler_cd();
-        bool large_angle_request = angle_target.xy().length() > LAND_CHECK_LARGE_ANGLE_CD;
+        // const Vector3f angle_target = attitude_control->get_att_target_euler_cd();
+        // bool large_angle_request = angle_target.xy().length() > LAND_CHECK_LARGE_ANGLE_CD;
 
         // check for large external disturbance - angle error over 30 degrees
         const float angle_error = attitude_control->get_att_error_angle_deg();
@@ -217,7 +217,9 @@ void Copter::update_throttle_mix()
         // check if landing
         const bool landing = flightmode->is_landing();
 
-        if (((large_angle_request || force_flying) && !landing) || large_angle_error || accel_moving || descent_not_demanded) {
+        // We have removed the force_flying check here because we want to enforce that the throttle
+        // mix max is always used unless when landing, without the need for switching the force_flying 
+        if (!landing || large_angle_error || accel_moving || descent_not_demanded) {
             attitude_control->set_throttle_mix_max(pos_control->get_vel_z_control_ratio());
         } else {
             attitude_control->set_throttle_mix_min();
