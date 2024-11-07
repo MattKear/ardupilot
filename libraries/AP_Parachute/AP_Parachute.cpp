@@ -270,9 +270,13 @@ void AP_Parachute::update()
         AP::logger().Write_Event(LogEvent::PARACHUTE_RELEASED);
     }
 
-    if (_options.get() & uint32_t(OPTIONS::NOTIFY_ONLY)) {
+    const bool is_notify_only = _options.get() & uint32_t(OPTIONS::NOTIFY_ONLY);
+    const bool is_manual_release = _release_reasons & (1 << uint8_t(release_reason::MANUAL));
+
+    if (is_notify_only && !is_manual_release) {
         // just send text and write to log, do not actually do anything
         // usefull for testing thresholds are not exceeded in normal flight
+        gcs().send_text(MAV_SEVERITY_INFO,"Parachute: Cancelled: Notify only");
         _cancel_timeout_ms = 0;
         release_off();
         return;

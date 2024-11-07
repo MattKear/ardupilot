@@ -3345,38 +3345,45 @@ class AutoTestCopter(AutoTest):
         self.disarm_vehicle(force=True)
         self.reboot_sitl()
 
-        # Test trigger direct from mavlink message
-        self.progress("Test triggering with mavlink message")
-        self.takeoff(20)
-        self.run_cmd(mavutil.mavlink.MAV_CMD_DO_PARACHUTE,
-                     2, # release
-                     0,
-                     0,
-                     0,
-                     0,
-                     0,
-                     0)
-        self.wait_statustext('BANG', timeout=60)
-        self.disarm_vehicle(force=True)
-        self.reboot_sitl()
-
         # Test trigger from 3-position switch on RC transmitter
         self.progress("Testing three-position switch")
         self.set_parameter("RC9_OPTION", 23) # parachute 3pos
+
         self.progress("Test manual triggering")
         self.takeoff(20)
         self.set_rc(9, 2000)
         self.wait_statustext('BANG', timeout=60)
         self.set_rc(9, 1000)
+        self.set_parameter("RC9_OPTION", 0) # turn off parachute 3pos
         self.disarm_vehicle(force=True)
         self.reboot_sitl()
+        
+        # Test motor failure with 3 position switch setting enable
+        self.context_push()
+        self.progress("Crashing with 3pos switch in enable position")
+        self.takeoff(40)
+        self.set_rc(9, 1500)
+        self.set_parameters({
+            "SIM_ENGINE_FAIL": 15,
+            "SIM_ENGINE_MUL": 0.55,
+        })
+        self.wait_statustext('BANG', timeout=60)
+        self.disarm_vehicle(force=True)
+        self.reboot_sitl()
+        self.set_parameters({
+            "SIM_ENGINE_FAIL": 0,
+            "SIM_ENGINE_MUL": 1,
+        })
+        self.context_pop()
 
-        # Test trigger from 3-position switch on RC transmitter
-        # Chute should not if in report only mode
-        self.progress("Test report only option")
-        self.set_parameter("CHUTE_OPTIONS", 8)
-        self.takeoff(20)
-        self.set_rc(9, 2000)
+        # Test motor failure with 3 position switch setting disabled - chute should not deploy
+        self.progress("Crashing with 3pos switch in disable position")
+        self.takeoff(40, mode='LOITER', timeout=120)
+        self.set_rc(9, 1100)
+        self.set_parameters({
+            "SIM_ENGINE_FAIL": 15,
+            "SIM_ENGINE_MUL": 0.55,
+        })
         tstart = self.get_sim_time()
         while self.get_sim_time_cached() < tstart + 5:
             m = self.mav.recv_match(type='STATUSTEXT', blocking=True, timeout=1)
@@ -3385,12 +3392,20 @@ class AutoTestCopter(AutoTest):
             if "BANG" in m.text:
                 self.set_rc(9, 1000)
                 self.reboot_sitl()
-                raise NotAchievedException("Parachute deployed when in notify only mode")
+                raise NotAchievedException("Parachute deployed when disabled")
         self.set_rc(9, 1000)
-        self.set_parameter("CHUTE_OPTIONS", 0)
         self.disarm_vehicle(force=True)
+        # reset params for next test
+        self.set_parameters({
+            "SIM_ENGINE_FAIL": 0,
+            "SIM_ENGINE_MUL": 1,
+        })
         self.reboot_sitl()
-
+        
+        # reset params for next test
+        self.set_parameter("RC9_OPTION", 0) # turn off parachute 3pos
+        
+        # Test mavlink triggering
         self.progress("Test mavlink triggering")
         self.takeoff(20)
         self.run_cmd(mavutil.mavlink.MAV_CMD_DO_PARACHUTE,
@@ -3426,12 +3441,20 @@ class AutoTestCopter(AutoTest):
         if not ok:
             raise NotAchievedException("Enabled parachute fired")
 
-        self.set_rc(9, 1000)
         self.disarm_vehicle(force=True)
         self.reboot_sitl()
 
         # parachute should not fire if you go from disabled to release:
         self.takeoff(20)
+        self.run_cmd(mavutil.mavlink.MAV_CMD_DO_PARACHUTE,
+                     mavutil.mavlink.PARACHUTE_DISABLE, # param1
+                     0, # param2
+                     0, # param3
+                     0, # param4
+                     0, # param5
+                     0, # param6
+                     0 # param7
+                     )
         self.run_cmd(mavutil.mavlink.MAV_CMD_DO_PARACHUTE,
                      mavutil.mavlink.PARACHUTE_RELEASE,
                      0, # param2
@@ -3472,57 +3495,10 @@ class AutoTestCopter(AutoTest):
         self.disarm_vehicle(force=True)
         self.reboot_sitl()
 
-        # Test motor failure with 3 position switch setting enable
-        self.context_push()
-        self.progress("Crashing with 3pos switch in enable position")
-        self.takeoff(40)
-        self.set_rc(9, 1500)
-        self.set_parameters({
-            "SIM_ENGINE_FAIL": 15,
-            "SIM_ENGINE_MUL": 0.55,
-        })
-        self.wait_statustext('BANG', timeout=60)
-        self.set_rc(9, 1000)
-        self.disarm_vehicle(force=True)
-        self.reboot_sitl()
-        self.set_parameters({
-            "SIM_ENGINE_FAIL": 0,
-            "SIM_ENGINE_MUL": 1,
-        })
-        self.context_pop()
-
-        # Test motor failure with 3 position switch setting disabled - Chute should not deploy
-        self.progress("Crashing with 3pos switch in disable position")
-        self.takeoff(40, mode='LOITER', timeout=120)
-        self.set_rc(9, 1100)
-        self.set_parameters({
-            "SIM_ENGINE_FAIL": 15,
-            "SIM_ENGINE_MUL": 0.55,
-        })
-        tstart = self.get_sim_time()
-        while self.get_sim_time_cached() < tstart + 5:
-            m = self.mav.recv_match(type='STATUSTEXT', blocking=True, timeout=1)
-            if m is None:
-                continue
-            if "BANG" in m.text:
-                self.set_rc(9, 1000)
-                self.reboot_sitl()
-                raise NotAchievedException("Parachute deployed when disabled")
-        self.set_rc(9, 1000)
-        self.disarm_vehicle(force=True)
-        # reset params for next test
-        self.set_parameters({
-            "SIM_ENGINE_FAIL": 0,
-            "SIM_ENGINE_MUL": 1,
-        })
-        self.reboot_sitl()
-
         # Test sink rate trigger below min alt - Chute should not deploy
         self.progress("Motor failure below min alt, chute not to deploy")
         self.set_parameter("CHUTE_ALT_MIN", 30)
         self.takeoff(15, mode='LOITER')
-        # Enable chute via 3 pos switch
-        self.set_rc(9, 1500)
         self.set_parameters({
             "SIM_ENGINE_FAIL": 15,
             "SIM_ENGINE_MUL": 0.5,
@@ -3533,10 +3509,8 @@ class AutoTestCopter(AutoTest):
             if m is None:
                 continue
             if "BANG" in m.text:
-                self.set_rc(9, 1000)
                 self.reboot_sitl()
                 raise NotAchievedException("Parachute deployed when disabled")
-        self.set_rc(9, 1000)
         self.disarm_vehicle(force=True)
         # reset params for next test
         self.set_parameters({
@@ -3551,8 +3525,6 @@ class AutoTestCopter(AutoTest):
         # Set impossible sink rate to avoid tripping the sink rate reason before we trip the loss of control
         self.set_parameter("CHUTE_CRT_SINK", 1000)
         self.takeoff(40, mode='LOITER', timeout=120)
-        # Enable chute via 3 pos switch
-        self.set_rc(9, 1500)
 
         # Apply full pitch and roll sticks
         self.set_rc(1, 2000)
@@ -3563,7 +3535,6 @@ class AutoTestCopter(AutoTest):
             "SIM_ENGINE_MUL": 0,
         })
         self.wait_statustext('loss of control', timeout=30)
-        self.set_rc(9, 1000)
         self.disarm_vehicle(force=True)
         # reset params for next test
         self.set_parameters({
@@ -3571,6 +3542,73 @@ class AutoTestCopter(AutoTest):
             "SIM_ENGINE_MUL": 1,
         })
         self.reboot_sitl()
+        
+    def test_parachute_report_only(self):
+        
+        # Initial setup
+        self.set_rc(9, 1000)
+        self.set_parameters({
+            "CHUTE_ENABLED": 1,
+            "CHUTE_TYPE": 10,
+            "SERVO9_FUNCTION": 27,
+            "SIM_PARA_ENABLE": 1,
+            "SIM_PARA_PIN": 9,
+            "CHUTE_CRT_SINK": 6,
+            "CHUTE_CRT_SNK_AB": 6,
+            "CHUTE_OPTIONS": 8,
+        })
+        
+        # Chute should fire when in report only mode, if triggered by a three position switch
+        self.progress("Test report only option - manual trigger from 3 pos switch")
+        self.set_parameter("RC9_OPTION", 23) # parachute 3pos
+        self.takeoff(20)
+        self.set_rc(9, 2000)
+        self.wait_statustext('BANG', timeout=60)
+        self.set_rc(9, 1000)
+        self.set_parameter("RC9_OPTION", 0) # turn off parachute 3pos
+        self.disarm_vehicle(force=True)
+        self.reboot_sitl()
+        
+        # Chute should fire when in report only mode, if triggered by a mavlink message
+        self.progress("Test report only option - manual trigger from mavlink message")
+        self.takeoff(20)
+        self.run_cmd(mavutil.mavlink.MAV_CMD_DO_PARACHUTE,
+                    mavutil.mavlink.PARACHUTE_RELEASE, # param1
+                    0, # param2
+                    0, # param3
+                    0, # param4
+                    0, # param5
+                    0, # param6
+                    0 # param7
+                    )
+        self.wait_statustext('BANG', timeout=60)
+        self.disarm_vehicle(force=True)
+        self.reboot_sitl()
+        
+        # Chute should not fire when triggered by the automatic trigger system
+        self.progress("Test report only option - automatic trigger")
+        self.context_push()
+        self.takeoff(40)
+        self.set_parameters({
+            "SIM_ENGINE_FAIL": 15,
+            "SIM_ENGINE_MUL": 0.55,
+        })
+        tstart = self.get_sim_time()
+        while self.get_sim_time_cached() < tstart + 5:
+            m = self.mav.recv_match(type='STATUSTEXT', blocking=True, timeout=1)
+            if m is None:
+                continue
+            if "BANG" in m.text:
+                self.set_rc(9, 1000)
+                self.reboot_sitl()
+                raise NotAchievedException("Parachute deployed when in notify only mode")
+        self.disarm_vehicle(force=True)
+        self.reboot_sitl()
+        self.set_parameters({
+            "SIM_ENGINE_FAIL": 0,
+            "SIM_ENGINE_MUL": 1,
+        })
+        self.context_pop()
 
     def test_parachute_standby(self):
 
@@ -9168,6 +9206,10 @@ class AutoTestCopter(AutoTest):
             ("Parachute",
              "Test Parachute Functionality",
              self.test_parachute),
+            
+            ("Parachute-ReportOnly",
+             "Test Parachute Functionality in report only",
+             self.test_parachute_report_only),
 
             ("Parachute-SB",
              "Test Parachute Functionality in standby",
