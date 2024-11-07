@@ -87,7 +87,7 @@ const AP_Param::GroupInfo AP_Parachute::var_info[] = {
     // @Param: OPTIONS
     // @DisplayName: Parachute options bitmask
     // @Description: Optional behaviour for parachute
-    // @Bitmask: 0:hold open forever after release, 1:Don't deploy landing gear, 2:Don't disarm, 3:Notify only parachute will not be relased! testing only!
+    // @Bitmask: 0:hold open forever after release, 1:Don't deploy landing gear, 2:Don't disarm, 3:Notify only parachute will not be relased automatically! only manual release
     // @User: Standard
     AP_GROUPINFO("OPTIONS", 8, AP_Parachute, _options, 0),
 
