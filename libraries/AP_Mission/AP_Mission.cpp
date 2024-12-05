@@ -2490,7 +2490,8 @@ bool AP_Mission::distance_to_mission_leg(uint16_t start_index, float &rejoin_dis
     // and structure of the mission from the vms.
     // THIS IS SENSITIVE TO CHANGE IN MISSION STRUCTURE
     // TODO(charlie): review AUTO_RTL logic to find a more robust solution
-    constexpr uint8_t takeoff_sequence_size = 2;
+    // Number of mission command is zero indexed
+    constexpr uint8_t takeoff_sequence_size = 5;
     constexpr uint8_t landing_sequence_size = 5;
     bool in_takeoff_sequence = (get_current_nav_index() < takeoff_sequence_size);
     bool in_landing_sequence = (get_current_nav_index() > num_commands() - landing_sequence_size - 1);
