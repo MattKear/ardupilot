@@ -56,6 +56,10 @@ void Mode::AutoYaw::set_mode(autopilot_yaw_mode yaw_mode)
     if (_mode == yaw_mode) {
         return;
     }
+
+    // Log before and after mode change to get a clear transition
+    write_log();
+
     _last_mode = _mode;
     _mode = yaw_mode;
 
@@ -102,6 +106,8 @@ void Mode::AutoYaw::set_mode(autopilot_yaw_mode yaw_mode)
     case AUTO_YAW_WEATHERVANE:
         break;
     }
+
+    write_log();
 }
 
 // set_fixed_yaw - sets the yaw look at heading for auto mode
@@ -274,6 +280,27 @@ float Mode::AutoYaw::rate_cds() const
 
     // return zero turn rate (this should never happen)
     return 0.0f;
+}
+
+// Log auto yaw mode and targets
+void Mode::AutoYaw::write_log()
+{
+#if LOGGING_ENABLED == ENABLED
+    // @LoggerMessage: AYAW
+    // @Description: AUTO yaw mode and targets
+    // @Field: TimeUS: Time since system startup
+    // @Field: mode: per `autopilot_yaw_mode` enum
+    // @Field: angle: target angle
+    // @Field: rate: target rate
+
+    copter.logger.Write("AYAW", "TimeUS,mode,angle,rate", "s-dk", "F---", "QBff",
+        AP_HAL::micros64(),
+        mode(),
+        // Convert from cd to deg
+        yaw() * 0.01,
+        rate_cds() * 0.01
+    );
+#endif
 }
 
 // handle the interface to the weathervane library

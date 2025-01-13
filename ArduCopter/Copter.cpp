@@ -823,6 +823,26 @@ void Copter::ten_hz_logging_loop()
         g2.winch.write_log();
     }
 #endif
+
+    // Log auto yaw if the flight mode uses it
+    const bool uses_auto_yaw =
+#if MODE_AUTO_ENABLED == ENABLED
+        (copter.flightmode == &copter.mode_auto) ||
+#endif
+#if MODE_GUIDED_ENABLED == ENABLED
+        (copter.flightmode == &copter.mode_guided) ||
+#endif
+#if MODE_RTL_ENABLED == ENABLED
+        (copter.flightmode == &copter.mode_rtl) ||
+#endif
+#if MODE_SMARTRTL_ENABLED == ENABLED
+        (copter.flightmode == &copter.mode_smartrtl) ||
+#endif
+        (copter.flightmode == &copter.mode_land);
+
+    if (uses_auto_yaw) {
+        copter.flightmode->auto_yaw.write_log();
+    }
 }
 
 // twentyfive_hz_logging - should be run at 25hz

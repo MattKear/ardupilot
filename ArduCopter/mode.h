@@ -258,6 +258,9 @@ public:
 
         bool fixed_yaw_slew_finished() { return is_zero(_fixed_yaw_offset_cd); }
 
+        // Log auto yaw mode and targets
+        void write_log();
+
     private:
 
         float look_ahead_yaw();
