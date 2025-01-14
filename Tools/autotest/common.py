@@ -2292,7 +2292,7 @@ class AutoTest(ABC):
                             line = line.decode("utf-8")
                         if state == state_outside:
                             if (re.match(r"\s*AP::logger\(\)[.]Write(?:Streaming)?\(", line) or
-                                    re.match(r"\s*logger[.]Write(?:Streaming)?\(", line)):
+                                    re.match(r"\s*(?:copter.)?logger[.]Write(?:Streaming)?\(", line)):
                                 state = state_inside
                                 line = re.sub("//.*", "", line) # trim comments
                                 log_write_statement = line
@@ -2316,7 +2316,7 @@ class AutoTest(ABC):
                 log_write_statement = re.sub(define, defines[define], log_write_statement)
             # fair warning: order is important here because of the
             # NKT/XKT special case below....
-            my_re = r' logger[.]Write(?:Streaming)?\(\s*"(\w+)"\s*,\s*"([\w,]+)".*\);'
+            my_re = r' (?:copter.)?logger[.]Write(?:Streaming)?\(\s*"(\w+)"\s*,\s*"([\w,]+)".*\);'
             m = re.match(my_re, log_write_statement)
             if m is None:
                 my_re = r' AP::logger\(\)[.]Write(?:Streaming)?\(\s*"(\w+)"\s*,\s*"([\w,]+)".*\);'
