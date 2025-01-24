@@ -586,6 +586,9 @@ private:
     bool verify_nav_script_time();
 #endif
 
+    // Set auto yaw state for a new mission leg
+    void set_auto_yaw();
+
     // Loiter control
     uint16_t loiter_time_max;                // How long we should stay in Loiter Mode for mission scripting (time in seconds)
     uint32_t loiter_time;                    // How long have we been loitering - The start time in millis

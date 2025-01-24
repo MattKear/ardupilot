@@ -359,10 +359,7 @@ void ModeAuto::wp_start(const Location& dest_loc)
     _mode = SubMode::WP;
 
     // initialise yaw
-    // To-Do: reset the yaw only when the previous navigation command is not a WP.  this would allow removing the special check for ROI
-    if ((auto_yaw.mode() != AUTO_YAW_ROI) && (auto_yaw.mode() != AUTO_YAW_WEATHERVANE)) {
-        auto_yaw.set_mode_to_default(false);
-    }
+    set_auto_yaw();
 }
 
 // auto_land_start - initialises controller to implement a landing
@@ -1301,10 +1298,7 @@ void ModeAuto::do_nav_wp(const AP_Mission::Mission_Command& cmd)
     }
 
     // initialise yaw
-    // To-Do: reset the yaw only when the previous navigation command is not a WP.  this would allow removing the special check for ROI
-    if ((auto_yaw.mode() != AUTO_YAW_ROI) && (auto_yaw.mode() != AUTO_YAW_WEATHERVANE)) {
-        auto_yaw.set_mode_to_default(false);
-    }
+    set_auto_yaw();
 }
 
 // checks the next mission command and adds it as a destination if necessary
@@ -1520,10 +1514,7 @@ void ModeAuto::do_spline_wp(const AP_Mission::Mission_Command& cmd)
     }
 
     // initialise yaw
-    // To-Do: reset the yaw only when the previous navigation command is not a WP.  this would allow removing the special check for ROI
-    if ((auto_yaw.mode() != AUTO_YAW_ROI) && (auto_yaw.mode() != AUTO_YAW_WEATHERVANE)) {
-        auto_yaw.set_mode_to_default(false);
-    }
+    set_auto_yaw();
 }
 
 // calculate locations required to build a spline curve from a mission command
@@ -2214,6 +2205,15 @@ bool ModeAuto::resume()
     }
 
     return true;
+}
+
+// Set auto yaw state for a new mission leg
+void ModeAuto::set_auto_yaw()
+{
+    // To-Do: reset the yaw only when the previous navigation command is not a WP. This would allow removing the special check for ROI
+    if ((auto_yaw.mode() != AUTO_YAW_ROI) && (auto_yaw.mode() != AUTO_YAW_WEATHERVANE)) {
+        auto_yaw.set_mode_to_default(false);
+    }
 }
 
 #endif
