@@ -710,8 +710,23 @@ MAV_RESULT GCS_MAVLINK_Copter::handle_command_int_do_reposition(const mavlink_co
         return MAV_RESULT_DENIED; // failed as the location is not valid
     }
 
+    // Extract relative_yaw bit from flag
+    const bool relative_yaw = ((int32_t)packet.param2 & MAV_DO_REPOSITION_FLAGS_RELATIVE_YAW) == MAV_DO_REPOSITION_FLAGS_RELATIVE_YAW;
+
+    // Default to yaw of 0
+    float yaw = 0;
+
+    // Spec says NaN for default, however we also treat zero as default because that it what most GCSs send by default.
+    // Starting to accept 0 for absolute yaw target suddenly would be a large change in behaviour.
+    // If you really do want 0 you can set 360.
+    // If the relative yaw bit is set then 0 is OK.
+    const bool use_yaw = !isnan(packet.param4) && (!is_zero(packet.param4) || relative_yaw);
+    if (use_yaw) {
+        yaw = packet.param4;
+    }
+
     // we need to do this first, as we don't want to change the flight mode unless we can also set the target
-    if (!copter.mode_guided.set_destination(request_location, false, 0, false, 0)) {
+    if (!copter.mode_guided.set_destination(request_location, use_yaw, yaw, false, 0, relative_yaw)) {
         return MAV_RESULT_FAILED;
     }
 
@@ -720,7 +735,7 @@ MAV_RESULT GCS_MAVLINK_Copter::handle_command_int_do_reposition(const mavlink_co
             return MAV_RESULT_FAILED;
         }
         // the position won't have been loaded if we had to change the flight mode, so load it again
-        if (!copter.mode_guided.set_destination(request_location, false, 0, false, 0)) {
+        if (!copter.mode_guided.set_destination(request_location, use_yaw, yaw, false, 0, relative_yaw)) {
             return MAV_RESULT_FAILED;
         }
     }
