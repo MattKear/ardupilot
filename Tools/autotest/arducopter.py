@@ -8499,6 +8499,85 @@ class AutoTestCopter(AutoTest):
         self.end_subtest("Ended test for Pause/Continue in GUIDED mode with POSITION and VELOCITY and ACCELERATION!")
         self.do_RTL(timeout=120)
 
+    def DO_GO_AROUND(self):
+        '''Test copter landing go around behaviour'''
+        self.load_mission("mission.txt", strict=False)
+
+        self.set_parameters({
+            "AUTO_OPTIONS": 3,
+            "AUTO_RTL_TYPE": 4,
+            "BATT_FS_LOW_ACT": 6,
+        })
+
+        self.change_mode('AUTO')
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+
+        def test_go_around_pause(self, wp, pause_cont, msg, want_result):
+            self.progress("Test WP number: %i", wp)
+            self.wait_current_waypoint(wp, timeout=120)
+
+            # Ensure we do not miss the status text that we are using to test that we did not get the go around
+            self.context_collect('STATUSTEXT')
+            # send go around command
+            self.run_cmd(
+                mavutil.mavlink.MAV_CMD_DO_GO_AROUND,
+                0, # Altitude
+                pause_cont, # 0: pause, 1: continue
+                0, # param3
+                0, # param4
+                0, # param5
+                0, # param6
+                0, # param7
+                want_result=want_result)
+
+            self.wait_statustext(msg, check_context=True)
+            # Clear the context so that we don't falsely detect old messages
+            self.context_stop_collecting('STATUSTEXT')
+
+        self.start_subtest("Check go around cannot be triggered unless copter is in the decent cylinder")
+        for wp in range(3, 5):
+            test_go_around_pause(self, wp, 0, "Go Around: Not Land Cylinder", mavutil.mavlink.MAV_RESULT_FAILED)
+
+        self.start_subtest("Check go around pauses copter in the decent cylinder")
+        # Let the vehicle actually descend in the cylinder a little (makes it clearer in the log)
+        self.delay_sim_time(2.0)
+        test_go_around_pause(self, 6, 0, "VTOL Go Around: Pause", mavutil.mavlink.MAV_RESULT_ACCEPTED)
+        self.progress("Waiting copter to actually stop still")
+        self.wait_speed_vector(Vector3(0, 0, 0), accuracy=0.4)
+
+        self.start_subtest("Check go around continues")
+        # Let the vehicle actually sit still a little (makes it clearer in the log)
+        self.delay_sim_time(2.0)
+        test_go_around_pause(self, 6, 1, "VTOL Go Around: Continue", mavutil.mavlink.MAV_RESULT_ACCEPTED)
+
+        self.start_subtest("Pause again and check that we can failsafe")
+        # Let the vehicle actually descend in the cylinder a little (makes it clearer in the log)
+        self.delay_sim_time(2.0)
+        test_go_around_pause(self, 6, 0, "VTOL Go Around: Pause", mavutil.mavlink.MAV_RESULT_ACCEPTED)
+
+        self.context_push()
+        self.set_parameter("SIM_BATT_VOLTAGE", 5.0)
+        self.wait_mode("AUTO_RTL")
+        # Clear Failsafe
+        self.context_pop()
+
+        self.start_subtest("Check we cannot puase in another mode")
+        # Change to RTL to fly home whilst we are checking that we are not allowed to use pause
+        self.change_mode("RTL")
+        self.run_cmd(
+            mavutil.mavlink.MAV_CMD_DO_GO_AROUND,
+            0, # Altitude
+            0, # 0: pause, 1: continue
+            0, # param3
+            0, # param4
+            0, # param5
+            0, # param6
+            0, # param7
+            want_result=mavutil.mavlink.MAV_RESULT_FAILED)
+
+        self.wait_disarmed()
+
     def DO_CHANGE_SPEED(self):
         self.load_mission("mission.txt", strict=False)
 
@@ -9253,6 +9332,10 @@ class AutoTestCopter(AutoTest):
             Test("GroundEffectCompensation_takeOffExpected",
                  "Test EKF's handling of takeoff-expected",
                  self.GroundEffectCompensation_takeOffExpected),
+
+            Test("DO_GO_AROUND",
+                 "Pausing landings via mavlink when in descent cylinder",
+                 self.DO_GO_AROUND),
 
             Test("DO_CHANGE_SPEED",
                  "Change speed during misison using waypoint items",
