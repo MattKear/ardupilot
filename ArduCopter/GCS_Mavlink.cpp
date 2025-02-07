@@ -1002,6 +1002,46 @@ MAV_RESULT GCS_MAVLINK_Copter::handle_command_long_packet(const mavlink_command_
         GCS_MAVLINK_Copter::convert_COMMAND_LONG_to_COMMAND_INT(packet, packet_int);
         return handle_command_pause_continue(packet_int);
     }
+
+    // A special case of the pause-resume 
+    case MAV_CMD_DO_GO_AROUND: {
+            // Do our extra bit of checking to see if we allow the go_around:
+            // Only allowed in auto
+            if (copter.flightmode != &copter.mode_auto) {
+                send_text(MAV_SEVERITY_INFO, "VTOL Go Around: Not Auto");
+                return MAV_RESULT_FAILED;
+            }
+
+            // Only allowed if we are in the "Landing Descent Cylinder"
+            if (!copter.mode_auto.mission.in_cylinder_descent_to_land()) {
+                send_text(MAV_SEVERITY_INFO, "Go Around: Not Land Cylinder");
+                return MAV_RESULT_FAILED;
+            }
+
+            // If we got this far we have passed our additional checks to perform the "Go Around"
+
+            // Repackage a command for the pause command with the packets in the correct places
+            // Miss-using Mavlink spec here. Param 2 is empty in spec, but we will use it as a VTOL pause continue
+            // 0 = pause, 1 = continue
+            const float pause = packet.param2;
+            mavlink_command_int_t pause_packet_int;
+            pause_packet_int.param1 = pause;
+            const MAV_RESULT result = handle_command_pause_continue(pause_packet_int);
+
+            if (result != MAV_RESULT_ACCEPTED) {
+                send_text(MAV_SEVERITY_INFO, "VTOL Go Around: Cmd Fail");
+                return result;
+            }
+
+            // Send a message on a succesful result
+            if (iszero(pause)) {
+                send_text(MAV_SEVERITY_INFO, "VTOL Go Around: Pause");
+            } else {
+                send_text(MAV_SEVERITY_INFO, "VTOL Go Around: Continue");
+            }
+            return result;
+        }
+
     default:
         return GCS_MAVLINK::handle_command_long_packet(packet);
     }
