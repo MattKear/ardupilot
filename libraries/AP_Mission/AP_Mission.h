@@ -646,6 +646,9 @@ public:
     bool get_item(uint16_t index, mavlink_mission_item_int_t& result) const ;
     bool set_item(uint16_t index, mavlink_mission_item_int_t& source) ;
 
+    // Check if we are in the "cylinder descent" the next waypoint to be loaded is a land WP
+    bool in_cylinder_descent_to_land(void);
+
 private:
     static AP_Mission *_singleton;
 

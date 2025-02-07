@@ -176,6 +176,36 @@ bool AP_Mission::is_takeoff_next(uint16_t cmd_index)
     return false;
 }
 
+/// Use some basic predefined criteria to determine if we are in the descent cylinder to land
+/*
+     * Last WP
+     |
+     |
+     | - Descent Cylinder - Can pause mission
+     |
+     |
+     * Current WP
+     |
+     | - Final Descent - Cannot pause
+     |
+     * LAND WP
+*/
+// Check if the next waypoint to be loaded from current is a landing WP
+bool AP_Mission::in_cylinder_descent_to_land(void) {
+    const uint16_t next_index = _nav_cmd.index + 1;
+    Mission_Command cmd = {};
+    if (!get_next_nav_cmd(next_index, cmd)) {
+        return false;
+    }
+
+    if (cmd.id == MAV_CMD_NAV_LAND) {
+        // The next WP is a land WP
+        return true;
+    }
+
+    return false;
+}
+
 /// check mission starts with a takeoff command
 bool AP_Mission::starts_with_takeoff_cmd()
 {
