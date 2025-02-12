@@ -116,6 +116,9 @@ AC_WPNav::AC_WPNav(const AP_InertialNav& inav, const AP_AHRS_View& ahrs, AC_PosC
     _last_wp_speed_cms = _wp_speed_cms;
     _last_wp_speed_up_cms = _wp_speed_up_cms;
     _last_wp_speed_down_cms = get_default_speed_down();
+
+    // init the desired time scaler to be 1.0 (no effect)
+    _des_ext_t_scale = 1.0;
 }
 
 // get expected source of terrain data if alt-above-terrain command is executed (used by Copter's ModeRTL)
@@ -449,6 +452,23 @@ void AC_WPNav::get_wp_stopping_point(Vector3f& stopping_point) const
     stopping_point = stop.tofloat();
 }
 
+void AC_WPNav::set_target_time_scaler(float t_scale)
+{
+    _des_ext_t_scale = constrain_float(t_scale, 0.0, 1.0);
+    _last_time_scaler_update_ms = AP_HAL::millis();
+}
+
+float AC_WPNav::get_external_time_scaler(void)
+{
+    // Check for timeouts, to ensure that we do not leave the position controller in a scaled-back condition
+    if (AP_HAL::millis() - _last_time_scaler_update_ms > 500) {
+        // Have not received a time scaler update in the last 1/2 a second. reset scaling
+        _des_ext_t_scale = 1.0;
+    }
+
+    return _des_ext_t_scale;
+}
+
 /// advance_wp_target_along_track - move target location along track from origin to destination
 bool AC_WPNav::advance_wp_target_along_track(float dt)
 {
@@ -484,7 +504,9 @@ bool AC_WPNav::advance_wp_target_along_track(float dt)
     float vel_scaler_dt = 1.0;
     if (is_positive(_wp_desired_speed_xy_cms)) {
         update_vel_accel(_offset_vel, _offset_accel, dt, 0.0, 0.0);
-        const float vel_input = !_paused ? _wp_desired_speed_xy_cms * offset_z_scaler : 0.0;
+        float vel_input = !_paused ? _wp_desired_speed_xy_cms * offset_z_scaler : 0.0;
+        // We may also want to slow the mission down from an external time scaler
+        vel_input *= get_external_time_scaler();
         shape_vel_accel(vel_input, 0.0, _offset_vel, _offset_accel, -_wp_accel_cmss, _wp_accel_cmss,
                         _pos_control.get_shaping_jerk_xy_cmsss(), dt, true);
         vel_scaler_dt = _offset_vel / _wp_desired_speed_xy_cms;

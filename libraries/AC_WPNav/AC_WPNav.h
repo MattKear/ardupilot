@@ -57,6 +57,9 @@ public:
     /// set current target horizontal speed during wp navigation
     void set_speed_xy(float speed_cms);
 
+    /// set time scaler to slow velocity and acceleration targets
+    void set_target_time_scaler(float t_scale);
+
     /// set pause or resume during wp navigation
     void set_pause() { _paused = true; }
     void set_resume() { _paused = false; }
@@ -223,6 +226,9 @@ protected:
     // updates _scurve_jerk and _scurve_snap
     void calc_scurve_jerk_and_snap();
 
+    // helper to manage the filtering and timeout of externally set time scaler
+    float get_external_time_scaler(void);
+
     // references and pointers to external libraries
     const AP_InertialNav&   _inav;
     const AP_AHRS_View&     _ahrs;
@@ -268,6 +274,10 @@ protected:
     float       _offset_vel;            // horizontal velocity reference used to slow the aircraft for pause and to ensure the aircraft can maintain height above terrain
     float       _offset_accel;          // horizontal acceleration reference used to slow the aircraft for pause and to ensure the aircraft can maintain height above terrain
     bool        _paused;                // flag for pausing waypoint controller
+
+    // Mission target time scaler variables
+    float              _des_ext_t_scale;             // Desired time compression multiplier for external functions to slow mission kinematic targets
+    uint32_t           _last_time_scaler_update_ms;   // used to check for timeouts to prevent leaving a reduced time scaler applied
 
     // terrain following variables
     bool        _terrain_alt;   // true if origin and destination.z are alt-above-terrain, false if alt-above-ekf-origin
