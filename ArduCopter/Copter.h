@@ -69,6 +69,7 @@
 #include <AC_Sprayer/AC_Sprayer.h>          // Crop sprayer library
 #include <AP_ADSB/AP_ADSB.h>                // ADS-B RF based collision avoidance module library
 #include <AP_Proximity/AP_Proximity.h>      // ArduPilot proximity sensor library
+#include <AP_Mission/AP_Containment_Manager.h>  // Log and support aircraft mainting a containment cylinder on missions
 
 // Configuration
 #include "defines.h"

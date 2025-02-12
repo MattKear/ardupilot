@@ -171,6 +171,7 @@ protected:
     AC_PosControl *&pos_control;
     AP_InertialNav &inertial_nav;
     AP_AHRS &ahrs;
+    AP_Containment_Manager containment;
     AC_AttitudeControl_t *&attitude_control;
     MOTOR_CLASS *&motors;
     RC_Channel *&channel_roll;

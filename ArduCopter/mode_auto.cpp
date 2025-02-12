@@ -58,6 +58,9 @@ bool ModeAuto::init(bool ignore_checks)
         copter.precland_statemachine.init();
 #endif
 
+        // initialise containment manager
+        containment.reset();
+
         return true;
     } else {
         return false;
@@ -75,6 +78,9 @@ void ModeAuto::exit()
 #endif  // HAL_MOUNT_ENABLED
 
     auto_RTL = false;
+
+    // ensure we leave the containment manager in a safe state
+    containment.reset();
 }
 
 // auto_run - runs the auto controller
@@ -118,6 +124,9 @@ void ModeAuto::run()
         break;
 
     case SubMode::WP:
+        // Update containment management system
+        containment.update(copter.current_loc);
+        FALLTHROUGH;
     case SubMode::CIRCLE_MOVE_TO_EDGE:
         wp_run();
         break;
@@ -160,6 +169,9 @@ void ModeAuto::run()
         // log exit from Auto RTL
         copter.logger.Write_Mode((uint8_t)copter.flightmode->mode_number(), ModeReason::AUTO_RTL_EXIT);
     }
+
+    // Always update the logging for containment manager
+    containment.update_logging();
 }
 
 bool ModeAuto::allows_arming(AP_Arming::Method method) const
@@ -673,6 +685,10 @@ bool ModeAuto::start_command(const AP_Mission::Mission_Command& cmd)
     case MAV_CMD_DO_LAND_REJOIN:
         break;
 
+    case MAV_CMD_DO_CONTAINMENT_MANAGER:               // 41100 configure containment manager
+        containment.update_state(cmd);
+        break;
+
     default:
         // unable to use the command, allow the vehicle to try the next command
         return false;
@@ -873,6 +889,7 @@ bool ModeAuto::verify_command(const AP_Mission::Mission_Command& cmd)
     case MAV_CMD_DO_WINCH:
     case MAV_CMD_DO_LAND_START:
     case MAV_CMD_DO_LAND_REJOIN:
+    case MAV_CMD_DO_CONTAINMENT_MANAGER:
         cmd_complete = true;
         break;
 
