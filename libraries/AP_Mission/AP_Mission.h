@@ -665,6 +665,10 @@ public:
     bool get_item(uint16_t index, mavlink_mission_item_int_t& result) const ;
     bool set_item(uint16_t index, mavlink_mission_item_int_t& source) ;
 
+
+    // check if command is a landing type command.  Asside the obvious, MAV_CMD_DO_PARACHUTE is considered a type of landing
+    bool is_landing_type_cmd(uint16_t id) const;
+
 private:
     static AP_Mission *_singleton;
 
@@ -735,9 +739,6 @@ private:
     /// check_eeprom_version - checks version of missions stored in eeprom matches this library
     /// command list will be cleared if they do not match
     void check_eeprom_version();
-
-    // check if command is a landing type command.  Asside the obvious, MAV_CMD_DO_PARACHUTE is considered a type of landing
-    bool is_landing_type_cmd(uint16_t id) const;
 
     // approximate the distance travelled to get to a landing.  DO_JUMP commands are observed in look forward.
     bool distance_to_landing(uint16_t index, float &tot_distance,Location current_loc);
