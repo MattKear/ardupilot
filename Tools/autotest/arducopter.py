@@ -4457,7 +4457,7 @@ class AutoTestCopter(AutoTest):
 
         self.progress("Received proper target velocity commands")
 
-    def wait_for_local_velocity(self, vx, vy, vz_up, timeout=10):
+    def wait_for_local_velocity(self, vx, vy, vz_up, timeout=10, vector_mask=[True, True, True]):
         """ Wait for local target velocity"""
 
         # debug messages
@@ -4487,15 +4487,31 @@ class AutoTestCopter(AutoTest):
                 self.progress("Received local position ned message: %s" % str(m))
 
                 # check if velocity values are in range
-                if vx - m.vx <= 0.1 and vy - m.vy <= 0.1 and vz_up - (-m.vz) <= 0.1:
+                if (vx - m.vx <= 0.1 or not vector_mask[0]) and (vy - m.vy <= 0.1 or not vector_mask[1]) and (vz_up - (-m.vz) <= 0.1 or not vector_mask[2]):
 
                     # get out of function
                     self.progress("Vehicle successfully reached to target velocity!")
                     return
 
-        # raise an exception
-        error_message = "Did not receive target velocities vx, vy, vz_up, wanted=(%f, %f, %f) got=(%f, %f, %f)"
-        error_message = error_message % (vx, vy, vz_up, m.vx, m.vy, -m.vz)
+        # Build an error message based on the vector mask and raise an exception
+        labels = ("vx", "vy", "vz_up")
+        labels_str = ""
+        wanted_vals = (vx, vy, vz_up)
+        wanted_str = ""
+        got_vals = (m.vx, m.vy, -m.vz)
+        got_str = ""
+        for i, vm in enumerate(vector_mask):
+            if vm:
+                labels_str += labels[i]
+                wanted_str += "%f" % wanted_vals[i]
+                got_str += "%f" % got_vals[i]
+                # Add delimeters
+                if (i < 2):
+                    labels_str += ", "
+                    wanted_str += ", "
+                    got_str += ", "
+        error_message = "Did not receive target velocities %s, wanted=(%s) got=(%s)"
+        error_message = error_message % (labels_str, wanted_str, got_str)
         raise NotAchievedException(error_message)
 
     def test_position_target_message_mode(self):
