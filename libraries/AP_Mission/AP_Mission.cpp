@@ -2479,6 +2479,31 @@ reset_do_jump_tracking:
     return ret;
 }
 
+// Calculate the radial distance to mission leg, in the plane normal to the mission leg.
+// The end points of the mission leg are observed, so the error will increase more than
+// the radius beyond the end of the mission leg.
+bool AP_Mission::calc_norm_radius_to_mission_leg(const Location last_wp_loc, const Location next_wp_loc, const Location current_loc, float &radius) const
+{
+    Vector3f mission_vector = last_wp_loc.get_distance_NED_alt_frame(next_wp_loc);
+    if (mission_vector.is_zero()) {
+        return false;
+    }
+
+    Vector3f pos = last_wp_loc.get_distance_NED_alt_frame(current_loc);
+
+    // project pos vector on to mission vector
+    Vector3f p = pos.projected(mission_vector);
+
+    // constrain to mission line
+    p.x = constrain_float(p.x, MIN(0,mission_vector.x), MAX(0,mission_vector.x));
+    p.y = constrain_float(p.y, MIN(0,mission_vector.y), MAX(0,mission_vector.y));
+    p.z = constrain_float(p.z, MIN(0,mission_vector.z), MAX(0,mission_vector.z));
+
+    radius = (p - pos).length();
+    return true;
+}
+
+
 // Approximate the distance travelled to return to the mission path. DO_JUMP commands are observed in look forward.
 // Stop searching once reaching a landing or do-land-start
 bool AP_Mission::distance_to_mission_leg(uint16_t start_index, float &rejoin_distance, uint16_t &rejoin_index, Location current_loc)
@@ -2544,23 +2569,8 @@ bool AP_Mission::distance_to_mission_leg(uint16_t start_index, float &rejoin_dis
 
             } else {
                 // Calculate the distance to rejoin
-                Vector3f mission_vector = prev_loc.get_distance_NED_alt_frame(temp_cmd.content.location);
-                if (!mission_vector.is_zero()) {
-                    Vector3f pos = prev_loc.get_distance_NED_alt_frame(current_loc);
-
-                    // project pos vector on to mission vector
-                    Vector3f p = pos.projected(mission_vector);
-
-                    // constrain to mission line
-                    p.x = constrain_float(p.x, MIN(0,mission_vector.x), MAX(0,mission_vector.x));
-                    p.y = constrain_float(p.y, MIN(0,mission_vector.y), MAX(0,mission_vector.y));
-                    p.z = constrain_float(p.z, MIN(0,mission_vector.z), MAX(0,mission_vector.z));
-
-                    float disttemp = (p - pos).length();
-
-                    // store wp location as previous
-                    prev_loc = temp_cmd.content.location;
-
+                float disttemp;
+                if (calc_norm_radius_to_mission_leg(prev_loc, temp_cmd.content.location, current_loc, disttemp)) {
                     if (disttemp < rejoin_distance || is_negative(rejoin_distance)) {
                         rejoin_distance = disttemp;
                         rejoin_index = temp_cmd.index;

@@ -665,6 +665,10 @@ public:
     bool get_item(uint16_t index, mavlink_mission_item_int_t& result) const ;
     bool set_item(uint16_t index, mavlink_mission_item_int_t& source) ;
 
+    // Calculate the radial distance to mission leg, in the plane normal to the mission leg.
+    // The end points of the mission leg are observed, so the error will increase more than
+    // the radius beyond the end of the mission leg.
+    bool calc_norm_radius_to_mission_leg(const Location last_wp_loc, const Location next_wp_loc, const Location current_loc, float &radius) const;
 
     // check if command is a landing type command.  Asside the obvious, MAV_CMD_DO_PARACHUTE is considered a type of landing
     bool is_landing_type_cmd(uint16_t id) const;
