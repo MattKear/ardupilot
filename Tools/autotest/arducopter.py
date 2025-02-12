@@ -8564,6 +8564,51 @@ class AutoTestCopter(AutoTest):
         self.end_subtest("Ended test for Pause/Continue in GUIDED mode with POSITION and VELOCITY and ACCELERATION!")
         self.do_RTL(timeout=120)
 
+    def ContainmentLanding(self):
+        '''Test copter contaiment manger landing behaviour'''
+        self.load_mission("mission.txt", strict=False)
+
+        self.set_parameters({
+            "AUTO_OPTIONS": 3,
+            "AUTO_RTL_TYPE": 4,
+            "BATT_FS_LOW_ACT": 6,
+        })
+
+        self.change_mode('AUTO')
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+
+        self.start_subtest("Wait for Containment Manager monitoring only")
+        self.context_collect('STATUSTEXT')
+        self.wait_statustext("Mission: 3 Containment Manager", check_context=True, timeout=120)
+        self.wait_statustext("Containment: Monitoring", check_context=True, timeout=5)
+        # Clear the context so that we don't falsely detect old messages in next steps
+        self.context_stop_collecting('STATUSTEXT')
+
+        self.start_subtest("Wait for Containment Manager active mode")
+        self.context_collect('STATUSTEXT')
+        self.wait_statustext("Mission: 6 Containment Manager", check_context=True, timeout=120)
+        self.wait_statustext("Containment: Active", check_context=True, timeout=5)
+        # Clear the context so that we don't falsely detect old messages in next steps
+        self.context_stop_collecting('STATUSTEXT')
+
+        self.start_subtest("Test Containment Manager slows copter in descent when we push it away")
+        # Get to the top of the descent in the mission
+        self.wait_current_waypoint(8, timeout=120)
+        # Ensure we get the expected descent speed
+        speed_dn = self.get_parameter("WPNAV_SPEED_DN") * 0.01
+        self.wait_for_local_velocity(0, 0, -speed_dn, timeout=20)
+
+        self.progress("Applying wind to push copter off target")
+        self.set_parameter("SIM_WIND_SPD", 20)
+        # we expect the speed down to get to 10% of the target
+        self.wait_for_local_velocity(0, 0, -speed_dn*0.1, timeout=50, vector_mask=[False, False, True])
+
+        self.progress("Removing wind")
+        self.set_parameter("SIM_WIND_SPD", 0)
+
+        self.wait_disarmed()
+
     def DO_CHANGE_SPEED(self):
         self.load_mission("mission.txt", strict=False)
 
@@ -9440,6 +9485,10 @@ class AutoTestCopter(AutoTest):
             Test("GroundEffectCompensation_takeOffExpected",
                  "Test EKF's handling of takeoff-expected",
                  self.GroundEffectCompensation_takeOffExpected),
+
+            Test("ContainmentLanding",
+                 "Test containment management functions when in descent cylinder to land",
+                 self.ContainmentLanding),
 
             Test("DO_CHANGE_SPEED",
                  "Change speed during misison using waypoint items",
