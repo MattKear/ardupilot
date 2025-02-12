@@ -1202,6 +1202,11 @@ MAV_MISSION_RESULT AP_Mission::mavlink_int_to_mission_cmd(const mavlink_mission_
         cmd.content.scripting.p3 = packet.param4;
         break;
 
+    case MAV_CMD_DO_CONTAINMENT_MANAGER:                               // MAV ID: 41100
+        cmd.content.containment_manager.active = packet.param1;        // Active
+        cmd.content.containment_manager.radius = packet.param2;        // Radius (m)
+        break;
+
     case MAV_CMD_NAV_SCRIPT_TIME:
         cmd.content.nav_script_time.command = packet.param1;
         cmd.content.nav_script_time.timeout_s = packet.param2;
@@ -1674,6 +1679,11 @@ bool AP_Mission::mission_cmd_to_mavlink_int(const AP_Mission::Mission_Command& c
         packet.param2 = cmd.content.scripting.p1;
         packet.param3 = cmd.content.scripting.p2;
         packet.param4 = cmd.content.scripting.p3;
+        break;
+
+    case MAV_CMD_DO_CONTAINMENT_MANAGER:                                // MAV ID: 41100
+        packet.param1 = cmd.content.containment_manager.active;         // Active
+        packet.param2 = cmd.content.containment_manager.radius;         // Radius (m)
         break;
 
     case MAV_CMD_NAV_SCRIPT_TIME:
@@ -2697,6 +2707,8 @@ const char *AP_Mission::Mission_Command::type() const
         return "NavScriptTime";
     case MAV_CMD_DO_PAUSE_CONTINUE:
         return "PauseContinue";
+    case MAV_CMD_DO_CONTAINMENT_MANAGER:
+        return "Containment Manager";
 
     default:
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL

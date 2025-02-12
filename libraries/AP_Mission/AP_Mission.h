@@ -236,7 +236,13 @@ public:
         float arg1;
         float arg2;
     };
-    
+
+    // Containment manager command structure
+    struct PACKED Containment_Manager_Command {
+        uint8_t active;
+        float radius;
+    };
+
     union Content {
         // jump structure
         Jump_Command jump;
@@ -312,7 +318,9 @@ public:
 
         // nav scripting
         nav_script_time_Command nav_script_time;
-        
+
+        Containment_Manager_Command containment_manager;
+
         // location
         Location location{};      // Waypoint location
     };
