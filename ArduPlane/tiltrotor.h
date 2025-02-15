@@ -16,6 +16,7 @@
 
 #include <AP_Param/AP_Param.h>
 #include "transition.h"
+#include <SRV_Channel/SRV_Channel.h>
 
 class QuadPlane;
 class AP_MotorsMulticopter;
@@ -27,7 +28,7 @@ friend class Plane;
 friend class Tiltrotor_Transition;
 public:
 
-    Tiltrotor(QuadPlane& _quadplane, AP_MotorsMulticopter*& _motors);
+    Tiltrotor(QuadPlane& _quadplane, AP_MotorsMulticopter*& _motors, const SRV_Channel::Aux_servo_function_t servo_fnc[]);
 
     bool enabled() const { return (enable > 0) && setup_complete;}
 
@@ -97,6 +98,13 @@ public:
     static const struct AP_Param::GroupInfo var_info[];
 
 private:
+
+    // the servo functions that we populate on construction
+    const SRV_Channel::Aux_servo_function_t tilt_left_srv;
+    const SRV_Channel::Aux_servo_function_t tilt_right_srv;
+    const SRV_Channel::Aux_servo_function_t tilt_rear_srv;
+    const SRV_Channel::Aux_servo_function_t tilt_rear_left_srv;
+    const SRV_Channel::Aux_servo_function_t tilt_rear_right_srv;
 
     bool setup_complete;
 

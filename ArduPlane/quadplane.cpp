@@ -641,7 +641,12 @@ const AP_Param::ConversionInfo mot_pwm_conversion_table[] = {
 };
 
 QuadPlane::QuadPlane(AP_AHRS &_ahrs) :
-    ahrs(_ahrs)
+    ahrs(_ahrs),
+    tilt1_servos{ SRV_Channel::k_tiltMotorLeft,
+                  SRV_Channel::k_tiltMotorRight,
+                  SRV_Channel::k_tiltMotorRear,
+                  SRV_Channel::k_tiltMotorRearLeft,
+                  SRV_Channel::k_tiltMotorRearRight}
 {
     AP_Param::setup_object_defaults(this, var_info);
     AP_Param::setup_object_defaults(this, var_info2);

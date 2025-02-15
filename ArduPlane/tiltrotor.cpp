@@ -52,19 +52,19 @@ const AP_Param::GroupInfo Tiltrotor::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("RATE_DN", 6, Tiltrotor, max_rate_down_dps, 0),
 
-    // @Param: YAW_ANGLE
+    // @Param: YAW_ANG
     // @DisplayName: Tilt minimum angle for vectored yaw
     // @Description: This is the angle of the tilt servos when in VTOL mode and at minimum output (fully back). This needs to be set in addition to Q_TILT_TYPE=2, to enable vectored control for yaw in tilt quadplanes. This is also used to limit the forward travel of bicopter tilts(Q_TILT_TYPE=3) when in VTOL modes.
     // @Range: 0 30
-    AP_GROUPINFO("YAW_ANGLE", 7, Tiltrotor, tilt_yaw_angle, 0),
+    AP_GROUPINFO("YAW_ANG", 7, Tiltrotor, tilt_yaw_angle, 0),
 
-    // @Param: FIX_ANGLE
+    // @Param: FIX_ANG
     // @DisplayName: Fixed wing tiltrotor angle
     // @Description: This is the angle the motors tilt down when at maximum output for forward flight. Set this to a non-zero value to enable vectoring for roll/pitch in forward flight on tilt-vectored aircraft
     // @Units: deg
     // @Range: 0 30
     // @User: Standard
-    AP_GROUPINFO("FIX_ANGLE", 8, Tiltrotor, fixed_angle, 0),
+    AP_GROUPINFO("FIX_ANG", 8, Tiltrotor, fixed_angle, 0),
 
     // @Param: FIX_GAIN
     // @DisplayName: Fixed wing tiltrotor gain
@@ -90,7 +90,14 @@ const AP_Param::GroupInfo Tiltrotor::var_info[] = {
   Q_TILT_MASK to a non-zero value
  */
 
-Tiltrotor::Tiltrotor(QuadPlane& _quadplane, AP_MotorsMulticopter*& _motors):quadplane(_quadplane),motors(_motors)
+Tiltrotor::Tiltrotor(QuadPlane& _quadplane, AP_MotorsMulticopter*& _motors, const SRV_Channel::Aux_servo_function_t servo_fnc[]) :
+    quadplane(_quadplane),
+    motors(_motors),
+    tilt_left_srv(servo_fnc[0]),
+    tilt_right_srv(servo_fnc[1]),
+    tilt_rear_srv(servo_fnc[2]),
+    tilt_rear_left_srv(servo_fnc[3]),
+    tilt_rear_right_srv(servo_fnc[4])
 {
     AP_Param::setup_object_defaults(this, var_info);
 }
@@ -134,11 +141,11 @@ void Tiltrotor::setup()
         motors->set_thrust_compensation_callback(FUNCTOR_BIND_MEMBER(&Tiltrotor::tilt_compensate, void, float *, uint8_t));
         if (type == TILT_TYPE_VECTORED_YAW) {
             // setup tilt servos for vectored yaw
-            SRV_Channels::set_range(SRV_Channel::k_tiltMotorLeft,  1000);
-            SRV_Channels::set_range(SRV_Channel::k_tiltMotorRight, 1000);
-            SRV_Channels::set_range(SRV_Channel::k_tiltMotorRear,  1000);
-            SRV_Channels::set_range(SRV_Channel::k_tiltMotorRearLeft, 1000);
-            SRV_Channels::set_range(SRV_Channel::k_tiltMotorRearRight, 1000);
+            SRV_Channels::set_range(tilt_left_srv, 1000);
+            SRV_Channels::set_range(tilt_right_srv, 1000);
+            SRV_Channels::set_range(tilt_rear_srv, 1000);
+            SRV_Channels::set_range(tilt_rear_left_srv, 1000);
+            SRV_Channels::set_range(tilt_rear_right_srv, 1000);
         }
     }
 
@@ -536,11 +543,11 @@ void Tiltrotor::vectoring(void)
                 yaw_out /= plane.channel_rudder->get_range();
                 float yaw_range = zero_out;
 
-                SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorLeft,  1000 * constrain_float(base_output + yaw_out * yaw_range,0,1));
-                SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRight, 1000 * constrain_float(base_output - yaw_out * yaw_range,0,1));
-                SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRear,  1000 * constrain_float(base_output,0,1));
-                SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRearLeft,  1000 * constrain_float(base_output + yaw_out * yaw_range,0,1));
-                SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRearRight, 1000 * constrain_float(base_output - yaw_out * yaw_range,0,1));
+                SRV_Channels::set_output_scaled(tilt_left_srv,  1000 * constrain_float(base_output + yaw_out * yaw_range,0,1));
+                SRV_Channels::set_output_scaled(tilt_right_srv, 1000 * constrain_float(base_output - yaw_out * yaw_range,0,1));
+                SRV_Channels::set_output_scaled(tilt_rear_srv,  1000 * constrain_float(base_output,0,1));
+                SRV_Channels::set_output_scaled(tilt_rear_left_srv,  1000 * constrain_float(base_output + yaw_out * yaw_range,0,1));
+                SRV_Channels::set_output_scaled(tilt_rear_right_srv, 1000 * constrain_float(base_output - yaw_out * yaw_range,0,1));
             } else {
                 // fixed wing tilt
                 const float gain = fixed_gain * fixed_tilt_limit;
@@ -551,11 +558,11 @@ void Tiltrotor::vectoring(void)
                 const float left  = gain * SRV_Channels::get_output_scaled(SRV_Channel::k_elevon_left) * (1/4500.0);
                 const float mid  = gain * SRV_Channels::get_output_scaled(SRV_Channel::k_elevator) * (1/4500.0);
                 // front tilt is effective canards, so need to swap and use negative. Rear motors are treated live elevons.
-                SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorLeft,1000 * constrain_float(base_output - right,0,1));
-                SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRight,1000 * constrain_float(base_output - left,0,1));
-                SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRearLeft,1000 * constrain_float(base_output + left,0,1));
-                SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRearRight,1000 * constrain_float(base_output + right,0,1));
-                SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRear,  1000 * constrain_float(base_output + mid,0,1));
+                SRV_Channels::set_output_scaled(tilt_left_srv, 1000 * constrain_float(base_output - right,0,1));
+                SRV_Channels::set_output_scaled(tilt_right_srv, 1000 * constrain_float(base_output - left,0,1));
+                SRV_Channels::set_output_scaled(tilt_rear_srv, 1000 * constrain_float(base_output + left,0,1));
+                SRV_Channels::set_output_scaled(tilt_rear_left_srv, 1000 * constrain_float(base_output + right,0,1));
+                SRV_Channels::set_output_scaled(tilt_rear_right_srv, 1000 * constrain_float(base_output + mid,0,1));
             }
         }
         return;
@@ -570,11 +577,11 @@ void Tiltrotor::vectoring(void)
         const float right = gain * SRV_Channels::get_output_scaled(SRV_Channel::k_elevon_right) * (1/4500.0);
         const float left  = gain * SRV_Channels::get_output_scaled(SRV_Channel::k_elevon_left) * (1/4500.0);
         const float mid  = gain * SRV_Channels::get_output_scaled(SRV_Channel::k_elevator) * (1/4500.0);
-        SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorLeft,1000 * constrain_float(base_output - right,0,1));
-        SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRight,1000 * constrain_float(base_output - left,0,1));
-        SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRearLeft,1000 * constrain_float(base_output + left,0,1));
-        SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRearRight,1000 * constrain_float(base_output + right,0,1));
-        SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRear,  1000 * constrain_float(base_output + mid,0,1));
+        SRV_Channels::set_output_scaled(tilt_left_srv, 1000 * constrain_float(base_output - right,0,1));
+        SRV_Channels::set_output_scaled(tilt_right_srv, 1000 * constrain_float(base_output - left,0,1));
+        SRV_Channels::set_output_scaled(tilt_rear_srv, 1000 * constrain_float(base_output + left,0,1));
+        SRV_Channels::set_output_scaled(tilt_rear_left_srv, 1000 * constrain_float(base_output + right,0,1));
+        SRV_Channels::set_output_scaled(tilt_rear_right_srv, 1000 * constrain_float(base_output + mid,0,1));
     } else {
         const float yaw_out = motors->get_yaw()+motors->get_yaw_ff();
         const float roll_out = motors->get_roll()+motors->get_roll_ff();
@@ -619,11 +626,11 @@ void Tiltrotor::vectoring(void)
         left_tilt = constrain_float(left_tilt,0.0,1.0) * 1000.0;
         right_tilt = constrain_float(right_tilt,0.0,1.0) * 1000.0;
 
-        SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorLeft, left_tilt);
-        SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRight, right_tilt);
-        SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRear, 1000.0 * constrain_float(base_output,0.0,1.0));
-        SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRearLeft, left_tilt);
-        SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRearRight, right_tilt);
+        SRV_Channels::set_output_scaled(tilt_left_srv, left_tilt);
+        SRV_Channels::set_output_scaled(tilt_right_srv, right_tilt);
+        SRV_Channels::set_output_scaled(tilt_rear_srv, 1000.0 * constrain_float(base_output,0.0,1.0));
+        SRV_Channels::set_output_scaled(tilt_rear_left_srv, left_tilt);
+        SRV_Channels::set_output_scaled(tilt_rear_right_srv, right_tilt);
     }
 }
 

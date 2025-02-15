@@ -568,7 +568,10 @@ private:
     uint32_t last_qtun_log_ms;
 
     // Tiltrotor control
-    Tiltrotor tiltrotor{*this, motors};
+    // Group 1 tilt rotor
+    const SRV_Channel::Aux_servo_function_t tilt1_servos[5];
+    Tiltrotor tiltrotor{*this, motors, QuadPlane::tilt1_servos};
+    // Tiltrotor tiltrotor2{*this, motors};    // Group 2 Tilt rotor
 
     // tailsitter control
     Tailsitter tailsitter{*this, motors};
