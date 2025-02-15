@@ -569,9 +569,13 @@ private:
 
     // Tiltrotor control
     // Group 1 tilt rotor
-    const SRV_Channel::Aux_servo_function_t tilt1_servos[5];
+    const SRV_Channel::Aux_servo_function_t tilt1_servos[6];
     Tiltrotor tiltrotor{*this, motors, QuadPlane::tilt1_servos};
-    // Tiltrotor tiltrotor2{*this, motors};    // Group 2 Tilt rotor
+
+    // Group 2 tilt rotor
+    // const SRV_Channel::Aux_servo_function_t tilt2_servos[6];
+    // Tiltrotor tiltrotor{*this, motors, QuadPlane::tilt2_servos};
+
 
     // tailsitter control
     Tailsitter tailsitter{*this, motors};

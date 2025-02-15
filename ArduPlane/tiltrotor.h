@@ -100,6 +100,7 @@ public:
 private:
 
     // the servo functions that we populate on construction
+    const SRV_Channel::Aux_servo_function_t tilt_fwd_srv;
     const SRV_Channel::Aux_servo_function_t tilt_left_srv;
     const SRV_Channel::Aux_servo_function_t tilt_right_srv;
     const SRV_Channel::Aux_servo_function_t tilt_rear_srv;

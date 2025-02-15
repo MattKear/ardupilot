@@ -93,11 +93,12 @@ const AP_Param::GroupInfo Tiltrotor::var_info[] = {
 Tiltrotor::Tiltrotor(QuadPlane& _quadplane, AP_MotorsMulticopter*& _motors, const SRV_Channel::Aux_servo_function_t servo_fnc[]) :
     quadplane(_quadplane),
     motors(_motors),
-    tilt_left_srv(servo_fnc[0]),
-    tilt_right_srv(servo_fnc[1]),
-    tilt_rear_srv(servo_fnc[2]),
-    tilt_rear_left_srv(servo_fnc[3]),
-    tilt_rear_right_srv(servo_fnc[4])
+    tilt_fwd_srv(servo_fnc[0]),
+    tilt_left_srv(servo_fnc[1]),
+    tilt_right_srv(servo_fnc[2]),
+    tilt_rear_srv(servo_fnc[3]),
+    tilt_rear_left_srv(servo_fnc[4]),
+    tilt_rear_right_srv(servo_fnc[5])
 {
     AP_Param::setup_object_defaults(this, var_info);
 }
@@ -197,7 +198,7 @@ void Tiltrotor::slew(float newtilt)
     angle_achieved = is_equal(newtilt, current_tilt);
 
     // translate to 0..1000 range and output
-    SRV_Channels::set_output_scaled(SRV_Channel::k_motor_tilt, 1000 * current_tilt);
+    SRV_Channels::set_output_scaled(tilt_fwd_srv, 1000 * current_tilt);
 }
 
 // return the current tilt value that represents forward flight
@@ -344,7 +345,7 @@ void Tiltrotor::continuous_update(void)
 void Tiltrotor::binary_slew(bool forward)
 {
     // The servo output is binary, not slew rate limited
-    SRV_Channels::set_output_scaled(SRV_Channel::k_motor_tilt, forward?1000:0);
+    SRV_Channels::set_output_scaled(tilt_fwd_srv, forward?1000:0);
 
     // rate limiting current_tilt has the effect of delaying throttle in tiltrotor_binary_update
     float max_change = tilt_max_change(!forward);
