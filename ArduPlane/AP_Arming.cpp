@@ -183,8 +183,8 @@ bool AP_Arming_Plane::quadplane_checks(bool display_failure)
         ret = false;
     }
 
-    if ((plane.quadplane.tailsitter.enable > 0) && (plane.quadplane.tiltrotor.enable > 0)) {
-        check_failed(ARMING_CHECK_PARAMETERS, display_failure, "set TAILSIT_ENABLE 0 or TILT_ENABLE 0");
+    if ((plane.quadplane.tailsitter.enable > 0) && ((plane.quadplane.tiltrotor1.enable > 0) || (plane.quadplane.tiltrotor2.enable > 0))) {
+        check_failed(ARMING_CHECK_PARAMETERS, display_failure, "set TAILSIT_ENABLE 0 or TILT/TILT2 _ENABLE 0");
         ret = false;
 
     } else {
@@ -194,7 +194,7 @@ bool AP_Arming_Plane::quadplane_checks(bool display_failure)
             ret = false;
         }
 
-        if ((plane.quadplane.tiltrotor.enable > 0) && !plane.quadplane.tiltrotor.enabled()) {
+        if ((plane.quadplane.tiltrotor1.enable > 0 && !plane.quadplane.tiltrotor1.enabled()) || (plane.quadplane.tiltrotor2.enable > 0 && !plane.quadplane.tiltrotor2.enabled())) {
             check_failed(ARMING_CHECK_PARAMETERS, display_failure, "tiltrotor setup not complete, reboot");
             ret = false;
         }

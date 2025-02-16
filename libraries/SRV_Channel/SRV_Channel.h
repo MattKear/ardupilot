@@ -188,6 +188,12 @@ public:
         k_rcin14_mapped         = 153,
         k_rcin15_mapped         = 154,
         k_rcin16_mapped         = 155,
+        k_motor_tilt2           = 156,
+        k_tiltMotorLeft2        = 157,
+        k_tiltMotorRight2       = 158,
+        k_tiltMotorRear2        = 159,
+        k_tiltMotorRearLeft2    = 160,
+        k_tiltMotorRearRight2   = 161,
         k_nr_aux_servo_functions         ///< This must be the last enum value (only add new values _before_ this one)
     } Aux_servo_function_t;
 

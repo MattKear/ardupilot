@@ -501,9 +501,6 @@ void Tiltrotor::tilt_compensate(float *thrust, uint8_t num_motors)
  */
 bool Tiltrotor::fully_fwd(void) const
 {
-    if (!enabled() || (tilt_mask == 0)) {
-        return false;
-    }
     return (current_tilt >= get_fully_forward_tilt());
 }
 
@@ -512,9 +509,6 @@ bool Tiltrotor::fully_fwd(void) const
  */
 bool Tiltrotor::fully_up(void) const
 {
-    if (!enabled() || (tilt_mask == 0)) {
-        return false;
-    }
     return (current_tilt <= 0);
 }
 
@@ -640,7 +634,7 @@ void Tiltrotor::vectoring(void)
  */
 void Tiltrotor::bicopter_output(void)
 {
-    if (type != TILT_TYPE_BICOPTER || quadplane.motor_test.running) {
+    if (type != TILT_TYPE_BICOPTER || quadplane.motor_test.running || !enabled()) {
         // don't override motor test with motors_output
         return;
     }
@@ -718,12 +712,25 @@ void Tiltrotor::update_yaw_target(void)
 
 bool Tiltrotor_Transition::update_yaw_target(float& yaw_target_cd)
 {
-    if (!(tiltrotor.is_vectored() &&
+    if (!(quadplane.tiltrotor_is_vectored() &&
         transition_state <= TRANSITION_TIMER)) {
         return false;
     }
-    tiltrotor.update_yaw_target();
-    yaw_target_cd = tiltrotor.transition_yaw_cd;
+
+    quadplane.tiltrotor1.update_yaw_target();
+    quadplane.tiltrotor2.update_yaw_target();
+
+    // We have to manage two tilt groups so we take the average value from of the two
+    float transition_yaw_cd = 0;
+    transition_yaw_cd += quadplane.tiltrotor1.enabled()? quadplane.tiltrotor1.transition_yaw_cd : 0;
+    transition_yaw_cd += quadplane.tiltrotor2.enabled()? quadplane.tiltrotor1.transition_yaw_cd : 0;
+
+    const float denominator = float(quadplane.tiltrotor1.enabled()) + float(quadplane.tiltrotor2.enabled());
+    if (is_positive(denominator)) {
+        transition_yaw_cd /= denominator;
+    }
+
+    yaw_target_cd = transition_yaw_cd;
     return true;
 }
 
@@ -732,7 +739,7 @@ bool Tiltrotor_Transition::show_vtol_view() const
 {
     bool show_vtol = quadplane.in_vtol_mode();
 
-    if (!show_vtol && tiltrotor.is_vectored() && transition_state <= TRANSITION_TIMER) {
+    if (!show_vtol && quadplane.tiltrotor_is_vectored() && transition_state <= TRANSITION_TIMER) {
         // we use multirotor controls during fwd transition for
         // vectored yaw vehicles
         return true;

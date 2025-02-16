@@ -45,6 +45,7 @@ public:
     friend class Tiltrotor;
     friend class SLT_Transition;
     friend class Tailsitter_Transition;
+    friend class Tiltrotor_Transition;
 
     friend class Mode;
     friend class ModeManual;
@@ -309,6 +310,19 @@ private:
     // distance for cruise speed
     float transition_threshold(void);
 
+    // Helper functions that allow us to manage the two tilt rotor groups
+    bool tiltrotor_enabled(void) const { return tiltrotor1.enabled() || tiltrotor2.enabled(); }
+    bool tiltrotor_is_vectored(void) const { return tiltrotor1.is_vectored() || tiltrotor2.is_vectored(); }
+    bool tiltrotor_has_fw_motor(void) const { return tiltrotor1.has_fw_motor() || tiltrotor2.has_fw_motor(); }
+    bool tiltrotor_has_vtol_motor(void) const { return tiltrotor1.has_vtol_motor() || tiltrotor2.has_vtol_motor(); }
+    bool tiltrotor_motors_active(void) const { return tiltrotor1.motors_active() || tiltrotor2.motors_active(); }
+    bool tiltrotor_tilt_angle_achieved(void) const { return tiltrotor1.tilt_angle_achieved() && tiltrotor2.tilt_angle_achieved(); }
+    bool tiltrotor_tilt_over_max_angle(void) const { return tiltrotor1.tilt_over_max_angle() && tiltrotor2.tilt_over_max_angle(); }
+    bool tiltrotor_fully_up(void) const { return tiltrotor1.fully_up() && tiltrotor2.fully_up(); }
+    // void tiltrotor_update_yaw_target(void) { tiltrotor1.update_yaw_target(); tiltrotor2.update_yaw_target(); }
+    float tiltrotor_get_current_tilt(void) const;
+    float tiltrotor_get_fully_forward_tilt(void) const;
+
     AP_Int16 transition_time_ms;
     AP_Int16 back_trans_pitch_limit_ms;
 
@@ -570,11 +584,11 @@ private:
     // Tiltrotor control
     // Group 1 tilt rotor
     const SRV_Channel::Aux_servo_function_t tilt1_servos[6];
-    Tiltrotor tiltrotor{*this, motors, QuadPlane::tilt1_servos};
+    Tiltrotor tiltrotor1{*this, motors, tilt1_servos};
 
     // Group 2 tilt rotor
-    // const SRV_Channel::Aux_servo_function_t tilt2_servos[6];
-    // Tiltrotor tiltrotor{*this, motors, QuadPlane::tilt2_servos};
+    const SRV_Channel::Aux_servo_function_t tilt2_servos[6];
+    Tiltrotor tiltrotor2{*this, motors, tilt2_servos};
 
 
     // tailsitter control

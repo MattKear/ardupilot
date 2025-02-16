@@ -437,7 +437,7 @@ const AP_Param::GroupInfo QuadPlane::var_info2[] = {
 
     // @Group: TILT_
     // @Path: tiltrotor.cpp
-    AP_SUBGROUPINFO(tiltrotor, "TILT_", 27, QuadPlane, Tiltrotor),
+    AP_SUBGROUPINFO(tiltrotor1, "TILT_", 27, QuadPlane, Tiltrotor),
 
     // @Param: BACKTRANS_MS
     // @DisplayName: SLT and Tiltrotor back transition pitch limit duration
@@ -537,6 +537,10 @@ const AP_Param::GroupInfo QuadPlane::var_info2[] = {
     // @Increment: 0.1
     // @User: Standard
     AP_GROUPINFO("BCK_PIT_LIM", 38, QuadPlane, q_bck_pitch_lim, 10.0f),
+
+    // @Group: TILT2_
+    // @Path: tiltrotor.cpp
+    AP_SUBGROUPINFO(tiltrotor2, "TILT2_", 39, QuadPlane, Tiltrotor),
 
     AP_GROUPEND
 };
@@ -647,7 +651,13 @@ QuadPlane::QuadPlane(AP_AHRS &_ahrs) :
                   SRV_Channel::k_tiltMotorRight,
                   SRV_Channel::k_tiltMotorRear,
                   SRV_Channel::k_tiltMotorRearLeft,
-                  SRV_Channel::k_tiltMotorRearRight}
+                  SRV_Channel::k_tiltMotorRearRight},
+    tilt2_servos{ SRV_Channel::k_motor_tilt2,
+                  SRV_Channel::k_tiltMotorLeft2,
+                  SRV_Channel::k_tiltMotorRight2,
+                  SRV_Channel::k_tiltMotorRear2,
+                  SRV_Channel::k_tiltMotorRearLeft2,
+                  SRV_Channel::k_tiltMotorRearRight2}
 {
     AP_Param::setup_object_defaults(this, var_info);
     AP_Param::setup_object_defaults(this, var_info2);
@@ -745,8 +755,8 @@ bool QuadPlane::setup(void)
     }
 
     // Make sure not both a tailsiter and tiltrotor
-    if ((tailsitter.enable > 0) && (tiltrotor.enable > 0)) {
-        AP_BoardConfig::config_error("set TAILSIT_ENABLE 0 or TILT_ENABLE 0");
+    if ((tailsitter.enable > 0) && (tiltrotor1.enable > 0 || tiltrotor2.enable > 0)) {
+        AP_BoardConfig::config_error("set TAILSIT_ENABLE 0 or TILT/TILT2 _ENABLE 0");
     }
 
     switch ((AP_Motors::motor_frame_class)frame_class) {
@@ -846,7 +856,8 @@ bool QuadPlane::setup(void)
 
     tailsitter.setup();
 
-    tiltrotor.setup();
+    tiltrotor1.setup();
+    tiltrotor2.setup();
 
     if (!transition) {
         transition = new SLT_Transition(*this, motors);
@@ -1570,6 +1581,44 @@ bool QuadPlane::should_assist(float aspeed, bool have_airspeed)
 }
 
 /*
+  Return the current tilt value for tiltrotors. This handles the case whereby we have multiple tilt groups,
+  in which we then return the average tilt
+*/
+float QuadPlane::tiltrotor_get_current_tilt(void) const
+{
+    // We have to manage two tilt groups so we take the average tilt position of the two
+    float tilt_reached = 0;
+    tilt_reached += tiltrotor1.enabled()? tiltrotor1.current_tilt : 0;
+    tilt_reached += tiltrotor2.enabled()? tiltrotor2.current_tilt : 0;
+
+    const float denominator = float(tiltrotor1.enabled()) + float(tiltrotor2.enabled());
+    float current_tilt = 0;
+    if (is_positive(denominator)) {
+        current_tilt = tilt_reached / denominator;
+    }
+    return current_tilt;
+}
+
+/*
+  Return the fully forward tilt value for tiltrotors. This handles the case whereby we have multiple tilt groups,
+  in which we then return the average tilt
+*/
+float QuadPlane::tiltrotor_get_fully_forward_tilt(void) const
+{
+    // We have to manage two tilt groups so we take the average tilt position of the two
+    float fwd_tilt = 0;
+    fwd_tilt += tiltrotor1.enabled()? tiltrotor1.get_fully_forward_tilt() : 0;
+    fwd_tilt += tiltrotor2.enabled()? tiltrotor2.get_fully_forward_tilt() : 0;
+
+    const float denominator = float(tiltrotor1.enabled()) + float(tiltrotor2.enabled());
+    float ret = 0;
+    if (is_positive(denominator)) {
+        ret = fwd_tilt / denominator;
+    }
+    return ret;
+}
+
+/*
   update for transition from quadplane to fixed wing mode
  */
 void SLT_Transition::update()
@@ -1609,7 +1658,12 @@ void SLT_Transition::update()
     // if rotors are fully forward then we are not transitioning,
     // unless we are waiting for airspeed to increase (in which case
     // the tilt will decrease rapidly)
-    if (quadplane.tiltrotor.fully_fwd() && transition_state != TRANSITION_AIRSPEED_WAIT) {
+
+    // We have to test that we havve a valid tiltrotor config (At least one of the tiltrotor groups is setup)
+    // but it is valid to only have one of the two groups set up
+    const bool tilt1_forward_or_disabled = quadplane.tiltrotor1.fully_fwd() || quadplane.tiltrotor1.enabled();
+    const bool tilt2_forward_or_disabled = quadplane.tiltrotor2.fully_fwd() || quadplane.tiltrotor2.enabled();
+    if (quadplane.tiltrotor_enabled() && (tilt1_forward_or_disabled || tilt2_forward_or_disabled) && transition_state != TRANSITION_AIRSPEED_WAIT) {
         if (transition_state == TRANSITION_TIMER) {
             gcs().send_text(MAV_SEVERITY_INFO, "Transition FW done");
         }
@@ -1644,7 +1698,7 @@ void SLT_Transition::update()
             }
             // if option is set and ground speed> 1/2 AIRSPEED_MIN for non-tiltrotors, then complete transition, otherwise QLAND.
             // tiltrotors will immediately transition
-            const bool tiltrotor_with_ground_speed = quadplane.tiltrotor.enabled() && (plane.ahrs.groundspeed() > plane.aparm.airspeed_min * 0.5);
+            const bool tiltrotor_with_ground_speed = quadplane.tiltrotor_enabled() && (plane.ahrs.groundspeed() > plane.aparm.airspeed_min * 0.5);
             if (quadplane.option_is_set(QuadPlane::OPTION::TRANS_FAIL_TO_FW) && tiltrotor_with_ground_speed) {
                 transition_state = TRANSITION_TIMER;
                 in_forced_transition = true;
@@ -1670,7 +1724,7 @@ void SLT_Transition::update()
         transition_low_airspeed_ms = now;
         if (have_airspeed && aspeed > plane.aparm.airspeed_min && !quadplane.assisted_flight) {
             transition_state = TRANSITION_TIMER;
-            airspeed_reached_tilt = quadplane.tiltrotor.current_tilt;
+            airspeed_reached_tilt = quadplane.tiltrotor_get_current_tilt();
             gcs().send_text(MAV_SEVERITY_INFO, "Transition airspeed reached %.1f", (double)aspeed);
         }
         quadplane.assisted_flight = true;
@@ -1681,12 +1735,12 @@ void SLT_Transition::update()
         // otherwise the plane can end up in high-alpha flight with
         // low VTOL thrust and may not complete a transition
         float climb_rate_cms = quadplane.assist_climb_rate_cms();
-        if (quadplane.option_is_set(QuadPlane::OPTION::LEVEL_TRANSITION) && !quadplane.tiltrotor.enabled()) {
+        if (quadplane.option_is_set(QuadPlane::OPTION::LEVEL_TRANSITION) && !quadplane.tiltrotor_enabled()) {
             climb_rate_cms = MIN(climb_rate_cms, 0.0f);
         }
         quadplane.hold_hover(climb_rate_cms);
 
-        if (!quadplane.tiltrotor.is_vectored()) {
+        if (!quadplane.tiltrotor_is_vectored()) {
             // set desired yaw to current yaw in both desired angle
             // and rate request. This reduces wing twist in transition
             // due to multicopter yaw demands. This is disabled when
@@ -1696,7 +1750,7 @@ void SLT_Transition::update()
             quadplane.attitude_control->reset_yaw_target_and_rate();
             quadplane.attitude_control->rate_bf_yaw_target(0.0);
         }
-        if (quadplane.tiltrotor.enabled() && !quadplane.tiltrotor.has_fw_motor()) {
+        if (quadplane.tiltrotor_enabled() && !quadplane.tiltrotor_has_fw_motor()) {
             // tilt rotors without decidated fw motors do not have forward throttle output in this stage
             // prevent throttle I wind up
             plane.TECS_controller.reset_throttle_I();
@@ -1742,11 +1796,12 @@ void SLT_Transition::update()
             // will stop stabilizing
             throttle_scaled = 0.01;
         }
-        if (quadplane.tiltrotor.enabled() && !quadplane.tiltrotor.has_vtol_motor() && !quadplane.tiltrotor.has_fw_motor()) {
+        if (quadplane.tiltrotor_enabled() && !quadplane.tiltrotor_has_vtol_motor() && !quadplane.tiltrotor_has_fw_motor()) {
             // All motors tilting, Use a combination of vertical and forward throttle based on curent tilt angle
             // scale from all VTOL throttle at airspeed_reached_tilt to all forward throttle at fully forward tilt
             // this removes a step change in throttle once assistance is stoped
-            const float ratio = (constrain_float(quadplane.tiltrotor.current_tilt, airspeed_reached_tilt, quadplane.tiltrotor.get_fully_forward_tilt()) - airspeed_reached_tilt) / (quadplane.tiltrotor.get_fully_forward_tilt() - airspeed_reached_tilt);
+            const float curr_tilt = constrain_float(quadplane.tiltrotor_get_current_tilt(), airspeed_reached_tilt, quadplane.tiltrotor_get_fully_forward_tilt());
+            const float ratio = (curr_tilt - airspeed_reached_tilt) / (quadplane.tiltrotor_get_fully_forward_tilt() - airspeed_reached_tilt);
             const float fw_throttle = MAX(SRV_Channels::get_output_scaled(SRV_Channel::k_throttle),0) * 0.01;
             throttle_scaled = constrain_float(throttle_scaled * (1.0-ratio) + fw_throttle * ratio, 0.0, 1.0);
         }
@@ -1759,7 +1814,7 @@ void SLT_Transition::update()
         // control surfaces at this stage.
         // We disable this for vectored yaw tilt rotors as they do need active
         // yaw control throughout the transition
-        if (!quadplane.tiltrotor.is_vectored()) {
+        if (!quadplane.tiltrotor_is_vectored()) {
             quadplane.attitude_control->reset_yaw_target_and_rate();
             quadplane.attitude_control->rate_bf_yaw_target(0.0);
         }
@@ -1767,7 +1822,7 @@ void SLT_Transition::update()
     }
 
     case TRANSITION_DONE:
-        if (!quadplane.tiltrotor.motors_active()) {
+        if (!quadplane.tiltrotor_motors_active()) {
             quadplane.set_desired_spool_state(AP_Motors::DesiredSpoolState::SHUT_DOWN);
             motors->output();
         }
@@ -1857,7 +1912,7 @@ void QuadPlane::update(void)
             plane.control_mode == &plane.mode_acro ||
             plane.control_mode == &plane.mode_training) {
             // in manual modes quad motors are always off
-            if (!tiltrotor.motors_active() && !tailsitter.enabled()) {
+            if (!tiltrotor_motors_active() && !tailsitter.enabled()) {
                 set_desired_spool_state(AP_Motors::DesiredSpoolState::SHUT_DOWN);
                 motors->output();
             }
@@ -1885,7 +1940,8 @@ void QuadPlane::update(void)
         throttle_wait = false;
     }
 
-    tiltrotor.update();
+    tiltrotor1.update();
+    tiltrotor2.update();
 
 #if HAL_LOGGING_ENABLED
     // motors logging
@@ -2093,7 +2149,7 @@ void QuadPlane::motors_output(bool run_rate_controller)
     motors->output();
 
     // remember when motors were last active for throttle suppression
-    if (motors->get_throttle() > 0.01f || tiltrotor.motors_active()) {
+    if (motors->get_throttle() > 0.01f || tiltrotor_motors_active()) {
         last_motors_active_ms = now;
     }
 
@@ -2452,9 +2508,9 @@ void QuadPlane::vtol_position_controller(void)
             aspeed = groundspeed;
         }
 
-        if (tiltrotor.enabled() && poscontrol.get_state() == QPOS_AIRBRAKE) {
-            if ((now_ms - last_pidz_active_ms > 2000 && tiltrotor.tilt_over_max_angle()) ||
-                tiltrotor.current_tilt >= tiltrotor.get_fully_forward_tilt()) {
+        if (tiltrotor_enabled() && poscontrol.get_state() == QPOS_AIRBRAKE) {
+            if ((now_ms - last_pidz_active_ms > 2000 && tiltrotor_tilt_over_max_angle()) ||
+                tiltrotor_get_current_tilt() >= tiltrotor_get_fully_forward_tilt()) {
                 // use low throttle stabilization when airbraking on a
                 // tiltrotor. We don't want quite zero throttle as we
                 // want some drag, but don't want to run the Z
@@ -2568,7 +2624,7 @@ void QuadPlane::vtol_position_controller(void)
             vel_forward.last_ms = now_ms;
         }
 
-        if (!tiltrotor.enabled() && !tailsitter.enabled()) {
+        if (!tiltrotor_enabled() && !tailsitter.enabled()) {
             /*
               cope with fwd motor thrust loss during approach. We detect
               this by looking for the fwd throttle saturating. This only
@@ -2758,7 +2814,7 @@ void QuadPlane::vtol_position_controller(void)
                                                                           plane.nav_pitch_cd,
                                                                           desired_auto_yaw_rate_cds() + get_weathervane_yaw_rate_cds());
         }
-        if ((plane.auto_state.wp_distance < position2_dist_threshold) && tiltrotor.tilt_angle_achieved() &&
+        if ((plane.auto_state.wp_distance < position2_dist_threshold) && tiltrotor_tilt_angle_achieved() &&
             fabsf(rel_groundspeed_sq) < sq(3*position2_target_speed)) {
             // if continuous tiltrotor only advance to position 2 once tilts have finished moving
             poscontrol.set_state(QPOS_POSITION2);
@@ -3024,7 +3080,7 @@ void QuadPlane::assign_tilt_to_fwd_thr(void) {
     // Relax forward tilt limit if the position controller is saturating in the forward direction because
     // the forward thrust motor could be failed. Do not do this with tilt rotors because they do not rely on
     // forward throttle during VTOL flight
-    if (!tiltrotor.enabled()) {
+    if (!tiltrotor_enabled()) {
         const float fwd_tilt_range_cd = (float)aparm.angle_max - 100.0f * q_fwd_pitch_lim;
         if (is_positive(fwd_tilt_range_cd)) {
             // rate limit the forward tilt change to slew between the motor good and motor failed
@@ -3169,7 +3225,7 @@ void QuadPlane::takeoff_controller(void)
     uint32_t now = AP_HAL::millis();
     const auto spool_state = motors->get_desired_spool_state();
     if (plane.control_mode == &plane.mode_guided && guided_takeoff
-        && tiltrotor.enabled() && !tiltrotor.fully_up() &&
+        && tiltrotor_enabled() && !tiltrotor_fully_up() &&
         spool_state != AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED) {
         // waiting for motors to tilt up
         takeoff_start_time_ms = now;

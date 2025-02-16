@@ -30,7 +30,7 @@ public:
 
     Tiltrotor(QuadPlane& _quadplane, AP_MotorsMulticopter*& _motors, const SRV_Channel::Aux_servo_function_t servo_fnc[]);
 
-    bool enabled() const { return (enable > 0) && setup_complete;}
+    bool enabled() const { return (enable > 0) && setup_complete && (tilt_mask > 0);}
 
     void setup();
 

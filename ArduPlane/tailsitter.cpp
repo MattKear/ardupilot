@@ -200,7 +200,7 @@ Tailsitter::Tailsitter(QuadPlane& _quadplane, AP_MotorsMulticopter*& _motors):qu
 void Tailsitter::setup()
 {
     // Set tailsitter enable flag based on old heuristics
-    if (!enable.configured() && (((quadplane.frame_class == AP_Motors::MOTOR_FRAME_TAILSITTER) || (motor_mask != 0)) && (quadplane.tiltrotor.type != Tiltrotor::TILT_TYPE_BICOPTER))) {
+    if (!enable.configured() && (((quadplane.frame_class == AP_Motors::MOTOR_FRAME_TAILSITTER) || (motor_mask != 0)) && (quadplane.tiltrotor1.type != Tiltrotor::TILT_TYPE_BICOPTER))) {
         enable.set_and_save(1);
     }
 
