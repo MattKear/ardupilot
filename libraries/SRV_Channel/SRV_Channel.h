@@ -87,11 +87,11 @@ public:
         k_motor6                = 38,
         k_motor7                = 39,
         k_motor8                = 40,
-        k_motor_tilt            = 41,            ///< tiltrotor motor tilt control
+        k_motor_tilt            = 41,            ///< tiltrotor motor tilt control for motor tilt group 1
         k_generator_control     = 42,            ///< state control for generator
-        k_tiltMotorRear         = 45,            ///<vectored thrust, rear tilt
-        k_tiltMotorRearLeft     = 46,            ///<vectored thrust, rear left tilt
-        k_tiltMotorRearRight    = 47,            ///<vectored thrust, rear right tilt
+        k_tiltMotorRear         = 45,            ///<vectored thrust, rear tilt for motor tilt group 1
+        k_tiltMotorRearLeft     = 46,            ///<vectored thrust, rear left tilt for motor tilt group 1
+        k_tiltMotorRearRight    = 47,            ///<vectored thrust, rear right tilt for motor tilt group 1
         k_rcin1                 = 51,            ///< these are for pass-thru from arbitrary rc inputs
         k_rcin2                 = 52,
         k_rcin3                 = 53,
@@ -116,8 +116,8 @@ public:
         k_tracker_pitch         = 72,            ///< antennatracker pitch
         k_throttleLeft          = 73,
         k_throttleRight         = 74,
-        k_tiltMotorLeft         = 75,            ///< vectored thrust, left tilt
-        k_tiltMotorRight        = 76,            ///< vectored thrust, right tilt
+        k_tiltMotorLeft         = 75,            ///< vectored thrust, left tilt for motor tilt group 1
+        k_tiltMotorRight        = 76,            ///< vectored thrust, right tilt for motor tilt group 1
         k_elevon_left           = 77,
         k_elevon_right          = 78,
         k_vtail_left            = 79,
@@ -188,6 +188,9 @@ public:
         k_rcin14_mapped         = 153,
         k_rcin15_mapped         = 154,
         k_rcin16_mapped         = 155,
+        k_motor_tilt2           = 156,   ///< tiltrotor motor tilt control for 2nd motor tilt group
+        k_tiltMotorLeft2        = 157,   ///< vectored thrust, left tilt for motor tilt group 2
+        k_tiltMotorRight2       = 158,   ///< vectored thrust, right tilt for motor tilt group 2
         k_nr_aux_servo_functions         ///< This must be the last enum value (only add new values _before_ this one)
     } Aux_servo_function_t;
 
