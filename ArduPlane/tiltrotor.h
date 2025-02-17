@@ -16,6 +16,7 @@
 
 #include <AP_Param/AP_Param.h>
 #include "transition.h"
+#include <SRV_Channel/SRV_Channel.h>
 
 class QuadPlane;
 class AP_MotorsMulticopter;
@@ -33,24 +34,22 @@ public:
 
     void setup();
 
-    void slew(float tilt);
+    void slew(float newtilt, float& tilt_output, SRV_Channel::Aux_servo_function_t servo_chan, bool& ang_achieved, const uint8_t tilt_group);
     void binary_slew(bool forward);
     void update();
     void continuous_update();
     void binary_update();
-    void vectoring();
+    void vectoring(uint8_t tilt_group);
     void bicopter_output();
-    void tilt_compensate_angle(float *thrust, uint8_t num_motors, float non_tilted_mul, float tilted_mul);
+    void tilt_compensate_angle(float *thrust, uint8_t num_motors, float non_tilted_mul, float tilted_mul, const uint8_t tilt_group);
     void tilt_compensate(float *thrust, uint8_t num_motors);
-    bool tilt_over_max_angle(void) const;
+    bool tilt_over_max_angle(uint8_t tilt_group) const;
 
-    bool is_motor_tilting(uint8_t motor) const {
-        return tilt_mask.get() & (1U<<motor);
-    }
+    bool is_motor_tilting(uint8_t motor, uint8_t tilt_group) const;
 
     bool fully_fwd() const;
     bool fully_up() const;
-    float tilt_max_change(bool up, bool in_flap_range = false) const;
+    float tilt_max_change(bool up, bool in_flap_range, const uint8_t tilt_group) const;
     float get_fully_forward_tilt() const;
     float get_forward_flight_tilt() const;
 
@@ -65,9 +64,11 @@ public:
 
     bool motors_active() const { return enabled() && _motors_active; }
 
+    float get_current_tilt(void) const;
+
     // true if the tilts have completed slewing
     // always return true if not enabled or not a continuous type
-    bool tilt_angle_achieved() const { return !enabled() || (type != TILT_TYPE_CONTINUOUS) || angle_achieved; }
+    bool tilt_angle_achieved() const { return !enabled() || ((type != TILT_TYPE_CONTINUOUS) && (type != TILT_TYPE_VECTORED_YAW)) || (angle_achieved && angle_achieved2); }
 
     AP_Int8 enable;
     AP_Int16 tilt_mask;
@@ -79,8 +80,12 @@ public:
     AP_Float fixed_angle;
     AP_Float fixed_gain;
     AP_Float flap_angle_deg;
+    AP_Int16 tilt_mask2;
+    AP_Int8 max_angle_deg2;
+    AP_Float tilt_yaw_angle2;
 
-    float current_tilt;
+    float current_tilt;         // Tilt of group 1 tilting motors
+    float current_tilt2;        // Tilt of group 2 tilting motors
     float current_throttle;
     bool _motors_active:1;
     float transition_yaw_cd;
@@ -94,9 +99,16 @@ public:
           TILT_TYPE_BICOPTER      =3
     };
 
+    static const uint8_t TILT_GROUP_1 = 1;
+    static const uint8_t TILT_GROUP_2 = 2;
+
     static const struct AP_Param::GroupInfo var_info[];
 
 private:
+
+    float calc_inv_tilt_factor(float tilt) const;
+
+    void write_tilt_log(void) const;
 
     bool setup_complete;
 
@@ -109,6 +121,7 @@ private:
     // true if the current tilt angle is equal to the desired
     // with slow tilt rates the tilt angle can lag
     bool angle_achieved;
+    bool angle_achieved2;
 
     // refences for convenience
     QuadPlane& quadplane;

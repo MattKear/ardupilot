@@ -1664,7 +1664,7 @@ void SLT_Transition::update()
         transition_low_airspeed_ms = now;
         if (have_airspeed && aspeed > plane.aparm.airspeed_min && !quadplane.assisted_flight) {
             transition_state = TRANSITION_TIMER;
-            airspeed_reached_tilt = quadplane.tiltrotor.current_tilt;
+            airspeed_reached_tilt = quadplane.tiltrotor.get_current_tilt();
             gcs().send_text(MAV_SEVERITY_INFO, "Transition airspeed reached %.1f", (double)aspeed);
         }
         quadplane.assisted_flight = true;
@@ -1740,7 +1740,7 @@ void SLT_Transition::update()
             // All motors tilting, Use a combination of vertical and forward throttle based on curent tilt angle
             // scale from all VTOL throttle at airspeed_reached_tilt to all forward throttle at fully forward tilt
             // this removes a step change in throttle once assistance is stoped
-            const float ratio = (constrain_float(quadplane.tiltrotor.current_tilt, airspeed_reached_tilt, quadplane.tiltrotor.get_fully_forward_tilt()) - airspeed_reached_tilt) / (quadplane.tiltrotor.get_fully_forward_tilt() - airspeed_reached_tilt);
+            const float ratio = (constrain_float(quadplane.tiltrotor.get_current_tilt(), airspeed_reached_tilt, quadplane.tiltrotor.get_fully_forward_tilt()) - airspeed_reached_tilt) / (quadplane.tiltrotor.get_fully_forward_tilt() - airspeed_reached_tilt);
             const float fw_throttle = MAX(SRV_Channels::get_output_scaled(SRV_Channel::k_throttle),0) * 0.01;
             throttle_scaled = constrain_float(throttle_scaled * (1.0-ratio) + fw_throttle * ratio, 0.0, 1.0);
         }
@@ -2447,8 +2447,8 @@ void QuadPlane::vtol_position_controller(void)
         }
 
         if (tiltrotor.enabled() && poscontrol.get_state() == QPOS_AIRBRAKE) {
-            if ((now_ms - last_pidz_active_ms > 2000 && tiltrotor.tilt_over_max_angle()) ||
-                tiltrotor.current_tilt >= tiltrotor.get_fully_forward_tilt()) {
+            if ((now_ms - last_pidz_active_ms > 2000 && tiltrotor.tilt_over_max_angle(Tiltrotor::TILT_GROUP_1) && tiltrotor.tilt_over_max_angle(Tiltrotor::TILT_GROUP_2)) ||
+                tiltrotor.get_current_tilt() >= tiltrotor.get_fully_forward_tilt()) {
                 // use low throttle stabilization when airbraking on a
                 // tiltrotor. We don't want quite zero throttle as we
                 // want some drag, but don't want to run the Z
