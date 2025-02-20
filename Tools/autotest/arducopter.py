@@ -4624,16 +4624,20 @@ class AutoTestCopter(AutoTest):
     def weathervane_test(self):
         # We test nose into wind code paths and yaw direction here and test side into wind
         # yaw direction in QuadPlane tests to reduce repetition.
+        wpnav_vz = max(self.get_parameter("WPNAV_SPEED_DN"), self.get_parameter("WPNAV_SPEED_UP"))
+        wpnav_vz *= 0.01 * 1.1 # change units to m/s and add 10 percent threshold
         self.set_parameters({"SIM_WIND_SPD": 10,
                              "SIM_WIND_DIR": 100,
                              "GUID_OPTIONS": 129, # allow weathervaning and arming from tx in guided
                              "AUTO_OPTIONS": 131, # allow arming in auto, take off without raising the stick, and weathervaning
                              "WVANE_ENABLE": 1,
                              "WVANE_GAIN": 3,
-                             "WVANE_VELZ_MAX": 1,
-                             "WVANE_SPD_MAX": 2})
+                             "WVANE_VELZ_MAX": wpnav_vz,
+                             "WVANE_SPD_MAX": 1.0,
+                             "WVANE_LAND": 1,
+                             "WVANE_TAKEOFF": 1,
+                             "WVANE_HGT_MIN": 2.0})
 
-        self.progress("Test weathervaning in auto")
         num_wp = self.load_mission("weathervane_mission.txt", strict=False)
         if not num_wp:
             raise NotAchievedException("load weathervane_mission failed")
@@ -4641,13 +4645,38 @@ class AutoTestCopter(AutoTest):
         self.wait_ready_to_arm()
         self.arm_vehicle()
 
+        self.start_subtest("Test weathervaning in auto takeoff")
+        self.wait_heading(100, accuracy=8, timeout=100)
+
+        self.start_subtest("Test weathervaning in auto loiter time")
         self.wait_statustext("Weathervane Active", timeout=60)
-        self.do_RTL()
+        self.wait_heading(100, accuracy=8, timeout=100)
+
+        self.start_subtest("Test weathervaning on landing")
+        self.context_push()
+
+        # reset the wind ready for landing test
+        self.set_parameters({"SIM_WIND_SPD" : 0,
+                             "SIM_WIND_DIR" : 80})
+
+        self.wait_current_waypoint(5, timeout=120)
+        self.context_collect('STATUSTEXT')
+
+        # get to the top of the landing
+        self.wait_current_waypoint(6, timeout=120)
+        # Apply wind
+        self.set_parameter("SIM_WIND_SPD", 10)
+
+        self.wait_statustext("Weathervane Active", timeout=60, check_context=True)
+        self.context_stop_collecting('STATUSTEXT')
+        self.wait_heading(80, accuracy=8, timeout=30)
         self.wait_disarmed()
-        self.change_mode("GUIDED")
+        self.context_pop()
+
 
         # After take off command in guided we enter the velaccl sub mode
-        self.progress("Test weathervaning in guided vel-accel")
+        self.start_subtest("Test weathervaning in guided vel-accel")
+        self.change_mode("GUIDED")
         self.set_rc(3, 1000)
         self.wait_ready_to_arm()
 
