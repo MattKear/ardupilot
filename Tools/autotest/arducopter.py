@@ -4633,21 +4633,34 @@ class AutoTestCopter(AutoTest):
                              "WVANE_VELZ_MAX": 1,
                              "WVANE_SPD_MAX": 2})
 
-        self.progress("Test weathervaning in auto")
+        self.start_subtest("Test weathervaning in auto loiter time")
         num_wp = self.load_mission("weathervane_mission.txt", strict=False)
         if not num_wp:
             raise NotAchievedException("load weathervane_mission failed")
         self.change_mode("AUTO")
         self.wait_ready_to_arm()
         self.arm_vehicle()
-
         self.wait_statustext("Weathervane Active", timeout=60)
-        self.do_RTL()
+
+        # reset the wind readu for landing test
+        self.set_parameters({"SIM_WIND_SPD" : 0,
+                             "SIM_WIND_DIR" : 80})
+
+        self.start_subtest("Test weathervaning on landing")
+        # get to the top of the landing
+        self.wait_current_waypoint(6, timeout=120)
+        # let the aircraft begin to descend
+        self.delay_sim_time(1.0)
+        self.set_parameters({"WVANE_VELZ_MAX" : 4, # ensure the vz threshhold is large enough to allow weathervaning on the descent
+                             "SIM_WIND_SPD" : 10})
+        self.wait_statustext("Weathervane Active", timeout=60)
+
         self.wait_disarmed()
-        self.change_mode("GUIDED")
+
 
         # After take off command in guided we enter the velaccl sub mode
-        self.progress("Test weathervaning in guided vel-accel")
+        self.start_subtest("Test weathervaning in guided vel-accel")
+        self.change_mode("GUIDED")
         self.set_rc(3, 1000)
         self.wait_ready_to_arm()
 
