@@ -677,6 +677,12 @@ void Mode::land_run_horizontal_control()
         }
     }
 
+#if WEATHERVANE_ENABLED == ENABLED
+    if (allows_weathervaning()) {
+        auto_yaw.update_weathervane(wp_nav->get_roll(), wp_nav->get_pitch(), target_yaw_rate, get_alt_above_ground_cm());
+    }
+#endif
+
     // this variable will be updated if prec land target is in sight and pilot isn't trying to reposition the vehicle
     copter.ap.prec_land_active = false;
 #if PRECISION_LANDING == ENABLED
@@ -731,6 +737,9 @@ void Mode::land_run_horizontal_control()
     if (auto_yaw.mode() == AUTO_YAW_HOLD) {
         // roll & pitch from waypoint controller, yaw rate from pilot
         attitude_control->input_thrust_vector_rate_heading(thrust_vector, target_yaw_rate);
+    } else if (auto_yaw.mode() == AUTO_YAW_RATE || auto_yaw.mode() == AUTO_YAW_WEATHERVANE) {
+        // roll & pitch from position controller, yaw rate from mavlink command or mission item, or weathervaning
+        attitude_control->input_thrust_vector_rate_heading(thrust_vector, auto_yaw.rate_cds());
     } else {
         // roll, pitch from waypoint controller, yaw heading from auto_heading()
         attitude_control->input_thrust_vector_heading(thrust_vector, auto_yaw.yaw());
