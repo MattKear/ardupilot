@@ -107,7 +107,7 @@ AC_WeatherVane::AC_WeatherVane(void)
 bool AC_WeatherVane::get_yaw_out(float &yaw_output, const int16_t pilot_yaw, const float hgt, const float roll_cdeg, const float pitch_cdeg, const bool is_takeoff, const bool is_landing)
 {
     Direction dir = (Direction)_direction.get();
-    if ((dir == Direction::OFF) || !allowed || (pilot_yaw != 0) || !is_positive(_gain)) {
+    if (!allowed || (pilot_yaw != 0) || !is_positive(_gain)) {
         // parameter disabled, or 0 gain
         // disabled temporarily
         // dont't override pilot
@@ -123,7 +123,7 @@ bool AC_WeatherVane::get_yaw_out(float &yaw_output, const int16_t pilot_yaw, con
         dir = (Direction)_landing_direction.get();
     }
     if (dir == Direction::OFF) {
-        // Disabled for takeoff or landing
+        // Disabled for normal operation, takeoff and landing
         reset();
         return false;
     }
