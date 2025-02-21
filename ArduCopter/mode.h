@@ -483,6 +483,7 @@ public:
     // true is weathervaning is allowed in auto
 #if WEATHERVANE_ENABLED == ENABLED
     bool allows_weathervaning(void) const override;
+    bool allow_weathervane_reset(void) const;
 #endif
 
 protected:
@@ -502,6 +503,7 @@ private:
         AllowTakeOffWithoutRaisingThrottle = (1 << 1U),
         IgnorePilotYaw                     = (1 << 2U),
         AllowWeatherVaning                 = (1 << 7U),
+        DontResetWeatherVaningForWPInit    = (1 << 8U),
     };
 
     bool start_command(const AP_Mission::Mission_Command& cmd);
