@@ -264,8 +264,10 @@ bool ModeAuto::loiter_start()
     // initialise waypoint controller target to stopping point
     wp_nav->set_wp_destination(stopping_point);
 
-    // hold yaw at current heading
-    auto_yaw.set_mode(AUTO_YAW_HOLD);
+    // hold yaw at current heading if we aren't already in a weathervane
+    if (auto_yaw.mode() != AUTO_YAW_WEATHERVANE) {
+        auto_yaw.set_mode(AUTO_YAW_HOLD);
+    }
 
     return true;
 }
@@ -358,7 +360,7 @@ void ModeAuto::wp_start(const Location& dest_loc)
 
     // initialise yaw
     // To-Do: reset the yaw only when the previous navigation command is not a WP.  this would allow removing the special check for ROI
-    if (auto_yaw.mode() != AUTO_YAW_ROI) {
+    if ((auto_yaw.mode() != AUTO_YAW_ROI) && (auto_yaw.mode() != AUTO_YAW_WEATHERVANE)) {
         auto_yaw.set_mode_to_default(false);
     }
 }
@@ -444,7 +446,7 @@ void ModeAuto::circle_movetoedge_start(const Location &circle_center, float radi
         const float dist_to_center = get_horizontal_distance_cm(inertial_nav.get_position_xy_cm().topostype(), copter.circle_nav->get_center().xy());
         // initialise yaw
         // To-Do: reset the yaw only when the previous navigation command is not a WP.  this would allow removing the special check for ROI
-        if (auto_yaw.mode() != AUTO_YAW_ROI) {
+        if ((auto_yaw.mode() != AUTO_YAW_ROI) && (auto_yaw.mode() != AUTO_YAW_WEATHERVANE)) {
             if (dist_to_center > copter.circle_nav->get_radius() && dist_to_center > 500) {
                 auto_yaw.set_mode_to_default(false);
             } else {
@@ -1300,7 +1302,7 @@ void ModeAuto::do_nav_wp(const AP_Mission::Mission_Command& cmd)
 
     // initialise yaw
     // To-Do: reset the yaw only when the previous navigation command is not a WP.  this would allow removing the special check for ROI
-    if (auto_yaw.mode() != AUTO_YAW_ROI) {
+    if ((auto_yaw.mode() != AUTO_YAW_ROI) && (auto_yaw.mode() != AUTO_YAW_WEATHERVANE)) {
         auto_yaw.set_mode_to_default(false);
     }
 }
@@ -1519,7 +1521,7 @@ void ModeAuto::do_spline_wp(const AP_Mission::Mission_Command& cmd)
 
     // initialise yaw
     // To-Do: reset the yaw only when the previous navigation command is not a WP.  this would allow removing the special check for ROI
-    if (auto_yaw.mode() != AUTO_YAW_ROI) {
+    if ((auto_yaw.mode() != AUTO_YAW_ROI) && (auto_yaw.mode() != AUTO_YAW_WEATHERVANE)) {
         auto_yaw.set_mode_to_default(false);
     }
 }
