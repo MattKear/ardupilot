@@ -4692,6 +4692,25 @@ class AutoTestCopter(AutoTest):
         self.wait_heading(100, accuracy=8, timeout=100)
         self.do_RTL()
 
+    def s_curve_landing(self):
+
+        self.set_parameters({
+                             "AUTO_OPTIONS": 3, # allow arming in auto, take off without raising the stick
+                            })
+
+        num_wp = self.load_mission("mission.txt", strict=False)
+        if not num_wp:
+            raise NotAchievedException("load mission failed")
+        self.change_mode("AUTO")
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+
+        # Fly the mission
+        self.wait_disarmed(timeout=120)
+
+        raise NotAchievedException("I want log, fail test")
+
+
     def fly_guided_change_submode(self):
         """"Ensure we can move around in guided after a takeoff command."""
 
@@ -9247,6 +9266,10 @@ class AutoTestCopter(AutoTest):
             ("Weathervane",
              "Test Weathervane Functionality",
              self.weathervane_test),
+
+            ("SCurveLand",
+             "Test Smooth Landing Functionality",
+             self.s_curve_landing),
 
             ("ParameterChecks",
              "Test Arming Parameter Checks",
