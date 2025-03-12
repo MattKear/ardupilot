@@ -97,13 +97,13 @@ public:
 private:
 
     // increment time and return the position, velocity and acceleration vectors relative to the origin
-    void move_from_pos_vel_accel(float dt, Vector3f &pos, Vector3f &vel, Vector3f &accel);
+    void move_from_pos_vel_accel(float dt, Vector3f &pos, Vector3f &vel, Vector3f &accel, uint8_t log_i);
 
     // increment time and return the position, velocity and acceleration vectors relative to the destination
-    void move_to_pos_vel_accel(float dt, Vector3f &pos, Vector3f &vel, Vector3f &accel);
+    void move_to_pos_vel_accel(float dt, Vector3f &pos, Vector3f &vel, Vector3f &accel, uint8_t log_i);
 
     // return the position, velocity and acceleration vectors relative to the origin at a specified time along the path
-    void move_from_time_pos_vel_accel(float t, Vector3f &pos, Vector3f &vel, Vector3f &accel);
+    void move_from_time_pos_vel_accel(float t, Vector3f &pos, Vector3f &vel, Vector3f &accel, uint8_t log_i);
 
     // get desired maximum speed along track
     float get_speed_along_track() const WARN_IF_UNUSED { return vel_max; }
@@ -174,6 +174,8 @@ private:
 
     // return true if the curve is valid.  Used to identify and protect against code errors
     bool valid() const WARN_IF_UNUSED;
+
+    void log_scurve(uint8_t instance, float p, float v, float a) const;
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
     // debugging messages

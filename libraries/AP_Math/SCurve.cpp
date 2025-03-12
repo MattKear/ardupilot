@@ -488,8 +488,8 @@ void SCurve::set_destination_speed_max(float speed)
 // returns true if vehicle has passed the apex of the corner
 bool SCurve::advance_target_along_track(SCurve &prev_leg, SCurve &next_leg, float wp_radius, float accel_corner, bool fast_waypoint, float dt, Vector3f &target_pos, Vector3f &target_vel, Vector3f &target_accel)
 {
-    prev_leg.move_to_pos_vel_accel(dt, target_pos, target_vel, target_accel);
-    move_from_pos_vel_accel(dt, target_pos, target_vel, target_accel);
+    prev_leg.move_to_pos_vel_accel(dt, target_pos, target_vel, target_accel, 1);
+    move_from_pos_vel_accel(dt, target_pos, target_vel, target_accel, 2);
     bool s_finished = finished();
 
     // check for change of leg on fast waypoint
@@ -501,22 +501,40 @@ bool SCurve::advance_target_along_track(SCurve &prev_leg, SCurve &next_leg, floa
 
         Vector3f turn_pos = -get_track();
         Vector3f turn_vel, turn_accel;
-        move_from_time_pos_vel_accel(get_time_elapsed() + time_to_destination * 0.5f, turn_pos, turn_vel, turn_accel);
-        next_leg.move_from_time_pos_vel_accel(time_to_destination * 0.5f, turn_pos, turn_vel, turn_accel);
+        move_from_time_pos_vel_accel(get_time_elapsed() + time_to_destination * 0.5f, turn_pos, turn_vel, turn_accel, 0);
+        next_leg.move_from_time_pos_vel_accel(time_to_destination * 0.5f, turn_pos, turn_vel, turn_accel, 0);
         const float speed_min = MIN(get_speed_along_track(), next_leg.get_speed_along_track());
         if ((get_time_remaining() < next_leg.time_end() * 0.5f) && (turn_pos.length() < wp_radius) &&
              (Vector2f{turn_vel.x, turn_vel.y}.length() < speed_min) &&
              (Vector2f{turn_accel.x, turn_accel.y}.length() < accel_corner)) {
-            next_leg.move_from_pos_vel_accel(dt, target_pos, target_vel, target_accel);
+            next_leg.move_from_pos_vel_accel(dt, target_pos, target_vel, target_accel, 3);
         }
     } else if (!is_zero(next_leg.get_time_elapsed())) {
-        next_leg.move_from_pos_vel_accel(dt, target_pos, target_vel, target_accel);
+        next_leg.move_from_pos_vel_accel(dt, target_pos, target_vel, target_accel, 3);
         if (next_leg.get_time_elapsed() >= get_time_remaining()) {
             s_finished = true;
         }
     }
 
+
     return s_finished;
+}
+
+// log the s-curves.  We have targets at this level so we need to reconstruct the s-curve
+void SCurve::log_scurve(uint8_t instance, float p, float v, float a) const
+{
+    if (instance == 0) {
+        AP::logger().Write("SCP", "TimeUS,p,v,a", "s---", "F---", "Qfff", AP_HAL::micros64(), p, v, a );
+        return;
+    }
+    if (instance == 1) {
+        AP::logger().Write("SCC", "TimeUS,p,v,a", "s---", "F---", "Qfff", AP_HAL::micros64(), p, v, a );
+        return;
+    }
+    if (instance == 2) {
+        AP::logger().Write("SCN", "TimeUS,p,v,a", "s---", "F---", "Qfff", AP_HAL::micros64(), p, v, a );
+        return;
+    }
 }
 
 // time has reached the end of the sequence
@@ -526,7 +544,7 @@ bool SCurve::finished() const
 }
 
 // increment time pointer and return the position, velocity and acceleration vectors relative to the origin
-void SCurve::move_from_pos_vel_accel(float dt, Vector3f &pos, Vector3f &vel, Vector3f &accel)
+void SCurve::move_from_pos_vel_accel(float dt, Vector3f &pos, Vector3f &vel, Vector3f &accel, uint8_t log_i)
 {
     advance_time(dt);
     float scurve_P1 = 0.0f;
@@ -536,10 +554,14 @@ void SCurve::move_from_pos_vel_accel(float dt, Vector3f &pos, Vector3f &vel, Vec
     vel += delta_unit * scurve_V1;
     accel += delta_unit * scurve_A1;
     position_sq = sq(scurve_P1);
+
+    if (log_i > 0) {
+        log_scurve(log_i - 1, scurve_P1, scurve_V1, scurve_A1);
+    }
 }
 
 // increment time pointer and return the position, velocity and acceleration vectors relative to the destination
-void SCurve::move_to_pos_vel_accel(float dt, Vector3f &pos, Vector3f &vel, Vector3f &accel)
+void SCurve::move_to_pos_vel_accel(float dt, Vector3f &pos, Vector3f &vel, Vector3f &accel, uint8_t log_i)
 {
     advance_time(dt);
     float scurve_P1 = 0.0f;
@@ -550,10 +572,14 @@ void SCurve::move_to_pos_vel_accel(float dt, Vector3f &pos, Vector3f &vel, Vecto
     accel += delta_unit * scurve_A1;
     position_sq = sq(scurve_P1);
     pos -= track;
+
+    if (log_i > 0) {
+        log_scurve(log_i - 1, scurve_P1, scurve_V1, scurve_A1);
+    }
 }
 
 // return the position, velocity and acceleration vectors relative to the origin at a specified time along the path
-void SCurve::move_from_time_pos_vel_accel(float time_now, Vector3f &pos, Vector3f &vel, Vector3f &accel)
+void SCurve::move_from_time_pos_vel_accel(float time_now, Vector3f &pos, Vector3f &vel, Vector3f &accel, uint8_t log_i)
 {
     float scurve_P1 = 0.0f;
     float scurve_V1 = 0.0f, scurve_A1 = 0.0f, scurve_J1 = 0.0f;
@@ -561,6 +587,10 @@ void SCurve::move_from_time_pos_vel_accel(float time_now, Vector3f &pos, Vector3
     pos += delta_unit * scurve_P1;
     vel += delta_unit * scurve_V1;
     accel += delta_unit * scurve_A1;
+
+    if (log_i > 0) {
+        log_scurve(log_i - 1, scurve_P1, scurve_V1, scurve_A1);
+    }
 }
 
 // time at the end of the sequence
@@ -856,6 +886,47 @@ void SCurve::calculate_path(float Sm, float Jm, float V0, float Am, float Vm, fl
     tj_out = tj;
     Jm_out = Jm;
 
+
+// @LoggerMessage: SCVE
+// @Description: Debug message for SCurve internal error
+// @Field: TimeUS: Time since system startup
+// @Field: Sm: duration of the raised cosine jerk profile
+// @Field: Jm: maximum value of the raised cosine jerk profile
+// @Field: V0: initial velocity magnitude
+// @Field: Am: maximum constant acceleration
+// @Field: Vm: maximum constant velocity
+// @Field: L: Length of the path
+// @Field: Jm_out: maximum value of the raised cosine jerk profile
+// @Field: tj_out: segment duration
+// @Field: t2_out: segment duration
+// @Field: t4_out: segment duration
+// @Field: t6_out: segment duration
+
+bool logged_scve = false;  // only log once
+if (!logged_scve) {
+    logged_scve = true;
+    AP::logger().Write(
+        "SCVE",
+        "TimeUS,Sm,Jm,V0,Am,Vm,L,Jm_out,tj_out,t2_out,t4_out,t6_out",
+        "s-----------",
+        "F-----------",
+        "Qfffffffffff",
+        AP_HAL::micros64(),
+        (double)Sm,
+        (double)Jm,
+        (double)V0,
+        (double)Am,
+        (double)Vm,
+        (double)L,
+        (double)Jm_out,
+        (double)tj_out,
+        (double)t2_out,
+        (double)t4_out,
+        (double)t6_out
+        );
+}
+
+
     // check outputs and reset back to zero if necessary
     if (!isfinite(Jm_out) || is_negative(Jm_out) ||
         !isfinite(tj_out) || is_negative(tj_out) ||
@@ -867,52 +938,12 @@ void SCurve::calculate_path(float Sm, float Jm, float V0, float Am, float Vm, fl
 #endif
         INTERNAL_ERROR(AP_InternalError::error_t::invalid_arg_or_result);
 
-#if APM_BUILD_COPTER_OR_HELI
-        // @LoggerMessage: SCVE
-        // @Description: Debug message for SCurve internal error
-        // @Field: TimeUS: Time since system startup
-        // @Field: Sm: duration of the raised cosine jerk profile
-        // @Field: Jm: maximum value of the raised cosine jerk profile
-        // @Field: V0: initial velocity magnitude
-        // @Field: Am: maximum constant acceleration
-        // @Field: Vm: maximum constant velocity
-        // @Field: L: Length of the path
-        // @Field: Jm_out: maximum value of the raised cosine jerk profile
-        // @Field: tj_out: segment duration
-        // @Field: t2_out: segment duration
-        // @Field: t4_out: segment duration
-        // @Field: t6_out: segment duration
-
-        static bool logged_scve;  // only log once
-        if (!logged_scve) {
-            logged_scve = true;
-            AP::logger().Write(
-                "SCVE",
-                "TimeUS,Sm,Jm,V0,Am,Vm,L,Jm_out,tj_out,t2_out,t4_out,t6_out",
-                "s-----------",
-                "F-----------",
-                "Qfffffffffff",
-                AP_HAL::micros64(),
-                (double)Sm,
-                (double)Jm,
-                (double)V0,
-                (double)Am,
-                (double)Vm,
-                (double)L,
-                (double)Jm_out,
-                (double)tj_out,
-                (double)t2_out,
-                (double)t4_out,
-                (double)t6_out
-                );
-        }
-#endif  // APM_BUILD_COPTER_OR_HELI
-
         Jm_out = 0.0f;
         t2_out = 0.0f;
         t4_out = 0.0f;
         t6_out = 0.0f;
     }
+
 }
 
 // generate three consecutive segments forming a jerk profile
