@@ -1335,8 +1335,13 @@ bool ModeAuto::set_next_wp(const AP_Mission::Mission_Command& current_cmd, const
         get_spline_from_cmd(next_cmd, default_loc, next_dest_loc, next_next_dest_loc, next_next_dest_loc_is_spline);
         return wp_nav->set_spline_destination_next_loc(next_dest_loc, next_next_dest_loc, next_next_dest_loc_is_spline);
     }
+    case MAV_CMD_NAV_LAND: {
+        const Location dest_loc = loc_from_cmd(current_cmd, default_loc);
+        Location next_dest_loc = loc_from_cmd(next_cmd, dest_loc);
+        next_dest_loc.set_alt_cm(0, Location::AltFrame::ABOVE_HOME);
+        return wp_nav->set_wp_destination_next_loc(next_dest_loc);
+    }
     case MAV_CMD_NAV_VTOL_LAND:
-    case MAV_CMD_NAV_LAND:
         // stop because we may change between rel,abs and terrain alt types
     case MAV_CMD_NAV_LOITER_TURNS:
     case MAV_CMD_NAV_RETURN_TO_LAUNCH:
