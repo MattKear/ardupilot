@@ -1336,11 +1336,23 @@ bool ModeAuto::set_next_wp(const AP_Mission::Mission_Command& current_cmd, const
         return wp_nav->set_spline_destination_next_loc(next_dest_loc, next_next_dest_loc, next_next_dest_loc_is_spline);
     }
     case MAV_CMD_NAV_LAND: {
-        const Location dest_loc = loc_from_cmd(current_cmd, default_loc);
-        Location next_dest_loc = loc_from_cmd(next_cmd, dest_loc);
-        next_dest_loc.set_alt_cm(0, Location::AltFrame::ABOVE_HOME);
-        return wp_nav->set_wp_destination_next_loc(next_dest_loc);
+
+        // landing command has a location associated with it
+        if (next_cmd.content.location.lat == 0 || next_cmd.content.location.lng == 0) {
+            // Populate the position 
+            const Location dest_loc = loc_from_cmd(current_cmd, default_loc);
+            Location next_dest_loc = loc_from_cmd(next_cmd, dest_loc);
+
+            // reset the altitude back to what the user provided in the mission command
+            next_dest_loc.set_alt_cm(next_cmd.content.location.alt, next_cmd.content.location.get_alt_frame());
+
+            // Ensure we get a fast waypoint to transition into landing smoothly
+            return wp_nav->set_wp_destination_next_loc(next_dest_loc);
+
+        }
+        FALLTHROUGH;
     }
+    // case MAV_CMD_NAV_LAND:
     case MAV_CMD_NAV_VTOL_LAND:
         // stop because we may change between rel,abs and terrain alt types
     case MAV_CMD_NAV_LOITER_TURNS:
