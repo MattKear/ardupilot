@@ -124,6 +124,8 @@ private:
     AP_Float _param_diameter;
     AP_Float _param_touchdown_time;
     AP_Float _param_max_touchdown_angle;
+    AP_Int8  _dual_enable;
+    AP_Int8 _param_rpm2_instance;
 
 
     // Forward speed controller

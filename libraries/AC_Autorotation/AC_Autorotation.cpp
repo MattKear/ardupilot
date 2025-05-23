@@ -76,9 +76,8 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Param: HS_SENSOR
     // @DisplayName: Main Rotor RPM Sensor 
     // @Description: Allocate the RPM sensor instance to use for measuring head speed. RPM1 = 0.  RPM2 = 1.
-    // @Units: s
-    // @Range: 0.5 3
-    // @Increment: 0.1
+    // @Range: 0 1
+    // @Increment: 1
     // @User: Standard
     AP_GROUPINFO("HS_SENSOR", 8, AC_Autorotation, _param_rpm_instance, 0),
 
@@ -203,6 +202,22 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Group: L1_
     // @Path: ../AP_L1_Control/AP_L1_Control.cpp
     AP_SUBGROUPINFO(_L1_controller, "L1_", 18, AC_Autorotation, AP_L1_Control),
+
+    // @Param: DUAL
+    // @DisplayName: Enable Dual Rotor Autorotation
+    // @Description: This enables dual rotor autorotation functionality.
+    // @Values: 0:Disable,1:Enable
+    // @User: Standard
+    // @RebootRequired: True
+    AP_GROUPINFO_FLAGS("DUAL", 25, AC_Autorotation, _dual_enable, 0, AP_PARAM_FLAG_ENABLE),
+
+    // @Param: HS_SENSOR2
+    // @DisplayName: Second Rotor RPM Sensor 
+    // @Description: Allocate the RPM sensor instance to use for measuring head speed of the 2nd swashplate on the dual heli.  On a tandem this will be the rear head. RPM1 = 0.  RPM2 = 1.
+    // @Range: 0 1
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("HS_SENSOR2", 26, AC_Autorotation, _param_rpm2_instance, 0),
 
     AP_GROUPEND
 };
@@ -462,7 +477,7 @@ void AC_Autorotation::run_touchdown(float des_lat_accel_norm)
 
 void AC_Autorotation::update_headspeed_controller(void)
 {
-    // Get current rpm and update healthy signal counters
+    // Get current rpm
     float head_speed_norm;
     if (!get_norm_head_speed(head_speed_norm)) {
         // RPM sensor is bad, set collective to angle of -2 deg and hope for the best
@@ -532,10 +547,21 @@ bool AC_Autorotation::get_norm_head_speed(float& norm_rpm) const
     if (!rpm->get_rpm(_param_rpm_instance.get(), current_rpm)) {
         return false;
     }
+
+    // Handle average head speed measurement in the case of dual head
+    if (_dual_enable.get() > 0) {
+        float rpm2;
+        if (!rpm->get_rpm(_param_rpm2_instance.get(), rpm2)) {
+            return false;
+        }
+
+        current_rpm = (current_rpm + rpm2) / 2;
+    }
+
 #endif
 
     // Protect against div by zeros later in the code
-    float head_speed_set_point = MAX(1.0, _param_head_speed_set_point.get());
+    const float head_speed_set_point = MAX(1.0, _param_head_speed_set_point.get());
 
     // Normalize the RPM by the setpoint
     norm_rpm = current_rpm/head_speed_set_point;
