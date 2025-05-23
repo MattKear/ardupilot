@@ -131,6 +131,9 @@ private:
     AP_Float _param_diameter;
     AP_Float _param_touchdown_time;
     AP_Int8  _param_nav_mode;
+    AP_Int8  _dual_enable;
+    AP_Int8 _param_rpm2_instance;
+
 
     // Navigation controller
     void update_navigation_controller(float des_lat_accel_norm);
