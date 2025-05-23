@@ -312,6 +312,10 @@ void FlightAxis::exchange_data(const struct sitl_input &input)
         controller_started = true;
     }
 
+    // stash the last collective outputs that we sent
+    last_col1_out = input.servos[3-1];
+    last_col2_out = input.servos[6-1];
+
     // maximum number of servos to send is 12 with new FlightAxis
     float scaled_servos[12];
     for (uint8_t i=0; i<ARRAY_SIZE(scaled_servos); i++) {
@@ -413,6 +417,46 @@ void FlightAxis::exchange_data(const struct sitl_input &input)
     }
 }
 
+// A steady-state rpm from collective position curve generated from test in the sim
+float FlightAxis::get_rpm_from_model(const float col) const
+{
+    const float rpm_est = (-0.0029 * col * col) + (7.0181 * col) - 3460.6;
+    return MAX(rpm_est, 0);
+}
+
+// A very hacky rotor model to appproximate what the 2nd rotor head is doing
+float FlightAxis::get_col2_rpm(const float col1, const float col2, const float interlock_ch, const float measured_rpm1, const double dt)
+{
+    // If rotor 1 is not running its unlikely that rotor 2 is
+    if (measured_rpm1 < 10.0 && interlock_ch <= 0) {
+        _last_rpm = 0.0;
+        return _last_rpm;
+    }
+
+    float calc_rpm;
+
+    if (interlock_ch > 0) {
+        // governor will be running, just return the rpm from head 1 with some noise
+        const float rand_val = 2.0 * rand()/RAND_MAX - 1;
+        calc_rpm = rand_val * 25 + measured_rpm1;
+
+    } else {
+        // attempt to compensate for differences in the steady state model by determining the offset to the
+        // measured rpm and apply that offset to the calculated value
+        const float rpm_model_offset = measured_rpm1 - get_rpm_from_model(col1);
+
+        calc_rpm = get_rpm_from_model(col2) + rpm_model_offset;
+    }
+
+    const float max_rpm_rate = 200;
+    const float max_change = max_rpm_rate * dt;
+
+    const float calc_change = constrain_float(calc_rpm - _last_rpm, -max_change, max_change);
+
+    _last_rpm += calc_change;
+
+    return _last_rpm;
+}
 
 /*
   update the FlightAxis simulation by one time step
@@ -529,7 +573,10 @@ void FlightAxis::update(const struct sitl_input &input)
     battery_voltage = MAX(state.m_batteryVoltage_VOLTS, 0);
     battery_current = MAX(state.m_batteryCurrentDraw_AMPS, 0);
     rpm[0] = state.m_heliMainRotorRPM;
-    rpm[1] = state.m_propRPM;
+
+    const int8_t interlock = state.rcin[11-1];
+    rpm[1] = get_col2_rpm(last_col1_out, last_col2_out, interlock, state.m_heliMainRotorRPM, dt_seconds);
+
     motor_mask = 3;
 
     /*
