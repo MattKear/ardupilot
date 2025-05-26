@@ -80,6 +80,8 @@ protected:
 
     const char* _get_frame_string() const override { return "HELI_DUAL"; }
 
+    bool constrain_collective(float& col);
+
     //  objects we depend upon
     AP_MotorsHeli_Swash _swashplate1 { CH_1, CH_2, CH_3, CH_7, 1U }; // swashplate1
     AP_MotorsHeli_Swash _swashplate2 { CH_4, CH_5, CH_6, CH_8, 2U }; // swashplate2
