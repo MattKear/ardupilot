@@ -691,6 +691,14 @@ void AC_Autorotation::update_navigation_controller(float pilot_norm_accel)
         _bearing_vector = {0.0, 0.0};
     }
 
+    // Dual heli uses combined controls, so we need to check for limits in motors
+    // We check now to limit the accel PID in the next update of the forward speed controller
+    if (_dual_enable.get() > 0) {
+        _limit_accel |= _motors_heli->limit.throttle_upper;
+        _limit_accel |= _motors_heli->limit.throttle_lower;
+        _limit_accel |= _motors_heli->limit.pitch;
+    }
+
 #if HAL_LOGGING_ENABLED
     // @LoggerMessage: ARSC
     // @Vehicles: Copter
