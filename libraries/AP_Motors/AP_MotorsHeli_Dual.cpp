@@ -298,15 +298,31 @@ void AP_MotorsHeli_Dual::calculate_scalars()
 void AP_MotorsHeli_Dual::mix_tandem(float pitch_input, float roll_input, float yaw_input, float collective1_input, float collective2_input)
 {
     // Differential cyclic roll is used for yaw and combined for roll
-    const float swash1_roll = roll_input + _yaw_scaler * yaw_input;
-    const float swash2_roll = roll_input - _yaw_scaler * yaw_input;
+    float swash1_roll = roll_input + _yaw_scaler * yaw_input;
+    float swash2_roll = roll_input - _yaw_scaler * yaw_input;
+
+    // handle combined control limiting
+    if (fabsf(swash1_roll) > 1.0) {
+        swash1_roll = constrain_float(swash1_roll, -1.0, 1.0);
+        limit.roll = true;
+        limit.yaw = true;
+    }
+    if (fabsf(swash2_roll) > 1.0) {
+        swash2_roll = constrain_float(swash2_roll, -1.0, 1.0);
+        limit.roll = true;
+        limit.yaw = true;
+    }
 
     // cyclic is not used for pitch control
     const float swash_pitch = 0.0;
 
     // Differential collective for pitch and combined for thrust
-    const float swash1_coll =  0.45 * _dcp_scaler * (pitch_input + constrain_float(_dcp_trim, -0.2, 0.2)) + collective1_input;
-    const float swash2_coll = -0.45 * _dcp_scaler * (pitch_input + constrain_float(_dcp_trim, -0.2, 0.2)) + collective2_input;
+    float swash1_coll =  0.45 * _dcp_scaler * (pitch_input + constrain_float(_dcp_trim, -0.2, 0.2)) + collective1_input;
+    float swash2_coll = -0.45 * _dcp_scaler * (pitch_input + constrain_float(_dcp_trim, -0.2, 0.2)) + collective2_input;
+
+    // handle combined control limiting
+    limit.pitch |= constrain_collective(swash1_coll);
+    limit.pitch |= constrain_collective(swash2_coll);
 
     // Calculate servo positions in swashplate library
     _swashplate1.calculate(swash1_roll, swash_pitch, swash1_coll);
@@ -349,6 +365,22 @@ void AP_MotorsHeli_Dual::mix_intermeshing(float pitch_input, float roll_input, f
     // Calculate servo positions in swashplate library
     _swashplate1.calculate(swash_roll, swash1_pitch, swash1_coll);
     _swashplate2.calculate(swash_roll, swash2_pitch, swash2_coll);
+}
+
+bool AP_MotorsHeli_Dual::constrain_collective(float& col)
+{
+    if (col > 1.0) {
+        col = 1.0;
+        limit.throttle_upper = true;
+        return true;
+    }
+    if (col < -1.0) {
+        col = -1.0;
+        limit.throttle_lower = true;
+        return true;
+    }
+    // If we got this far, nothing is being limited
+    return false;
 }
 
 // update_motor_controls - sends commands to motor controllers
