@@ -617,6 +617,14 @@ void AC_Autorotation::update_forward_speed_controller(float pilot_norm_accel)
     // Output to attitude controller
     _attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw_cd(angle_target.y * 100.0, angle_target.x * 100.0, yaw_rate_cds);
 
+    // Dual heli uses combined controls, so we need to check for limits in motors
+    // We check now to limit the accel PID in the next update of the forward speed controller
+    if (_dual_enable.get() > 0) {
+        _limit_accel |= _motors_heli->limit.throttle_upper;
+        _limit_accel |= _motors_heli->limit.throttle_lower;
+        _limit_accel |= _motors_heli->limit.pitch;
+    }
+
 #if HAL_LOGGING_ENABLED
     // @LoggerMessage: ARSC
     // @Vehicles: Copter
