@@ -711,7 +711,10 @@ void AC_Autorotation::initial_flare_hgt_estimate(void)
 
     static const float CL_ALPHA = M_2PI;
     const float b = get_solidity() * CL_ALPHA;
-    const float disc_area = M_PI * 0.25 * sq(_param_diameter.get()); // (m^2)
+    float disc_area = M_PI * 0.25 * sq(_param_diameter.get()); // (m^2)
+    if (_dual_enable > 0) {
+        disc_area *= 2.0;
+    }
 
     // Calculating the equivalent inflow ratio (average across the whole blade)
     float lambda_eq = -b / 16.0 + safe_sqrt(sq(b) / 256.0 + b * blade_pitch_hover_rad / 12.0);
