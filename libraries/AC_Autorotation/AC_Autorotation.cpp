@@ -164,6 +164,14 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("HS_SENSOR2", 26, AC_Autorotation, _param_rpm2_instance, 0),
 
+    // @Param: HS_PTCH_LIM
+    // @DisplayName: Headspeed Error to Constrain Pitch Demands
+    // @Description: Defines the minimum ratio of target head speed, beyond which the pitch controller will be constrained to prevent the pitch controller from slowing one head any further. If either head gets to a measured speed of less than AROT_HS_PTCH_LIM x AROT_HS_SET_PT then the speed controller will constrain the pitch demand until both head speeds return to speeds above the ratio defined by AROT_HS_PTCH_LIM.
+    // @Range: 0.7 1
+    // @Increment: 0.01
+    // @User: Standard
+    AP_GROUPINFO("HS_PTCH_LIM", 27, AC_Autorotation, _safe_head_speed_ratio, 0.8),
+
     AP_GROUPEND
 };
 
@@ -231,6 +239,9 @@ void AC_Autorotation::init(void)
     // set the guarded heights
     _touch_down_hgt.max_height = _flare_hgt.min_height;
 
+    // Reset flags for limiting pitch controller based on headspeed
+    head_speed_pitch_limit = false;
+
     // ensure the AP_SurfaceDistance object is enabled
 #if AP_RANGEFINDER_ENABLED
     _ground_surface->enabled = true;
@@ -247,7 +258,7 @@ void AC_Autorotation::init_entry(void)
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "AROT: Entry Phase");
 
     // Target head speed is set to rpm at initiation to prevent steps in controller
-    if (!get_norm_head_speed(_target_head_speed)) {
+    if (!get_mean_headspeed(_target_head_speed)) {
         // Cannot get a valid RPM sensor reading so we default to not slewing the head speed target
         _target_head_speed = HEAD_SPEED_TARGET_RATIO;
     }
@@ -302,6 +313,8 @@ void AC_Autorotation::init_glide(void)
 // Maintain head speed and forward speed as we glide to the ground
 void AC_Autorotation::run_glide(float des_lat_accel_norm)
 {
+    check_headspeed_limits();
+
     update_headspeed_controller();
 
     update_navigation_controller(des_lat_accel_norm);
@@ -318,6 +331,9 @@ void AC_Autorotation::init_flare(void)
     // Ensure target head speed, we may have skipped the glide phase if we did not have time to complete the
     // entry phase before hitting the flare height
     _target_head_speed = HEAD_SPEED_TARGET_RATIO;
+
+    // We cannot limit the speed target in the flare, the manoeuver will aid in generating head speed anyway
+    head_speed_pitch_limit = false;
 
     _flare_entry_fwd_speed = get_bf_speed_forward();
 
@@ -342,6 +358,9 @@ void AC_Autorotation::run_flare(float des_lat_accel_norm)
 void AC_Autorotation::init_touchdown(void)
 {
     gcs().send_text(MAV_SEVERITY_INFO, "AROT: Touch Down Phase");
+
+    // Ensure we are not limiting the speed target in this phase, incase we jumped to it from a low height entry
+    head_speed_pitch_limit = false;
 
     // store the descent speed and height at the start of the touch down
     _touchdown_init_climb_rate = get_ef_velocity_up();
@@ -410,7 +429,7 @@ void AC_Autorotation::update_headspeed_controller(void)
 {
     // Get current rpm
     float head_speed_norm;
-    if (!get_norm_head_speed(head_speed_norm)) {
+    if (!get_mean_headspeed(head_speed_norm)) {
         // RPM sensor is bad, set collective to angle of -2 deg and hope for the best
          _motors_heli->set_coll_from_ang(-2.0);
          return;
@@ -459,8 +478,31 @@ void AC_Autorotation::update_headspeed_controller(void)
 #endif
 }
 
+
+// Get the normalised mean headspeed of both heads if dual is enabled
+// Non-averaged value is returned if single heli
+bool AC_Autorotation::get_mean_headspeed(float& norm_rpm) const
+{
+    // Speed of first head
+    bool headspeed_valid = get_norm_head_speed(norm_rpm, _param_rpm_instance.get());
+
+    if (_dual_enable.get() == 0) {
+        // only need the measurement for the first head so return early
+        return headspeed_valid;
+    }
+
+    // Speed of second head
+    float norm_rpm2 = 0.0;
+    headspeed_valid &= get_norm_head_speed(norm_rpm2, _param_rpm2_instance.get());
+
+    // Compute the average
+    norm_rpm = (norm_rpm + norm_rpm2) * 0.5;
+    return headspeed_valid;
+}
+
+
 // Get measured head speed and normalise by head speed set point. Returns false if a valid rpm measurement cannot be obtained
-bool AC_Autorotation::get_norm_head_speed(float& norm_rpm) const
+bool AC_Autorotation::get_norm_head_speed(float& norm_rpm, uint8_t instance) const
 {
     // Assuming zero rpm is safer as it will drive collective in the direction of increasing head speed
     float current_rpm = 0.0;
@@ -475,20 +517,9 @@ bool AC_Autorotation::get_norm_head_speed(float& norm_rpm) const
     }
 
     // Check RPM sensor is returning a healthy status
-    if (!rpm->get_rpm(_param_rpm_instance.get(), current_rpm)) {
+    if (!rpm->get_rpm(instance, current_rpm)) {
         return false;
     }
-
-    // Handle average head speed measurement in the case of dual head
-    if (_dual_enable.get() > 0) {
-        float rpm2;
-        if (!rpm->get_rpm(_param_rpm2_instance.get(), rpm2)) {
-            return false;
-        }
-
-        current_rpm = (current_rpm + rpm2) / 2;
-    }
-
 #endif
 
     // Protect against div by zeros later in the code
@@ -545,6 +576,38 @@ void AC_Autorotation::calc_yaw_rate_from_roll_target(float& yaw_rate_rad, float&
     }
 }
 
+
+// When using dual heli, we want to ensure that the head speed is not too slow before
+// allowing pitch control. Pitch limit flag is set if either headspeed is above the target.
+void AC_Autorotation::check_headspeed_limits(void)
+{
+    if (_dual_enable.get() == 0) {
+        // Do not need this check for single helis
+        head_speed_pitch_limit = false;
+        return;
+    }
+
+    // Check head 1
+    float norm_rpm;
+    if (!get_norm_head_speed(norm_rpm, _param_rpm_instance.get()) || (norm_rpm < _safe_head_speed_ratio.get())) {
+        head_speed_pitch_limit = true;
+        return;
+    }
+
+    // Check head 2
+    float norm_rpm2;
+    if (!get_norm_head_speed(norm_rpm2, _param_rpm2_instance.get()) || (norm_rpm2 < _safe_head_speed_ratio.get())) {
+        head_speed_pitch_limit = true;
+        return;
+    }
+
+    // Add some headroom between recovery and headspeed ratio by only enabling pitch when both heads are at or above target speed
+    if ((norm_rpm >= HEAD_SPEED_TARGET_RATIO) && (norm_rpm2 >= HEAD_SPEED_TARGET_RATIO)) {
+        head_speed_pitch_limit = false;
+    }
+}
+
+
 // Update speed controller
 void AC_Autorotation::update_navigation_controller(float pilot_norm_accel)
 {
@@ -558,8 +621,16 @@ void AC_Autorotation::update_navigation_controller(float pilot_norm_accel)
     desired_heading.heading_mode = AC_AttitudeControl::HeadingMode::Rate_Only;
     desired_heading.yaw_rate_cds = 0.0;
 
-
     // Check with motors that we have not saturated
+
+    // Limiting the desired velocity based on the max acceleration limit to get an update target
+    // const float min_vel = _target_vel - get_accel_max() * _dt;
+    // const float max_vel = _target_vel + get_accel_max() * _dt;
+
+    // // only advance the velocity target if the heads are not limited by low head speed
+    // if (!head_speed_pitch_limit) {
+    //     _target_vel = constrain_float(_desired_vel, min_vel, max_vel); // (m/s)
+    // }
 
 
     Vector3f desired_velocity_bf;

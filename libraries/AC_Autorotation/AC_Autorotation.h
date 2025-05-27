@@ -111,8 +111,9 @@ private:
     // Get the earth frame vertical velocity in meters, positive is up
     float get_ef_velocity_up(void) const;
 
-    // Helper to get measured head speed that has been normalised by head speed set point
-    bool get_norm_head_speed(float& norm_rpm) const;
+    // Helpers to get measured head speed that has been normalised by head speed set point
+    bool get_mean_headspeed(float& norm_rpm) const; // Get mean of both heads if dual is enabled
+    bool get_norm_head_speed(float& norm_rpm, uint8_t instance) const; // Get the norm head speed of the requested instance
 
     float _dt;         // (s) Time step, updated dynamically from vehicle
     float _hagl;       // (m) height above ground
@@ -133,6 +134,7 @@ private:
     AP_Int8  _param_nav_mode;
     AP_Int8  _dual_enable;
     AP_Int8 _param_rpm2_instance;
+    AP_Float _safe_head_speed_ratio;
 
 
     // Navigation controller
@@ -151,11 +153,13 @@ private:
 
     // Head speed controller variables
     void update_headspeed_controller(void);  // Update controller used to drive head speed with collective
+    void check_headspeed_limits(void);       // Ensure headspeed is healthy before allowing pitch demands
     float _hs_accel;                         // The head speed target acceleration during the entry phase
     float _head_speed_error;                 // Error between target head speed and current head speed. Normalised by head speed set point RPM.
     float _target_head_speed;                // Normalised target head speed.  Normalised by head speed set point RPM.
     LowPassFilterFloat col_trim_lpf;         // Low pass filter for collective trim
     AC_P _p_hs{1.0};                         // head speed-collective p controller
+    bool head_speed_pitch_limit;             // Limit flag to prevent pitch inputs if head speed is too slow.  Used for dual helis only.
 
     // Flare controller functions and variables
     void initial_flare_hgt_estimate(void);
