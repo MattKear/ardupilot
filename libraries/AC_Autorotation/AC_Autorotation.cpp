@@ -747,8 +747,23 @@ void AC_Autorotation::update_navigation_controller(float pilot_norm_accel)
     Vector2f desired_velocity_NE_cm = {desired_velocity_NED.x * 100.0, desired_velocity_NED.y * 100.0};
     Vector2f desired_accel_NE_cm = {desired_accel_NED.x * 100.0, desired_accel_NED.y * 100.0};
 
+    // Check with motors that we have not saturated
+    bool motors_limit = false;
+    motors_limit |= _motors_heli->limit.pitch;
+    if (_dual_enable.get() > 0) {
+        // Dual heli uses combined controls, so we need to check for limits in motors
+        // as collective control can be used for pitch
+        motors_limit |= _motors_heli->limit.throttle_upper;
+        motors_limit |= _motors_heli->limit.throttle_lower;
+    }
+
     // Update the position controller
     _pos_control->input_vel_accel_NE_cm(desired_velocity_NE_cm, desired_accel_NE_cm, true);
+
+    if (motors_limit || head_speed_pitch_limit) {
+        _pos_control->set_externally_limited_NE();
+    }
+
     _pos_control->update_NE_controller();
 
     // Output to the attitude controller
@@ -760,14 +775,6 @@ void AC_Autorotation::update_navigation_controller(float pilot_norm_accel)
         _bearing_vector.normalize();
     } else {
         _bearing_vector = {0.0, 0.0};
-    }
-
-    // Dual heli uses combined controls, so we need to check for limits in motors
-    // We check now to limit the accel PID in the next update of the forward speed controller
-    if (_dual_enable.get() > 0) {
-        _limit_accel |= _motors_heli->limit.throttle_upper;
-        _limit_accel |= _motors_heli->limit.throttle_lower;
-        _limit_accel |= _motors_heli->limit.pitch;
     }
 
 #if HAL_LOGGING_ENABLED
