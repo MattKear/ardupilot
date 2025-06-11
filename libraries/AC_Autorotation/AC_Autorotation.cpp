@@ -613,39 +613,24 @@ void AC_Autorotation::update_navigation_controller(float pilot_norm_accel)
 {
     const AP_AHRS &ahrs = AP::ahrs();
 
-    // Accel limit the desired velocity
-    // TODO?????????????????????????????????????????
-
     // Set up yaw rate
     AC_AttitudeControl::HeadingCommand desired_heading;
     desired_heading.heading_mode = AC_AttitudeControl::HeadingMode::Rate_Only;
     desired_heading.yaw_rate_cds = 0.0;
-
-    // Check with motors that we have not saturated
-
-    // Limiting the desired velocity based on the max acceleration limit to get an update target
-    // const float min_vel = _target_vel - get_accel_max() * _dt;
-    // const float max_vel = _target_vel + get_accel_max() * _dt;
-
-    // // only advance the velocity target if the heads are not limited by low head speed
-    // if (!head_speed_pitch_limit) {
-    //     _target_vel = constrain_float(_desired_vel, min_vel, max_vel); // (m/s)
-    // }
-
 
     Vector3f desired_velocity_bf;
     Vector3f desired_accel_bf;
     Vector3f desired_velocity_NED;
     Vector3f desired_accel_NED;
 
+    // Set body frame velocity targets
+    desired_velocity_bf.x = _desired_vel;
+    desired_velocity_bf.y = 0.0; // Start with the assumption that we want zero side slip
+    desired_velocity_bf.z = MAX(get_bf_speed_down(), 0.0); // Always match the current vz. We add this in because the vz is significant proportion of the speed that needs to be accounted for when we rotate from body frame to earth frame.
+
     switch (Nav_Mode(_param_nav_mode.get())) {
         case Nav_Mode::TURN_INTO_WIND: {
             // Mode seeks to maintain body frame velocity target whilst turning into wind.
-
-            // Set body frame velocity targets
-            desired_velocity_bf.x = _desired_vel;
-            desired_velocity_bf.y = 0.0; // Start with the assumption that we want zero side slip
-            desired_velocity_bf.z = get_bf_speed_down(); // Always match the current vz. We add this in because the vz is significant proportion of the speed that needs to be accounted for when we rotate from body frame to earth frame.
 
             // The position controller will be resisting the wind by rolling into the wind.
             // Calc the needed lateral accel and yaw rate to make a co-ordinated turn into roll.
@@ -670,26 +655,12 @@ void AC_Autorotation::update_navigation_controller(float pilot_norm_accel)
             calc_yaw_rate_from_roll_target(yaw_rate_rad, unused_lat_accel);
             desired_heading.yaw_rate_cds = degrees(yaw_rate_rad) * 100.0;
 
-            // We want to account for the descent rate in the desired velocity
-            // const float vel_down = get_ef_velocity_up() * -1.0;
-            // // Desired velocity is the total XY vector length, which is apportioned direction in the next step,
-            // // so we just use simple 2D pythag to get the desired XY vector length
-            // const float des_ef_XY_speed = safe_sqrt(_desired_vel * _desired_vel - vel_down * vel_down);
-
-
-            // Set body frame velocity targets
-            desired_velocity_bf.x = _desired_vel;
-            desired_velocity_bf.y = 0.0; // Start with the assumption that we want zero side slip
-            desired_velocity_bf.z = get_bf_speed_down(); // Always match the current vz. We add this in because the vz is significant proportion of the speed that needs to be accounted for when we rotate from body frame to earth frame.
-
             // Convert body frame targets into earth frame
             desired_velocity_NED = ahrs.body_to_earth(desired_velocity_bf);
             desired_velocity_NED.z = 0.0;
             const float desired_NE_speed = desired_velocity_NED.length();
 
-            // We already have the earth-frame unit vector that we want to maintain the velocity vector along
-            // so we just use that to calculate the earth frame target vel directly
-
+            // We already have the earth-frame unit vector that we want to maintain the velocity vector along.
             // Now we can use the track vector to apportion the vector direction proportions
             desired_velocity_NED = Vector3f{_track_vector, 0.0} * desired_NE_speed;
 
@@ -699,11 +670,6 @@ void AC_Autorotation::update_navigation_controller(float pilot_norm_accel)
         default: {
             // Mode lets pilot request a lateral acceleration. The roll and yaw rates
             // are then calculated to perform a coordinated turn.
-
-            // Set body frame velocity targets
-            desired_velocity_bf.x = _desired_vel;
-            desired_velocity_bf.y = 0.0; // Start with the assumption that we want zero side slip
-            desired_velocity_bf.z = get_bf_speed_down(); // Always match the current vz. We add this in because the vz is significant proportion of the speed that needs to be accounted for when we rotate from body frame to earth frame.
 
             // Pilot can request as much as 1/2 of the max accel laterally to perform a turn.
             // We only allow up to half as we need to prioritize building/maintaining airspeed.
