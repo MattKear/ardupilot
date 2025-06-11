@@ -344,6 +344,8 @@ void AC_Autorotation::init_flare(void)
 
 void AC_Autorotation::run_flare(float des_lat_accel_norm)
 {
+    check_headspeed_limits();
+
     // Update head speed/ collective controller
     update_headspeed_controller();
 
