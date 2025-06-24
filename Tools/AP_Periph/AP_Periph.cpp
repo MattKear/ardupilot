@@ -531,7 +531,7 @@ void AP_Periph_FW::update()
 #endif
 
 #if AP_PERIPH_RPM_ENABLED
-    if (now - rpm_last_update_ms >= 100) {
+    if (now - rpm_last_update_ms >= 25) {
         rpm_last_update_ms = now;
         rpm_sensor.update();
     }
