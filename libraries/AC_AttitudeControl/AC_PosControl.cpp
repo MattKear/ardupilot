@@ -405,7 +405,7 @@ void AC_PosControl::input_pos_NEU_cm(const Vector3p& pos_neu_cm, float pos_terra
     shape_pos_vel_accel(pos_u_cm, 0, 0,
                         _pos_desired_neu_cm.z, _vel_desired_neu_cms.z, _accel_desired_neu_cmss.z,
                         -vel_max_u_cms, vel_max_u_cms,
-                        -constrain_float(accel_max_u_cmss, 0.0f, 750.0f), accel_max_u_cmss,
+                        -constrain_float(accel_max_u_cmss, 0.0f, MAX_ACCEL_DOWN_CMSS), accel_max_u_cmss,
                         jerk_max_u_cmsss, _dt, false);
 }
 
@@ -880,7 +880,7 @@ void AC_PosControl::input_vel_accel_U_cm(float &vel_u_cms, float accel_cmss, boo
 
     shape_vel_accel(vel_u_cms, accel_cmss,
                     _vel_desired_neu_cms.z, _accel_desired_neu_cmss.z,
-                    -constrain_float(accel_max_u_cmss, 0.0f, 750.0f), accel_max_u_cmss,
+                    -constrain_float(accel_max_u_cmss, 0.0f, MAX_ACCEL_DOWN_CMSS), accel_max_u_cmss,
                     jerk_max_u_cmsss, _dt, limit_output);
 
     update_vel_accel(vel_u_cms, accel_cmss, _dt, 0.0, 0.0);
@@ -925,7 +925,7 @@ void AC_PosControl::input_pos_vel_accel_U_cm(float &pos_u_cm, float &vel_u_cms, 
     shape_pos_vel_accel(pos_u_cm, vel_u_cms, accel_cmss,
                         _pos_desired_neu_cm.z, _vel_desired_neu_cms.z, _accel_desired_neu_cmss.z,
                         _vel_max_down_cms, _vel_max_up_cms,
-                        -constrain_float(accel_max_u_cmss, 0.0f, 750.0f), accel_max_u_cmss,
+                        -constrain_float(accel_max_u_cmss, 0.0f, MAX_ACCEL_DOWN_CMSS), accel_max_u_cmss,
                         jerk_max_u_cmsss, _dt, limit_output);
 
     postype_t posp = pos_u_cm;

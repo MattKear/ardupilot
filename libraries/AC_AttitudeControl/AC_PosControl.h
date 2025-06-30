@@ -324,6 +324,7 @@ public:
     // get_accel_target_NEU_cmss - returns the target acceleration in NEU cm/s/s
     const Vector3f& get_accel_target_NEU_cmss() const { return _accel_target_neu_cmss; }
 
+    static constexpr float MAX_ACCEL_DOWN_CMSS = 750.0;
 
     /// Terrain
 
