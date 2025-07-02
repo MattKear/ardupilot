@@ -43,6 +43,10 @@ bool ModeAutorotate::init(bool ignore_checks)
     // Setting default starting state
     current_phase = Phase::ENTRY_INIT;
 
+    // Update hagl measurement before we decide whether to hover autorotate or not
+    g2.arot.update_hagl();
+    _hover_autorotation = g2.arot.should_hover_autorotate();
+
     // Set entry timer
     _entry_time_start_ms = millis();
 
@@ -70,17 +74,21 @@ void ModeAutorotate::run()
     // State machine progresses through the autorotation phases as you read down through the if statements.
     // More urgent phases (the ones closer to the ground) take precedence later in the if statements.
 
-    if (current_phase < Phase::GLIDE_INIT && !g2.arot.below_flare_height() && ((now_ms - _entry_time_start_ms) > g2.arot.entry_time_ms)) {
+    if (!_hover_autorotation && current_phase < Phase::GLIDE_INIT && !g2.arot.below_flare_height() && ((now_ms - _entry_time_start_ms) > g2.arot.entry_time_ms)) {
         // Flight phase can be progressed to steady state glide
         current_phase = Phase::GLIDE_INIT;
     }
 
     // Check if we are between the flare start height and the touchdown height
-    if (current_phase < Phase::FLARE_INIT && g2.arot.below_flare_height() && !g2.arot.should_begin_touchdown()) {
+    if (!_hover_autorotation && current_phase < Phase::FLARE_INIT && g2.arot.below_flare_height() && !g2.arot.should_begin_touchdown()) {
         current_phase = Phase::FLARE_INIT;
     }
 
     // TODO: hover entry init
+    // Check to see if we need to perform a hover autorotation
+    if (_hover_autorotation && current_phase < Phase::HOVER_ENTRY_INIT) {
+        current_phase = Phase::HOVER_ENTRY_INIT;
+    }
 
     // Begin touch down if within touch down time
     if (current_phase < Phase::TOUCH_DOWN_INIT && g2.arot.should_begin_touchdown()) {
@@ -126,6 +134,17 @@ void ModeAutorotate::run()
         case Phase::GLIDE:
             // Maintain head speed and forward speed as we glide to the ground
             g2.arot.run_glide(pilot_norm_input);
+            break;
+
+        case Phase::HOVER_ENTRY_INIT:
+            g2.arot.init_hover_entry();
+            current_phase = Phase::HOVER_ENTRY;
+            FALLTHROUGH;
+
+        case Phase::HOVER_ENTRY:
+            // Controller phase where the aircraft is too low and too slow to perform a full autorotation
+            // instead, we will try to minimize rotor drag until we can jump to the touch down phase
+            g2.arot.run_hover_entry(pilot_norm_input);
             break;
 
         case Phase::FLARE_INIT:
