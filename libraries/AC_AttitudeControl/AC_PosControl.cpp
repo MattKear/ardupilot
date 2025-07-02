@@ -980,7 +980,7 @@ bool AC_PosControl::is_active_U() const
 ///     Position and velocity errors are converted to velocity and acceleration targets using PID objects
 ///     Desired velocity and accelerations are added to these corrections as they are calculated
 ///     Kinematically consistent target position and desired velocity and accelerations should be provided before calling this function
-void AC_PosControl::update_U_controller()
+void AC_PosControl::update_U_controller(bool limit)
 {
     // check for ekf z-axis position reset
     handle_ekf_U_reset();
@@ -1034,7 +1034,7 @@ void AC_PosControl::update_U_controller()
     if (_vibe_comp_enabled) {
         thr_out = get_throttle_with_vibration_override();
     } else {
-        thr_out = _pid_accel_u.update_all(_accel_target_neu_cmss.z, measured_accel_u_cmss, _dt, (_motors.limit.throttle_lower || _motors.limit.throttle_upper)) * 0.001f;
+        thr_out = _pid_accel_u.update_all(_accel_target_neu_cmss.z, measured_accel_u_cmss, _dt, (_motors.limit.throttle_lower || _motors.limit.throttle_upper || limit)) * 0.001f;
         thr_out += _pid_accel_u.get_ff() * 0.001f;
     }
     thr_out += _motors.get_throttle_hover();
