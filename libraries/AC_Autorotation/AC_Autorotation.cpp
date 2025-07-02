@@ -357,6 +357,46 @@ void AC_Autorotation::run_flare(float des_lat_accel_norm)
     update_navigation_controller(des_lat_accel_norm);
 }
 
+// Functions and config that are only to be done once at the beginning of the hover auto entry
+void AC_Autorotation::init_hover_entry()
+{
+    gcs().send_text(MAV_SEVERITY_INFO, "Hover Entry Phase");
+
+    // Set collective trim low pass filter cut off frequency
+    col_trim_lpf.set_cutoff_frequency(_param_col_entry_cutoff_freq.get());
+
+    // Reset the following trim filter to the current collective that is being output for smooth init
+    col_trim_lpf.reset(_motors_heli->get_throttle());
+
+    // Set collective low-pass cut off filter at 2 Hz
+    _motors_heli->set_throttle_filter_cutoff(2.0);
+
+    // set pitch target to current state for smooth transfer
+    _desired_vel = get_bf_speed_forward();
+
+    // Ensure no heading hold
+    _heading_hold = false;
+}
+
+
+// Controller phase where the aircraft is too low and too slow to perform a full autorotation
+// instead, we will try to minimize rotor drag until we can jump to the touch down phase
+void AC_Autorotation::run_hover_entry(float des_lat_accel_norm)
+{
+    // Slewing collective with following trim filter, from current to zero thrust to minimize rotor speed loss
+    float collective_out = col_trim_lpf.apply(_motors_heli->get_coll_mid(), _dt);
+    collective_out = constrain_value(collective_out, 0.0f, 1.0f);
+
+    // Send collective setting to motors output library
+    _motors_heli->set_throttle(collective_out);
+
+    // Smoothly decay desired forward speed to zero over the entry time
+    _desired_vel *= 1 - (_dt / (float(entry_time_ms) * 1e-3));
+
+    update_navigation_controller(des_lat_accel_norm);
+}
+
+
 void AC_Autorotation::init_touchdown(void)
 {
     gcs().send_text(MAV_SEVERITY_INFO, "AROT: Touch Down Phase");
@@ -941,6 +981,25 @@ bool AC_Autorotation::should_begin_touchdown(void) const
     const bool min_height_check = _hagl < _touch_down_hgt.min_height;
 
     return time_check || min_height_check;
+}
+
+// Determine if we should be performing a hover autorotation
+// We use a speed height cone from flare height at zero speed to min touchdown height at cruise speed
+// to decide whether we consider it a hover autorotation
+bool AC_Autorotation::should_hover_autorotate(void) const
+{
+    // we cannot judge if we should do a hover autorotation we do not know what height we are at
+    if (!_hagl_valid) {
+        return false;
+    }
+
+    const float bf_forwad_spd = get_bf_speed_forward();
+
+    // Get the max speed for a given hagl that we expect 
+    const float min_height = linear_interpolate(_flare_hgt.get(), _touch_down_hgt.min_height.get(), bf_forwad_spd, 0.0, _param_target_speed);
+
+    return _hagl < min_height;
+
 }
 
 // Zero velocity and accel to bring all of the controls into position to trip Copter's landing detector.

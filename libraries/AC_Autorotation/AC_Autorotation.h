@@ -35,6 +35,10 @@ public:
     void init_flare(void);
     void run_flare(float des_lat_accel_norm);
 
+    // Init and run the hover entry phase controller
+    void init_hover_entry(void);
+    void run_hover_entry(float des_lat_accel_norm);
+
     // Init and run the touch down phase controller
     void init_touchdown(void);
     void run_touchdown(float des_lat_accel_norm);
@@ -52,6 +56,9 @@ public:
 
     // Determine if we are above the touchdown height using the descent rate and param values
     bool should_begin_touchdown(void) const;
+
+    // Determine if we should be performing a hover autorotation
+    bool should_hover_autorotate(void) const;
 
     // Returns true if we have met the autorotation-specific reasons to think we have landed
     bool check_landed(void);
