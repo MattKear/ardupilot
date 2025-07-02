@@ -142,7 +142,7 @@ private:
     AP_Int8  _dual_enable;
     AP_Int8 _param_rpm2_instance;
     AP_Float _safe_head_speed_ratio;
-
+    AP_Float _param_td_exp;
 
     // Navigation controller
     void update_navigation_controller(float des_lat_accel_norm);

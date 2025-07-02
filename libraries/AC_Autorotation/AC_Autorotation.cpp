@@ -148,6 +148,14 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("NAV_MODE", 18, AC_Autorotation, _param_nav_mode, 0),
 
+    // @Param: TD_VZ_EXP
+    // @DisplayName: Touchdown Velocity Target Exponent
+    // @Description: This controls the exponent of the target velocity trajectory in the touch down phase. Increase this number if your heli is running out of head speed before touching down softly. Reduce this number if your heli has lots of head speed on touch down but is still experiencing a hard landing. A Value of zero gives a linear velocity-height trajectory.
+    // @Range: 0.0 10
+    // @Increment: 0.1
+    // @User: Standard
+    AP_GROUPINFO("TD_VZ_EXP", 19, AC_Autorotation, _param_td_exp, 2.0),
+
     // @Param: DUAL
     // @DisplayName: Enable Dual Rotor Autorotation
     // @Description: This enables dual rotor autorotation functionality.
@@ -421,7 +429,10 @@ void AC_Autorotation::run_touchdown(float des_lat_accel_norm)
     // want to smoothly touch down with zero speed at the point we touch the ground
     float target_climb_rate = 0.0;
     if (is_positive(_hagl)) {
-        target_climb_rate = linear_interpolate(0.0, _touchdown_init_climb_rate, _hagl, 0.0, _touchdown_init_hgt);
+        // Only use negative expo
+        const float expo = fabsf(_param_td_exp.get()) * -1.0;
+        target_climb_rate = expm1_interpolate(0.0, _touchdown_init_climb_rate, _hagl, 0.0, _touchdown_init_hgt, expo);
+        // target_climb_rate = linear_interpolate(0.0, _touchdown_init_climb_rate, _hagl, 0.0, _touchdown_init_hgt);
     }
 
     // Update collective following trim component
