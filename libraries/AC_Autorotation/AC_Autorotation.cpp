@@ -120,28 +120,6 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("TD_MIN_HGT", 14, AC_Autorotation, _touch_down_hgt.min_height, 0.5),
 
-    // @Param: TD_COL_P
-    // @DisplayName: Vertical touchdown controller proportional gain
-    // @Description: Proportional gain for touch down controller.
-    // @Range: 0.3 1 TODO
-    // @Increment: 0.01
-    // @User: Standard
-
-    // @Param: TD_COL_I
-    // @DisplayName: Vertical touchdown controller integrator gain
-    // @Description: Integrator gain for touch down controller.
-    // @Range: 0.3 1 TODO
-    // @Increment: 0.01
-    // @User: Standard
-
-    // @Param: TD_COL_IMAX
-    // @DisplayName: Vertical touchdown controller max integrator magnitude
-    // @Description: Integrator magnitude constraint for touch down controller.
-    // @Range: 0.3 1 TODO
-    // @Increment: 0.01
-    // @User: Standard
-    AP_SUBGROUPINFO(_td_crtl, "TD_COL_", 15, AC_Autorotation, AC_PI),
-
     // @Param: FLR_MAX_HGT
     // @DisplayName: Maximum Flare Height
     // @Description: A safety cutoff feature to ensure that the calculated flare height cannot go above this value. This is the absolute maximum height above ground that the flare will initiate. Ensure that this is appropriate for your vehicle.
@@ -418,11 +396,17 @@ void AC_Autorotation::init_touchdown(void)
     // Ensure we are not limiting the speed target in this phase, incase we jumped to it from a low height entry
     head_speed_pitch_limit = false;
 
+    // initialise the vertical position controller
+    if (!_pos_control->is_active_U()) {
+        _pos_control->init_U_controller();
+    }
+
+    // set vertical speed and acceleration limits
+    _pos_control->set_max_speed_accel_U_cm(-30.0, 5.0, 2.0 * GRAVITY_MSS);
+    _pos_control->set_correction_speed_accel_U_cmss(-30.0, 5.0, 2.0 * GRAVITY_MSS);
+
     // store the descent speed and height at the start of the touch down
     _touchdown_init_climb_rate = get_ef_velocity_up();
-
-    // Ensure smooth hand over to touch down controller
-    _td_crtl.set_integrator(_motors_heli->get_throttle());
 
     // unlock any heading hold if we had one
     _heading_hold = false;
@@ -430,6 +414,7 @@ void AC_Autorotation::init_touchdown(void)
     _td_init_time = AP_HAL::millis();
 
 }
+
 
 void AC_Autorotation::run_touchdown(float des_lat_accel_norm)
 {
@@ -439,20 +424,15 @@ void AC_Autorotation::run_touchdown(float des_lat_accel_norm)
     float td_time = float(AP_HAL::millis() - _td_init_time) * 1e-3;
     target_climb_rate = exponential_velocity(td_time, _touchdown_init_climb_rate, _param_touchdown_time.get());
 
-    // Never try and stop completely
-    const float max_climb_rate = abs(_land_speed_cm) * -0.01;
-    target_climb_rate = MIN(target_climb_rate, max_climb_rate);
+    // Set velocity target in Z position controller
+    _pos_control->input_vel_accel_U_cm(target_climb_rate, 0.0, false);
 
-    // Update collective controller
-    const float climb_rate = get_ef_velocity_up();
-    const bool collective_limit = _motors_heli->limit.throttle_lower || _motors_heli->limit.throttle_upper;
-    float collective_out = _td_crtl.update(climb_rate, target_climb_rate, _dt, collective_limit);
-    collective_out = constrain_value(collective_out, 0.0f, 1.0f);
+    // Run the vertical position controller and set output collective
+    _pos_control->update_U_controller();
 
-    _motors_heli->set_throttle(collective_out);
-
+    // Update XY targets and controller
     // We don't know exactly at what point we transitioned into the touch down phase, so we need to 
-    // keep driving the desired speed to zero. This will help with getting the vehicle level for touch down
+    // keep driving the desired XY speed to zero. This will help with getting the vehicle level for touch down
     _desired_vel *= 1 - (_dt / get_touchdown_time());
 
     update_navigation_controller(des_lat_accel_norm);
@@ -464,22 +444,14 @@ void AC_Autorotation::run_touchdown(float des_lat_accel_norm)
     // @Field: TimeUS: Time since system startup
     // @Field: Tar: Target climb rate
     // @Field: Act: Measured climb rate
-    // @Field: Err: Controller error
-    // @Field: P: P-term for climb rate controller response
-    // @Field: I: I-term for climb rate controller response
-    // @Field: Out: Output of the climb rate controller
 
     // Write to data flash log
     AP::logger().WriteStreaming("ARCR",
-                       "TimeUS,Tar,Act,Err,P,I,Out",
-                        "Qffffff",
+                       "TimeUS,Tar,Act",
+                        "Qff",
                         AP_HAL::micros64(),
                         target_climb_rate,
-                        climb_rate,
-                        _td_crtl.get_error(),
-                        _td_crtl.get_P(),
-                        _td_crtl.get_I(),
-                        collective_out);
+                        get_ef_velocity_up());
 #endif
 }
 
@@ -1042,6 +1014,11 @@ void AC_Autorotation::run_landed(void)
     _pos_control->input_vel_accel_NE_cm(desired_velocity_NE_cm, desired_accel_NE_cm, true);
     _pos_control->soften_for_landing_NE();
     _pos_control->update_NE_controller();
+
+    // Force collective output to decay to zero
+    _pos_control->relax_U_controller(0.0f);
+    // run the vertical position controller and set output collective
+    _pos_control->update_U_controller();
 
     // Output to the attitude controller
     AC_AttitudeControl::HeadingCommand desired_heading;

@@ -182,7 +182,6 @@ private:
     float _calculated_touch_down_hgt;    // (m) Used for logging the calculated touch down height so that we can keep track of the calculations output. This value is not used for the touch down phase decision.
     float _touchdown_init_climb_rate;    // (m/s) The measured climb rate (positive up) when the touch down phase is init
     float _touchdown_init_hgt;           // (m) The measured height above the ground when the touch down phase is init
-    AC_PI _td_crtl{0.3, 0.15, 0.5};      // Touch down collective controller
     float exponential_position(float t, float v0, float T, float p0) const;
     float exponential_velocity(float t, float v0, float T) const;
     uint32_t _td_init_time;
