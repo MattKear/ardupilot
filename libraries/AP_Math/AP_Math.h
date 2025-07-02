@@ -323,6 +323,21 @@ float linear_interpolate(float output_low, float output_high,
                          float input_value,
                          float input_low, float input_high);
 
+/*
+  Interpolate a value along an exp(x) - 1.0 curve with exponent k
+  return a value in the range [output_low,output_high]
+
+  Either polarity is supported, so input_low can be higher than input_high
+
+  Read this as, "Return a value between 'output_low' and 'output_high'
+  that is proportionally along the exp(x) - 1.0 path to the position
+  of 'input_value' between 'input_low' and 'input_high'"
+ */
+float expm1_interpolate(float output_low, float output_high,
+                       float input_value,
+                       float input_low,  float input_high,
+                       float k);
+
 /* cubic "expo" curve generator 
  * alpha range: [0,1] min to max expo
  * input range: [-1,1]

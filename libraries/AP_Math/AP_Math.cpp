@@ -117,6 +117,52 @@ float linear_interpolate(float output_low, float output_high,
     return output_low + p * (output_high - output_low);
 }
 
+/*
+ * Interpolate a value along an exponential - 1.0 curve with exponent k
+ */
+float expm1_interpolate(float output_low, float output_high,
+                       float input_value,
+                       float input_low,  float input_high,
+                       float k)
+{
+    // Ensure input_low <= input_high; swap if needed
+    if (input_low > input_high) {
+        swap_float(input_low, input_high);
+        swap_float(output_low, output_high);
+    }
+
+    // Compute span and handle zero case
+    float span = input_high - input_low;
+    if (is_zero(span)) {
+        return output_high;
+    }
+
+    // Clamp input_value into [input_low, input_high]
+    if (input_value <= input_low) {
+        return output_low;
+    }
+    if (input_value >= input_high) {
+        return output_high;
+    }
+
+    // Normalized input to be between 0 and 1
+    float x = (input_value - input_low) / span;
+
+    // Compute exponential interpolation factor
+    float y;
+    if (is_zero(k)) {
+        // handle linear case
+        y = x;
+    } else {
+        float d = expf(k) - 1.0;
+        y = (expf(k * x) - 1.0) / d;
+    }
+    // Note: Does not currently handle the small value (< 1e-5f) case with "good" precision 
+
+    // Blend between output_low and output_high
+    return output_low + (output_high - output_low) * y;
+}
+
 /* cubic "expo" curve generator
  * alpha range: [0,1] min to max expo
  * input range: [-1,1]
