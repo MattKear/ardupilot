@@ -852,7 +852,7 @@ void AC_Autorotation::initial_flare_hgt_estimate(void)
     float des_spd_fwd = _param_target_speed.get();
     calc_flare_hgt(des_spd_fwd, -1.0 * sink_rate);
 
-    // Always save the initial flare and touch down height estimates as they do not use measured conditions like theAdd commentMore actions
+    // Always save the initial flare and touch down height estimates as they do not use measured conditions like the
     // continuous update method hence the model calculations above already assume steady state conditions.
     _touch_down_hgt.set(_calculated_touch_down_hgt);
     _flare_hgt.set(_calculated_flare_hgt);
@@ -962,9 +962,11 @@ bool AC_Autorotation::should_begin_touchdown(void) const
 
     const float vz = get_ef_velocity_up();
 
-    // We need to be descending for the touch down controller to interpolate the target
-    // sensibly between the entry of the touch down phase zero.
-    if (!is_negative(vz)) {
+    // We need to be descending with some minimum descent speed before we can init the touch down
+    // controller otherwise the climb rate that we interpolate from (_touchdown_init_climb_rate) 
+    // leaves us with unattainable descent rate targets when entering from the hover autorotation case
+    // e.i. we run out of head speed before we get close to the ground.
+    if (vz > -1.0 * MIN_MANOEUVERING_SPEED) {
         return false;
     }
 
