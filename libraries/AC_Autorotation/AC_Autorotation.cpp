@@ -852,6 +852,11 @@ void AC_Autorotation::initial_flare_hgt_estimate(void)
     float des_spd_fwd = _param_target_speed.get();
     calc_flare_hgt(des_spd_fwd, -1.0 * sink_rate);
 
+    // Always save the initial flare and touch down height estimates as they do not use measured conditions like theAdd commentMore actions
+    // continuous update method hence the model calculations above already assume steady state conditions.
+    _touch_down_hgt.set(_calculated_touch_down_hgt);
+    _flare_hgt.set(_calculated_flare_hgt);
+
     gcs().send_text(MAV_SEVERITY_INFO, "Ct/sigma=%.4f W=%.2f kg flare_alt=%.2f", c_t_hover/get_solidity(), _hover_thrust/GRAVITY_MSS, _flare_hgt.get());
     gcs().send_text(MAV_SEVERITY_INFO, "sink rate=%.3f", sink_rate);
     gcs().send_text(MAV_SEVERITY_INFO, "inflow spd=%.3f", lambda_eq*tip_speed_auto);
