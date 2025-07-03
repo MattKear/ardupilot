@@ -156,6 +156,15 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("TD_VZ_EXP", 19, AC_Autorotation, _param_td_exp, 2.0),
 
+    // @Param: HEIGHT_FILT
+    // @DisplayName: Surface distance filter frequency
+    // @Description: Surface distance filter frequency
+    // @Unit: Hz
+    // @Range: 1 20
+    // @Increment: 0.01
+    // @User: Standard
+    AP_GROUPINFO("HEIGHT_FILT", 20, AC_Autorotation, _height_filt_hz, 20),
+
     // @Param: DUAL
     // @DisplayName: Enable Dual Rotor Autorotation
     // @Description: This enables dual rotor autorotation functionality.
@@ -1096,6 +1105,7 @@ void AC_Autorotation::update_hagl(void)
 
     // Keep the ground surface object up to date at 20 Hz
     if ((_last_gnd_surf_update == 0) || (now - _last_gnd_surf_update > 0.05)) {
+        _ground_surface->alt_cm_filt.set_cutoff_frequency(_height_filt_hz);
         _ground_surface->update();
         _last_gnd_surf_update = now;
     }
