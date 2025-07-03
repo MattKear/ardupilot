@@ -31,6 +31,7 @@ public:
     bool enabled;                          // not to be confused with rangefinder enabled, this state is to be set by the vehicle.
     bool alt_healthy;                      // true if we can trust the altitude from the rangefinder
     int32_t alt_cm;                        // tilt compensated altitude (in cm) from rangefinder
+    int32_t last_reading_ms;               // timestamp of the last rangefinder reading
     float inertial_alt_cm;                 // inertial alt at time of last rangefinder sample
     LowPassFilterFloat alt_cm_filt {0.5};  // altitude filter
     int32_t alt_cm_glitch_protected;       // last glitch protected altitude

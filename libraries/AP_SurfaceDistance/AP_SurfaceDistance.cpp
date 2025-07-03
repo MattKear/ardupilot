@@ -85,11 +85,16 @@ void AP_SurfaceDistance::update()
     // tilt corrected but unfiltered, not glitch protected alt
     alt_cm = tilt_correction * rangefinder->distance_orient(rotation)*100;
 
-    // account for ground clearence between rangefinders installed position and the landing gear
+    // account for ground clearance between rangefinders installed position and the landing gear
     alt_cm -= rangefinder->ground_clearance_orient(rotation) * 100;
 
-    // remember inertial alt to allow us to interpolate rangefinder
-    inertial_alt_cm = inertial_nav.get_position_z_up_cm();
+    // Remember inertial alt to allow us to interpolate rangefinder
+    // We need to get the ekf position at the latest rangefinder measurement not at the latest time that we updated surface distance.
+    const uint32_t new_last_reading_ms = rangefinder->last_reading_ms(rotation);
+    if (last_reading_ms != new_last_reading_ms) {
+        inertial_alt_cm = inertial_nav.get_position_z_up_cm();
+        last_reading_ms = new_last_reading_ms;
+    }
 
     // glitch handling.  rangefinder readings more than RANGEFINDER_GLITCH_ALT_CM from the last good reading
     // are considered a glitch and glitch_count becomes non-zero
