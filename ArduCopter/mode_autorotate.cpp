@@ -50,9 +50,6 @@ bool ModeAutorotate::init(bool ignore_checks)
     // Set entry timer
     _entry_time_start_ms = millis();
 
-    // reset logging timer
-    _last_logged_ms = 0;
-
     return true;
 }
 
@@ -179,11 +176,8 @@ void ModeAutorotate::run()
             break;
     }
 
-    // Slow rate (25 Hz) logging for the mode
-    if (now_ms - _last_logged_ms > 40U) {
-        g2.arot.log_write_autorotation();
-        _last_logged_ms = now_ms;
-    }
+
+    g2.arot.log_write_autorotation();
 
 } // End function run()
 

@@ -2046,7 +2046,6 @@ protected:
 private:
 
     uint32_t _entry_time_start_ms;  // time remaining until entry phase moves on to glide phase
-    uint32_t _last_logged_ms;       // used for timing slow rate autorotation log
     bool _hover_autorotation;         // Set true if we are in a low height & low speed case and should enter a hover autorotation
 
     enum class Phase {
