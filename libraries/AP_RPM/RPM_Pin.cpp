@@ -69,7 +69,9 @@ void AP_RPM_Pin::update(void)
         }
     }
 
-    if (irq_state[state.instance].dt_count > 0) {
+    if (irq_state[state.instance].dt_count == 0) {
+        state.count = 0;
+    } else {
 
         // disable interrupts to prevent race with irq_handler
         void *irqstate = hal.scheduler->disable_interrupts_save();
