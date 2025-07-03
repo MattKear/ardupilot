@@ -481,7 +481,7 @@ void AC_Autorotation::run_touchdown(float des_lat_accel_norm)
 void AC_Autorotation::update_headspeed_controller(void)
 {
     // Get current rpm
-    float head_speed_norm;
+    float head_speed_norm = 0;
     if (!get_mean_headspeed(head_speed_norm)) {
         // RPM sensor is bad, set collective to angle of -2 deg and hope for the best
          _motors_heli->set_coll_from_ang(-2.0);
