@@ -17,7 +17,7 @@ class AC_Autorotation
 public:
 
     //Constructor
-    AC_Autorotation(AP_MotorsHeli*& motors, AC_AttitudeControl*& att_crtl, AP_InertialNav& inav, AC_PosControl*& pos_ctrl);
+    AC_Autorotation(AP_MotorsHeli*& motors, AC_AttitudeControl*& att_crtl, AP_InertialNav& inav, AC_PosControl*& pos_ctrl, AP_Int16& land_speed_cm);
 
     void init(void);
 
@@ -88,6 +88,7 @@ private:
     AP_MotorsHeli*&    _motors_heli;
     AC_AttitudeControl*& _attitude_control;
     AC_PosControl*&    _pos_control;
+    AP_Int16& _land_speed_cm;
 
     // A helper class that allows the setting of heights that have a minimum
     // protection value and prevents direct access to the height value

@@ -184,10 +184,11 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
 };
 
 // Constructor
-AC_Autorotation::AC_Autorotation(AP_MotorsHeli*& motors, AC_AttitudeControl*& att_crtl, AP_InertialNav& inav, AC_PosControl*& pos_ctrl) :
+AC_Autorotation::AC_Autorotation(AP_MotorsHeli*& motors, AC_AttitudeControl*& att_crtl, AP_InertialNav& inav, AC_PosControl*& pos_ctrl, AP_Int16& land_speed_cm) :
     _motors_heli(motors),
     _attitude_control(att_crtl),
-    _pos_control(pos_ctrl)
+    _pos_control(pos_ctrl),
+    _land_speed_cm(land_speed_cm)
     {
     #if AP_RANGEFINDER_ENABLED
         _ground_surface = new AP_SurfaceDistance(ROTATION_PITCH_270, inav, 2U); // taking the 3rd instance of SurfaceDistance to not conflict with the first two already in copter
@@ -435,6 +436,10 @@ void AC_Autorotation::run_touchdown(float des_lat_accel_norm)
         // target_climb_rate = linear_interpolate(0.0, _touchdown_init_climb_rate, _hagl, 0.0, _touchdown_init_hgt);
     }
 
+    // Never try and stop completely
+    const float max_climb_rate = abs(_land_speed_cm) * -0.01;
+    target_climb_rate = MIN(target_climb_rate, max_climb_rate);
+
     // Update collective following trim component
     const float col_ff = col_trim_lpf.apply(_motors_heli->get_throttle(), _dt);
 
@@ -445,7 +450,7 @@ void AC_Autorotation::run_touchdown(float des_lat_accel_norm)
 
     _motors_heli->set_throttle(collective_out);
 
-    // We don't know exactly at what point we transitioned into the touch down phase, se we need to 
+    // We don't know exactly at what point we transitioned into the touch down phase, so we need to 
     // keep driving the desired speed to zero. This will help with getting the vehicle level for touch down
     _desired_vel *= 1 - (_dt / get_touchdown_time());
 
