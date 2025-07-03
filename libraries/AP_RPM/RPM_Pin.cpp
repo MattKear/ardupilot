@@ -85,7 +85,8 @@ void AP_RPM_Pin::update(void)
 
         const float scaling = ap_rpm._params[state.instance].scaling;
         state.raw_rpm = scaling * (1.0e6 / dt_avg) * 60;
-        state.rate_rpm = signal_quality_filter.apply(state.raw_rpm);
+        signal_quality_filter.apply(state.raw_rpm);
+        state.rate_rpm = state.raw_rpm;
         state.count = dt_count;
 
         const float maximum = ap_rpm._params[state.instance].maximum;
