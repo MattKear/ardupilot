@@ -420,28 +420,24 @@ void AC_Autorotation::init_touchdown(void)
 
     // store the descent speed and height at the start of the touch down
     _touchdown_init_climb_rate = get_ef_velocity_up();
-    _touchdown_init_hgt = _hagl;
+
     // Ensure smooth hand over to touch down controller
     _td_crtl.set_integrator(_motors_heli->get_throttle());
 
     // unlock any heading hold if we had one
     _heading_hold = false;
 
+    _td_init_time = AP_HAL::millis();
+
 }
 
 void AC_Autorotation::run_touchdown(float des_lat_accel_norm)
 {
-    const float climb_rate = get_ef_velocity_up();
-
     // Calc the desired climb rate based on the height above the ground, ideally we 
     // want to smoothly touch down with zero speed at the point we touch the ground
     float target_climb_rate = 0.0;
-    if (is_positive(_hagl)) {
-        // Only use negative expo
-        const float expo = fabsf(_param_td_exp.get()) * -1.0;
-        target_climb_rate = expm1_interpolate(0.0, _touchdown_init_climb_rate, _hagl, 0.0, _touchdown_init_hgt, expo);
-        // target_climb_rate = linear_interpolate(0.0, _touchdown_init_climb_rate, _hagl, 0.0, _touchdown_init_hgt);
-    }
+    float td_time = float(AP_HAL::millis() - _td_init_time) * 1e-3;
+    target_climb_rate = exponential_velocity(td_time, _touchdown_init_climb_rate, _param_touchdown_time.get());
 
     // Never try and stop completely
     const float max_climb_rate = abs(_land_speed_cm) * -0.01;
@@ -971,6 +967,23 @@ bool AC_Autorotation::below_flare_height(void) const
     return _hagl < _flare_hgt.get();
 }
 
+float AC_Autorotation::exponential_position(float t, float v0, float T, float p0) const
+{
+    const float k = fabsf(_param_td_exp.get()) * -1.0;
+    const float d = expf(k) - 1.0;
+    const float p = (p0 + (v0 * expf(k) / d) * t - (v0 * T) / (k * d) * (expf(k * t / T) - 1.0));
+    return p;
+}
+
+float AC_Autorotation::exponential_velocity(float t, float v0, float T) const
+{
+    const float k = fabsf(_param_td_exp.get()) * -1.0;
+    const float d = expf(k) - 1.0;
+    const float v = v0 * (1.0 - (expf(k * t / T) - 1.0) / d);
+    return v;
+}
+
+
 // Determine if we are above the touchdown height using the descent rate and param values
 bool AC_Autorotation::should_begin_touchdown(void) const
 {
@@ -980,14 +993,6 @@ bool AC_Autorotation::should_begin_touchdown(void) const
     }
 
     const float vz = get_ef_velocity_up();
-
-    // We need to be descending with some minimum descent speed before we can init the touch down
-    // controller otherwise the climb rate that we interpolate from (_touchdown_init_climb_rate) 
-    // leaves us with unattainable descent rate targets when entering from the hover autorotation case
-    // e.i. we run out of head speed before we get close to the ground.
-    if (vz > -1.0 * MIN_MANOEUVERING_SPEED) {
-        return false;
-    }
 
     // We maybe descending with significant descent rate that could lead to an early
     // progression into the touchdown phase. Either we still have significant ground speed
@@ -999,14 +1004,14 @@ bool AC_Autorotation::should_begin_touchdown(void) const
         return false;
     }
 
-    // Calculate the time to impact assuming a constant descent speed
-    float time_to_ground = fabsf(_hagl / vz);
-    const bool time_check = time_to_ground <= get_touchdown_time();
+    // Look forward based on assumed 
+    const float future_pos = exponential_position(_param_touchdown_time.get(), vz, _param_touchdown_time.get(), _hagl);
+    const bool trajectory_check = future_pos <= 0.0;
 
     // force the flare if we are below the minimum guard height
     const bool min_height_check = _hagl < _touch_down_hgt.min_height;
 
-    return time_check || min_height_check;
+    return trajectory_check || min_height_check;
 }
 
 // Determine if we should be performing a hover autorotation

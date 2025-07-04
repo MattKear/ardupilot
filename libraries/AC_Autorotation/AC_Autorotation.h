@@ -183,6 +183,9 @@ private:
     float _touchdown_init_climb_rate;    // (m/s) The measured climb rate (positive up) when the touch down phase is init
     float _touchdown_init_hgt;           // (m) The measured height above the ground when the touch down phase is init
     AC_PI _td_crtl{0.3, 0.15, 0.5};      // Touch down collective controller
+    float exponential_position(float t, float v0, float T, float p0) const;
+    float exponential_velocity(float t, float v0, float T) const;
+    uint32_t _td_init_time;
 
     // Flags used to check if we believe the aircraft has landed
     struct {
