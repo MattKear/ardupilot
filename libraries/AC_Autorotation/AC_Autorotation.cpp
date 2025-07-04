@@ -21,12 +21,26 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     AP_GROUPINFO_FLAGS("ENABLE", 1, AC_Autorotation, _param_enable, 0, AP_PARAM_FLAG_ENABLE),
 
     // @Param: HS_P
-    // @DisplayName: P gain for head speed controller
-    // @Description: Increase value to increase sensitivity of head speed controller during autonomous autorotation.
-    // @Range: 0.3 1
+    // @DisplayName: Head speed controller proportional gain
+    // @Description: Proportional gain for head speed controller.
+    // @Range: 0.3 1 TODO
     // @Increment: 0.01
     // @User: Standard
-    AP_SUBGROUPINFO(_p_hs, "HS_", 2, AC_Autorotation, AC_P),
+
+    // @Param: HS_I
+    // @DisplayName: Head speed controller integrator gain
+    // @Description: Integrator gain for head speed controller.
+    // @Range: 0.3 1 TODO
+    // @Increment: 0.01
+    // @User: Standard
+
+    // @Param: HS_IMAX
+    // @DisplayName: Head speed controller max integrator magnitude
+    // @Description: Integrator magnitude constraint for head speed controller.
+    // @Range: 0.3 1 TODO
+    // @Increment: 0.01
+    // @User: Standard
+    AP_SUBGROUPINFO(_hs_ctrl, "HS_", 2, AC_Autorotation, AC_PI),
 
     // @Param: HS_SET_PT
     // @DisplayName: Target Head Speed
@@ -45,24 +59,6 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Increment: 0.5
     // @User: Standard
     AP_GROUPINFO("FWD_SP_TARG", 4, AC_Autorotation, _param_target_speed, 11),
-
-    // @Param: COL_FILT_E
-    // @DisplayName: Entry Phase Collective Filter
-    // @Description: Cut-off frequency for collective low pass filter. For the entry phase. Acts as a following trim.  Must be higher than AROT_COL_FILT_G.
-    // @Units: Hz
-    // @Range: 0.2 0.5
-    // @Increment: 0.01
-    // @User: Standard
-    AP_GROUPINFO("COL_FILT_E", 5, AC_Autorotation, _param_col_entry_cutoff_freq, 0.7),
-
-    // @Param: COL_FILT_G
-    // @DisplayName: Glide Phase Collective Filter
-    // @Description: Cut-off frequency for collective low pass filter. For the glide phase. Acts as a following trim.  Must be lower than AROT_COL_FILT_E.
-    // @Units: Hz
-    // @Range: 0.03 0.15
-    // @Increment: 0.01
-    // @User: Standard
-    AP_GROUPINFO("COL_FILT_G", 6, AC_Autorotation, _param_col_glide_cutoff_freq, 0.1),
 
     // @Param: XY_ACC_MAX
     // @DisplayName: Body Frame XY Acceleration Limit
@@ -125,12 +121,26 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     AP_GROUPINFO("TD_MIN_HGT", 14, AC_Autorotation, _touch_down_hgt.min_height, 0.5),
 
     // @Param: TD_COL_P
-    // @DisplayName: P gain for vertical touchdown controller
-    // @Description: Proportional term based on sink rate error
-    // @Range: 0.3 1
+    // @DisplayName: Vertical touchdown controller proportional gain
+    // @Description: Proportional gain for touch down controller.
+    // @Range: 0.3 1 TODO
     // @Increment: 0.01
-    // @User: Advanced
-    AP_SUBGROUPINFO(_p_col_td, "TD_COL_", 15, AC_Autorotation, AC_P),
+    // @User: Standard
+
+    // @Param: TD_COL_I
+    // @DisplayName: Vertical touchdown controller integrator gain
+    // @Description: Integrator gain for touch down controller.
+    // @Range: 0.3 1 TODO
+    // @Increment: 0.01
+    // @User: Standard
+
+    // @Param: TD_COL_IMAX
+    // @DisplayName: Vertical touchdown controller max integrator magnitude
+    // @Description: Integrator magnitude constraint for touch down controller.
+    // @Range: 0.3 1 TODO
+    // @Increment: 0.01
+    // @User: Standard
+    AP_SUBGROUPINFO(_td_crtl, "TD_COL_", 15, AC_Autorotation, AC_PI),
 
     // @Param: FLR_MAX_HGT
     // @DisplayName: Maximum Flare Height
@@ -228,9 +238,13 @@ void AC_Autorotation::init(void)
     // Initialisation of head speed controller
     // Set initial collective position to be the current collective position for smooth init
     const float collective_out = _motors_heli->get_throttle();
+    // Set head speed controller integrator
+    // Note that the headspeed controller is inverted (positive error needs to lead to reducing collective)
+    // so we set the I term with negative collective and invert the controller output again before sending it to motors
+    _hs_ctrl.set_integrator(-collective_out);
 
-    // Reset feed forward filter
-    col_trim_lpf.reset(collective_out);
+    // Set collective low-pass cut off filter at 2 Hz
+    _motors_heli->set_throttle_filter_cutoff(2.0);
 
     // Configure the lagged velocity filter so that we can estimate if we are in steady conditions in the flare height calc
     _lagged_vel_z.set_cutoff_frequency(0.5);
@@ -284,12 +298,6 @@ void AC_Autorotation::init_entry(void)
     // The rate to move the head speed from the current measurement to the target
     _hs_accel = (HEAD_SPEED_TARGET_RATIO - _target_head_speed) / (float(entry_time_ms)*1e-3);
 
-    // Set collective following trim low pass filter cut off frequency
-    col_trim_lpf.set_cutoff_frequency(_param_col_entry_cutoff_freq.get());
-
-    // Set collective low-pass cut off filter at 2 Hz
-    _motors_heli->set_throttle_filter_cutoff(2.0);
-
     // Set speed target to maintain the current speed whilst we enter the autorotation
     _desired_vel = _param_target_speed.get();
 
@@ -314,9 +322,6 @@ void AC_Autorotation::run_entry(float pilot_norm_accel)
 void AC_Autorotation::init_glide(void)
 {
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "AROT: Glide Phase");
-
-    // Set collective following trim low pass filter cut off frequency
-    col_trim_lpf.set_cutoff_frequency(_param_col_glide_cutoff_freq.get());
 
     // Ensure target head speed is set to setpoint, in case it didn't reach the target during entry
     _target_head_speed = HEAD_SPEED_TARGET_RATIO;
@@ -380,15 +385,6 @@ void AC_Autorotation::init_hover_entry()
 {
     gcs().send_text(MAV_SEVERITY_INFO, "Hover Entry Phase");
 
-    // Set collective trim low pass filter cut off frequency
-    col_trim_lpf.set_cutoff_frequency(_param_col_entry_cutoff_freq.get());
-
-    // Reset the following trim filter to the current collective that is being output for smooth init
-    col_trim_lpf.reset(_motors_heli->get_throttle());
-
-    // Set collective low-pass cut off filter at 2 Hz
-    _motors_heli->set_throttle_filter_cutoff(2.0);
-
     // set pitch target to current state for smooth transfer
     _desired_vel = get_bf_speed_forward();
 
@@ -401,8 +397,8 @@ void AC_Autorotation::init_hover_entry()
 // instead, we will try to minimize rotor drag until we can jump to the touch down phase
 void AC_Autorotation::run_hover_entry(float des_lat_accel_norm)
 {
-    // Slewing collective with following trim filter, from current to zero thrust to minimize rotor speed loss
-    float collective_out = col_trim_lpf.apply(_motors_heli->get_coll_mid(), _dt);
+    // Move collective to min drag position
+    float collective_out = _motors_heli->get_coll_mid();
     collective_out = constrain_value(collective_out, 0.0f, 1.0f);
 
     // Send collective setting to motors output library
@@ -425,6 +421,8 @@ void AC_Autorotation::init_touchdown(void)
     // store the descent speed and height at the start of the touch down
     _touchdown_init_climb_rate = get_ef_velocity_up();
     _touchdown_init_hgt = _hagl;
+    // Ensure smooth hand over to touch down controller
+    _td_crtl.set_integrator(_motors_heli->get_throttle());
 
     // unlock any heading hold if we had one
     _heading_hold = false;
@@ -449,13 +447,11 @@ void AC_Autorotation::run_touchdown(float des_lat_accel_norm)
     const float max_climb_rate = abs(_land_speed_cm) * -0.01;
     target_climb_rate = MIN(target_climb_rate, max_climb_rate);
 
-    // Update collective following trim component
-    const float col_ff = col_trim_lpf.apply(_motors_heli->get_throttle(), _dt);
-
-    // Update collective output
-    const float error = target_climb_rate - climb_rate;
-    const float col_p = _p_col_td.get_p(error);
-    const float collective_out = constrain_value(col_p + col_ff, 0.0f, 1.0f);
+    // Update collective controller
+    const float climb_rate = get_ef_velocity_up();
+    const bool collective_limit = _motors_heli->limit.throttle_lower || _motors_heli->limit.throttle_upper;
+    float collective_out = _td_crtl.update(climb_rate, target_climb_rate, _dt, collective_limit);
+    collective_out = constrain_value(collective_out, 0.0f, 1.0f);
 
     _motors_heli->set_throttle(collective_out);
 
@@ -474,19 +470,19 @@ void AC_Autorotation::run_touchdown(float des_lat_accel_norm)
     // @Field: Act: Measured climb rate
     // @Field: Err: Controller error
     // @Field: P: P-term for climb rate controller response
-    // @Field: FF: FF-term for climb rate controller response
+    // @Field: I: I-term for climb rate controller response
     // @Field: Out: Output of the climb rate controller
 
     // Write to data flash log
     AP::logger().WriteStreaming("ARCR",
-                       "TimeUS,Tar,Act,Err,P,FF,Out",
+                       "TimeUS,Tar,Act,Err,P,I,Out",
                         "Qffffff",
                         AP_HAL::micros64(),
                         target_climb_rate,
                         climb_rate,
-                        error,
-                        col_p,
-                        col_ff,
+                        _td_crtl.get_error(),
+                        _td_crtl.get_P(),
+                        _td_crtl.get_I(),
                         collective_out);
 #endif
 }
@@ -496,25 +492,22 @@ void AC_Autorotation::update_headspeed_controller(void)
 {
     // Get current rpm
     float head_speed_norm = 0;
-    if (!get_mean_headspeed(head_speed_norm)) {
+    const bool measurement_valid = get_mean_headspeed(head_speed_norm);
+
+    if (measurement_valid) {
+        // Update PI controller
+        const bool collective_limit = _motors_heli->limit.throttle_lower || _motors_heli->limit.throttle_upper;
+        float collective_out = _hs_ctrl.update(head_speed_norm, _target_head_speed, _dt, collective_limit);
+
+        // Invert the output of collective as positive error needs to lead to decreasing collective
+        collective_out *= -1.0;
+        collective_out = constrain_value(collective_out, 0.0f, 1.0f);
+        _motors_heli->set_throttle(collective_out);
+
+    } else {
         // RPM sensor is bad, set collective to angle of -2 deg and hope for the best
-         _motors_heli->set_coll_from_ang(-2.0);
-         return;
+         _motors_heli->set_coll_from_ang(-2.0); // TODO it might just be best to set to min collective
     }
-
-    // Calculate the head speed error.
-    _head_speed_error = head_speed_norm - _target_head_speed;
-
-    const float p_term_hs = _p_hs.get_p(_head_speed_error);
-
-    // Adjusting collective trim using feed forward (not yet been updated, so this value is the previous time steps collective position)
-    const float col_ff = col_trim_lpf.apply(_motors_heli->get_throttle(), _dt);
-
-    // Calculate collective position to be set
-    const float collective_out = constrain_value((p_term_hs + col_ff), 0.0f, 1.0f);
-
-    // Send collective to setting to motors output library
-    _motors_heli->set_throttle(collective_out);
 
 #if HAL_LOGGING_ENABLED
     // @LoggerMessage: ARHS
@@ -527,21 +520,22 @@ void AC_Autorotation::update_headspeed_controller(void)
     // @Field: P: P-term for head speed controller response
     // @Field: FF: FF-term for head speed controller response
     // @Field: Out: Output from the head speed controller
+    // @Field: H: Measurement health, 1 = healthy, 0 = unhealthy
 
     // Write to data flash log
     AP::logger().WriteStreaming("ARHS",
-                                "TimeUS,Tar,Act,Err,P,FF,Out",
-                                "s------",
-                                "F000000",
-                                "Qffffff",
+                                "TimeUS,Tar,Act,Err,P,I,Out,H",
+                                "s-------",
+                                "F0000000",
+                                "QffffffB",
                                 AP_HAL::micros64(),
                                 _target_head_speed,
                                 head_speed_norm,
-                                _head_speed_error,
-                                p_term_hs,
-                                col_ff,
-                                collective_out
-                                );
+                                _hs_ctrl.get_error(),
+                                _hs_ctrl.get_P(),
+                                _hs_ctrl.get_I(),
+                                _motors_heli->get_throttle(),
+                                uint8_t(measurement_valid));
 #endif
 }
 
@@ -1049,6 +1043,10 @@ void AC_Autorotation::run_landed(void)
     desired_heading.heading_mode = AC_AttitudeControl::HeadingMode::Rate_Only;
     desired_heading.yaw_rate_cds = 0.0;
     _attitude_control->input_thrust_vector_heading_cd(_pos_control->get_thrust_vector(), desired_heading);
+
+    // Move collective to zero thrust position
+    float collective_out = _motors_heli->get_coll_mid();
+    collective_out = constrain_value(collective_out, 0.0f, 1.0f);
 }
 
 // Determine the body frame forward speed in m/s

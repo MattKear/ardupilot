@@ -6,7 +6,7 @@
 #include <AP_Motors/AP_Motors.h>
 #include <AP_Motors/AP_MotorsHeli_RSC.h>
 #include <Filter/LowPassFilter.h>
-#include <AC_PID/AC_P.h>
+#include <AC_PID/AC_PI.h>
 #include <AC_PID/AC_PID_Basic.h>
 #include <AC_AttitudeControl/AC_AttitudeControl.h>
 #include <AP_SurfaceDistance/AP_SurfaceDistance.h>
@@ -131,8 +131,6 @@ private:
     AP_Int8  _param_enable;
     AP_Float _param_head_speed_set_point;
     AP_Float _param_target_speed;
-    AP_Float _param_col_entry_cutoff_freq;
-    AP_Float _param_col_glide_cutoff_freq;
     AP_Float _param_accel_max;
     AP_Int8  _param_rpm_instance;
     AP_Float _param_fwd_k_ff;
@@ -164,10 +162,8 @@ private:
     void update_headspeed_controller(void);  // Update controller used to drive head speed with collective
     void check_headspeed_limits(void);       // Ensure headspeed is healthy before allowing pitch demands
     float _hs_accel;                         // The head speed target acceleration during the entry phase
-    float _head_speed_error;                 // Error between target head speed and current head speed. Normalised by head speed set point RPM.
     float _target_head_speed;                // Normalised target head speed.  Normalised by head speed set point RPM.
-    LowPassFilterFloat col_trim_lpf;         // Low pass filter for collective trim
-    AC_P _p_hs{1.0};                         // head speed-collective p controller
+    AC_PI _hs_ctrl{1.0, 0.5, 0.5};           // head speed-collective PI controller
     bool head_speed_pitch_limit;             // Limit flag to prevent pitch inputs if head speed is too slow.  Used for dual helis only.
 
     // Flare controller functions and variables
@@ -186,7 +182,7 @@ private:
     float _calculated_touch_down_hgt;    // (m) Used for logging the calculated touch down height so that we can keep track of the calculations output. This value is not used for the touch down phase decision.
     float _touchdown_init_climb_rate;    // (m/s) The measured climb rate (positive up) when the touch down phase is init
     float _touchdown_init_hgt;           // (m) The measured height above the ground when the touch down phase is init
-    AC_P _p_col_td{0.2};                 // Touch down collective p controller
+    AC_PI _td_crtl{0.3, 0.15, 0.5};      // Touch down collective controller
 
     // Flags used to check if we believe the aircraft has landed
     struct {
