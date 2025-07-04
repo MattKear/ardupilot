@@ -177,57 +177,101 @@ def speed_hgt():
 ## Plot the climb rate target trajectory for touch down
 def touchdown_trajectory():
 
+    time, heights, vz = run_td_case()
+
     fig, ax = plt.subplots()
     ax.set_ylabel('Height AGL (m)')
-    ax.set_xlabel('Vz (m/s)')
+    ax.set_xlabel('Time (s)')
+    ax.plot(time, heights)
 
-    # exp = [-1.0, -0.5, 0.0, 0.5, 1.0]
-    # exp = [-2.0, -1.0, 0.0, 1.0, 2.0]
-    exp = [-10.0, -5.0, -2.5, 0.0, 2.5, 5.0, 10.0]
-    for e in exp:
-
-        heights, vz = run_td_case(e)
-
-
-        ax.plot(vz, heights, label='Exp = %.1f' % e)
+    fig, ax = plt.subplots()
+    ax.set_ylabel('Vel (m/s)')
+    ax.set_xlabel('Time (s)')
+    ax.plot(time, vz)
 
     plt.legend()
 
 
-def run_td_case(exponent):
+def trajectory(t, v0, k, T, p0):
+    """
+    Compute velocity and position at time t for the trajectory
+      v(t) = v0 * (1 - (exp(k*t/T) - 1) / d)
+      p(t) = p0 + (v0*e^k)/(e^k - 1) * t - (v0*T)/(k*(e^k - 1)) * (exp(k*t/T) - 1)
+
+    Parameters:
+      t   : float  — current time (0 <= t <= T)
+      v0  : float  — initial velocity at t=0
+      k   : float  — exponential shape parameter
+      T   : float  — total duration
+      p0  : float  — initial position at t=0
+
+    Returns:
+      (v, p) : tuple of floats — velocity and position at time t
+    """
+    d = math.exp(k) - 1.0
+    # velocity
+    v = v0 * (1.0 - (math.exp(k * t / T) - 1.0) / d)
+    # position
+    p = (p0
+         + (v0 * math.exp(k) / d) * t
+         - (v0 * T) / (k * d) * (math.exp(k * t / T) - 1.0))
+    return v, p
+
+
+def run_td_case():
     init_hagl = 5 #(m)
     exit_hagl = 0 #(m)
 
-    init_climb_rate = -2.0 #(m/s)
+    init_climb_rate = 2.5 #(m/s)
     exit_climb_rate = 0.0 #(m/s)
 
-    heights = np.linspace(init_hagl, exit_hagl, 100)
+    expo = -3.0
 
-    vz = []
-    for h in heights:
-        # v = velocity_target(init_climb_rate,
-        #                 init_hagl,
-        #                 exit_climb_rate,
-        #                 exit_hagl,
-        #                 h,
-        #                 exponent)
-        
-        # Normalise the height measurement
-        # pos = h / (init_hagl - exit_hagl)
-        # pos = min(max(pos, exit_hagl), init_hagl)
+    accel = -9.81
 
-        # # Calc the normalised velocity target
-        # # v_norm = expo_curve(exponent, pos)
-        # v_norm = thst_expo_curve(exponent, pos)
+    flare_time = 2.0
+    trajectory_start_time = 0
+    vel_init = 0
+    pos_init = 0
 
-        # # Calc the velocity target
-        # v = (init_climb_rate - exit_climb_rate) * v_norm + exit_climb_rate
+    sim_end_time = 5.0
 
-        v = expm1_interpolate(exit_climb_rate, init_climb_rate, h, exit_hagl, init_hagl, exponent)
+    time = np.linspace(0, sim_end_time, 1000)
 
-        vz.append(v)
+    p = [init_hagl]
+    v = [init_climb_rate]
+    trajectory_set = False
+    dt = time[2] - time[1]
+    for t in time:
 
-    return heights, vz
+        vel = 0
+        pos = 0
+        if not trajectory_set:
+            # just use linear equations of motion to move the object under gravity
+            vel = v[-1] + accel * dt
+            pos = p[-1] + v[-1] * dt + 0.5 * accel * dt * dt
+
+            # Calculate if we think we can touch down
+            vend, pend, = trajectory(flare_time, vel, expo, flare_time, pos)
+
+            if (pend < 0):
+                # Go!
+                trajectory_set = True
+                trajectory_start_time = t
+                vel_init = vel
+                pos_init = pos
+
+        else:
+            vel, pos, = trajectory(t - trajectory_start_time, vel_init, expo, flare_time, pos_init)
+
+
+        p.append(pos)
+        v.append(vel)
+    
+    p.pop()
+    v.pop()
+
+    return time, p, v
 
 
 
