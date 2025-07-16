@@ -95,7 +95,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
 
     // @Param: TD_TIME
     // @DisplayName: Touchdown Time
-    // @Description: Desired time for the touch down phase to last. Using the measured vertical velocity, this parameter is used to calculate the height that the vehicle will transition from the flare to the touch down phase. Minimum value used is 0.3 s.
+    // @Description: Desired time for the touchdown phase to last. Using the measured vertical velocity, this parameter is used to calculate the height that the vehicle will transition from the flare to the touchdown phase. Minimum value used is 0.3 s.
     // @Units: s
     // @Range: 0.3 2.0
     // @Increment: 0.001
@@ -112,13 +112,13 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     AP_GROUPINFO("FLR_MIN_HGT", 13, AC_Autorotation, _flare_hgt.min_height, 6),
 
     // @Param: TD_MIN_HGT
-    // @DisplayName: Minimum Touch Down Height
-    // @Description: A safety cutoff feature to ensure that the calculated touch down height cannot go below this value. This is the absolute minimum height that the touch down will initiate. Touch down height must be less than flare height. Ensure that this is appropriate for your vehicle.
+    // @DisplayName: Minimum Touchdown Height
+    // @Description: A safety cutoff feature to ensure that the calculated touchdown height cannot go below this value. This is the absolute minimum height that the touchdown will initiate. Touchdown height must be less than flare height. Ensure that this is appropriate for your vehicle.
     // @Units: m
     // @Range: 0.5 10
     // @Increment: 1
     // @User: Standard
-    AP_GROUPINFO("TD_MIN_HGT", 14, AC_Autorotation, _touch_down_hgt.min_height, 0.5),
+    AP_GROUPINFO("TD_MIN_HGT", 14, AC_Autorotation, _touchdown_hgt.min_height, 0.5),
 
     // @Param: FLR_MAX_HGT
     // @DisplayName: Maximum Flare Height
@@ -244,10 +244,10 @@ void AC_Autorotation::init(void)
 
     // Reset the guarded height measurements to ensure that they init to the min value
     _flare_hgt.reset();
-    _touch_down_hgt.reset();
+    _touchdown_hgt.reset();
 
     // set the guarded heights
-    _touch_down_hgt.max_height = _flare_hgt.min_height;
+    _touchdown_hgt.max_height = _flare_hgt.min_height;
 
     // Reset flags for limiting pitch controller based on headspeed
     head_speed_pitch_limit = false;
@@ -351,8 +351,8 @@ void AC_Autorotation::run_flare(float des_lat_accel_norm)
     update_headspeed_controller();
 
     // During the flare we want to linearly slow the aircraft to a stop as we
-    // reach the touch down alt for the start of the touch down phase
-    _desired_vel = linear_interpolate(0.0f, _flare_entry_fwd_speed, _hagl, _touch_down_hgt.get(), _flare_hgt.get());
+    // reach the touchdown alt for the start of the touchdown phase
+    _desired_vel = linear_interpolate(0.0f, _flare_entry_fwd_speed, _hagl, _touchdown_hgt.get(), _flare_hgt.get());
 
     // Run forward speed controller
     update_navigation_controller(des_lat_accel_norm);
@@ -372,7 +372,7 @@ void AC_Autorotation::init_hover_entry()
 
 
 // Controller phase where the aircraft is too low and too slow to perform a full autorotation
-// instead, we will try to minimize rotor drag until we can jump to the touch down phase
+// instead, we will try to minimize rotor drag until we can jump to the touchdown phase
 void AC_Autorotation::run_hover_entry(float des_lat_accel_norm)
 {
     // Move collective to min drag position
@@ -391,7 +391,7 @@ void AC_Autorotation::run_hover_entry(float des_lat_accel_norm)
 
 void AC_Autorotation::init_touchdown(void)
 {
-    gcs().send_text(MAV_SEVERITY_INFO, "AROT: Touch Down Phase");
+    gcs().send_text(MAV_SEVERITY_INFO, "AROT: Touchdown Phase");
 
     // Ensure we are not limiting the speed target in this phase, incase we jumped to it from a low height entry
     head_speed_pitch_limit = false;
@@ -419,7 +419,7 @@ void AC_Autorotation::init_touchdown(void)
 void AC_Autorotation::run_touchdown(float des_lat_accel_norm)
 {
     // Calc the desired climb rate based on the height above the ground, ideally we 
-    // want to smoothly touch down with zero speed at the point we touch the ground
+    // want to smoothly touchdown with zero speed at the point we touch the ground
     float target_climb_rate = 0.0;
     float td_time = float(AP_HAL::millis() - _td_init_time) * 1e-3;
     target_climb_rate = exponential_velocity(td_time, _touchdown_init_climb_rate, _param_touchdown_time.get());
@@ -431,8 +431,8 @@ void AC_Autorotation::run_touchdown(float des_lat_accel_norm)
     _pos_control->update_U_controller();
 
     // Update XY targets and controller
-    // We don't know exactly at what point we transitioned into the touch down phase, so we need to 
-    // keep driving the desired XY speed to zero. This will help with getting the vehicle level for touch down
+    // We don't know exactly at what point we transitioned into the touchdown phase, so we need to 
+    // keep driving the desired XY speed to zero. This will help with getting the vehicle level for touchdown
     _desired_vel *= 1 - (_dt / get_touchdown_time());
 
     update_navigation_controller(des_lat_accel_norm);
@@ -704,7 +704,7 @@ void AC_Autorotation::update_navigation_controller(float pilot_norm_accel)
             // We only allow up to half as we need to prioritize building/maintaining airspeed.
             desired_accel_bf.y = pilot_norm_accel * get_accel_max() * 0.5;
 
-            // In the case where we have low ground speed (e.g. touch down phase) we still want to let the
+            // In the case where we have low ground speed (e.g. touchdown phase) we still want to let the
             // pilot yaw. We use the min manoeuvering speed as the default "time constant" so that the yaw
             // feels consistant below the min ground speed and to avoid a div by zero.
             float yaw_rate_tc = MAX(fabsf(desired_velocity_bf.x), MIN_MANOEUVERING_SPEED);
@@ -839,9 +839,9 @@ void AC_Autorotation::initial_flare_hgt_estimate(void)
     float des_spd_fwd = _param_target_speed.get();
     calc_flare_hgt(des_spd_fwd, -1.0 * sink_rate);
 
-    // Always save the initial flare and touch down height estimates as they do not use measured conditions like the
+    // Always save the initial flare and touchdown height estimates as they do not use measured conditions like the
     // continuous update method hence the model calculations above already assume steady state conditions.
-    _touch_down_hgt.set(_calculated_touch_down_hgt);
+    _touchdown_hgt.set(_calculated_touchdown_hgt);
     _flare_hgt.set(_calculated_flare_hgt);
 
     gcs().send_text(MAV_SEVERITY_INFO, "Ct/sigma=%.4f W=%.2f kg flare_alt=%.2f", c_t_hover/get_solidity(), _hover_thrust/GRAVITY_MSS, _flare_hgt.get());
@@ -898,13 +898,13 @@ void AC_Autorotation::calc_flare_hgt(const float fwd_speed, float climb_rate)
     const float flare_distance = ((k_1 / k_3) * (k_4 - logf(fabsf(1-expf(k_4))) - (2 * k_2 * k_3 - logf(fabsf(1 - expf(2 * k_2 * k_3)))))) - k_1 * delta_t_flare;
     const float delta_h = -flare_distance * cosf(radians(AP_ALPHA_TPP));
 
-    // Estimate altitude to begin touch down phase. This value is preserved for logging without constraining it to the min/max allowable
-    _calculated_touch_down_hgt = -1.0 * climb_rate * get_touchdown_time();
+    // Estimate altitude to begin touchdown phase. This value is preserved for logging without constraining it to the min/max allowable
+    _calculated_touchdown_hgt = -1.0 * climb_rate * get_touchdown_time();
 
-    // Ensure that we keep the calculated touch down height within the allowable min/max values
+    // Ensure that we keep the calculated touchdown height within the allowable min/max values
     // before it is used in the _calculated_flare_hgt. Not doing this can lead to a zero-ground speed 
     // condition before the state machine is permited to progress onto the touchdown phase.
-    const float calc_td_hgt = constrain_float(_calculated_touch_down_hgt, _touch_down_hgt.min_height.get(), _touch_down_hgt.max_height.get());
+    const float calc_td_hgt = constrain_float(_calculated_touchdown_hgt, _touchdown_hgt.min_height.get(), _touchdown_hgt.max_height.get());
 
     // Total delta altitude to ground
     _calculated_flare_hgt = calc_td_hgt + delta_h;
@@ -914,7 +914,7 @@ void AC_Autorotation::calc_flare_hgt(const float fwd_speed, float climb_rate)
     if (speed_error < 0.2 * _desired_vel &&  // Check that our forward speed is withing 20% of target
         fabsf(_lagged_vel_z.get() - get_ef_velocity_up()) < 1.0) // Sink rate can be considered approx steady
     {
-        _touch_down_hgt.set(calc_td_hgt);
+        _touchdown_hgt.set(calc_td_hgt);
         _flare_hgt.set(_calculated_flare_hgt);
     }
 }
@@ -970,9 +970,9 @@ bool AC_Autorotation::should_begin_touchdown(void) const
     // progression into the touchdown phase. Either we still have significant ground speed
     // and we want to let the flare do more work to reduce the speed (both vertical and forward)
     // or we have low ground speed in which case we still want the head speed controller to manage
-    // the energy in the head in the flare controller.  Hence we will not allow the touch down
+    // the energy in the head in the flare controller.  Hence we will not allow the touchdown
     // phase to begin.
-    if (_hagl > _touch_down_hgt.max_height) {
+    if (_hagl > _touchdown_hgt.max_height) {
         return false;
     }
 
@@ -980,8 +980,8 @@ bool AC_Autorotation::should_begin_touchdown(void) const
     const float future_pos = exponential_position(_param_touchdown_time.get(), vz, _param_touchdown_time.get(), _hagl);
     const bool trajectory_check = future_pos <= 0.0;
 
-    // force the flare if we are below the minimum guard height
-    const bool min_height_check = _hagl < _touch_down_hgt.min_height;
+    // Force the flare if we are below the minimum guard height
+    const bool min_height_check = _hagl < _touchdown_hgt.min_height;
 
     return trajectory_check || min_height_check;
 }
@@ -999,7 +999,7 @@ bool AC_Autorotation::should_hover_autorotate(void) const
     const float bf_forwad_spd = get_bf_speed_forward();
 
     // Get the max speed for a given hagl that we expect 
-    const float min_height = linear_interpolate(_flare_hgt.get(), _touch_down_hgt.min_height.get(), bf_forwad_spd, 0.0, _param_target_speed);
+    const float min_height = linear_interpolate(_flare_hgt.get(), _touchdown_hgt.min_height.get(), bf_forwad_spd, 0.0, _param_target_speed);
 
     return _hagl < min_height;
 
@@ -1134,7 +1134,7 @@ void AC_Autorotation::log_write_autorotation(void) const
     // @Field: MHgt: Measured Height
     // @Field: CFH: Unfiltered Calculated Flare Height
     // @Field: FHgt: Flare Height
-    // @Field: CTDH: Unfiltered Calculated Touch Down Height
+    // @Field: CTDH: Unfiltered Calculated Touchdown Height
     // @Field: TDHgt: Touchdown Height
     // @Field: LR: Landed Reason state flags
     // @FieldBitmaskEnum: LR: AC_Autorotation_Landed_Reason
@@ -1149,8 +1149,8 @@ void AC_Autorotation::log_write_autorotation(void) const
                                 _hagl,
                                 _calculated_flare_hgt,
                                 _flare_hgt.get(),
-                                _calculated_touch_down_hgt,
-                                _touch_down_hgt.get(),
+                                _calculated_touchdown_hgt,
+                                _touchdown_hgt.get(),
                                 reason);
 }
 #endif  // HAL_LOGGING_ENABLED
@@ -1223,8 +1223,8 @@ bool AC_Autorotation::arming_checks(size_t buflen, char *buffer) const
         return false;
     }
 
-    // Sanity check that min touch down height is less than min flare height
-    if (_flare_hgt.min_height.get() < _touch_down_hgt.min_height) {
+    // Sanity check that min touchdown height is less than min flare height
+    if (_flare_hgt.min_height.get() < _touchdown_hgt.min_height) {
         hal.util->snprintf(buffer, buflen, "FLR_MIN_HGT < TD_MIN_HGT");
         return false;
     }

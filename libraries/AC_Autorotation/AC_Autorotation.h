@@ -39,7 +39,7 @@ public:
     void init_hover_entry(void);
     void run_hover_entry(float des_lat_accel_norm);
 
-    // Init and run the touch down phase controller
+    // Init and run the touchdown phase controller
     void init_touchdown(void);
     void run_touchdown(float des_lat_accel_norm);
 
@@ -177,14 +177,7 @@ private:
     float _flare_entry_fwd_speed;        // The measured body frame forward speed of the vehicle as it enters the flare phase
     LowPassFilterFloat _lagged_vel_z;    // (m/s) A slow filter on velocity that purposefully lags behind the latest measurements so that we can get an idea of whether we can be considered to be in steady conditions
 
-    // Touch down controller functions and variables
-    GuardedHeight _touch_down_hgt;       // (m) Height above ground for touchdown phase to begin
-    float _calculated_touch_down_hgt;    // (m) Used for logging the calculated touch down height so that we can keep track of the calculations output. This value is not used for the touch down phase decision.
-    float _touchdown_init_climb_rate;    // (m/s) The measured climb rate (positive up) when the touch down phase is init
-    float _touchdown_init_hgt;           // (m) The measured height above the ground when the touch down phase is init
-    float exponential_position(float t, float v0, float T, float p0) const;
-    float exponential_velocity(float t, float v0, float T) const;
-    uint32_t _td_init_time;
+    // Touchdown controller functions and variables
 
     // Flags used to check if we believe the aircraft has landed
     struct {
