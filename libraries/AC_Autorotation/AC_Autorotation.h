@@ -3,6 +3,7 @@
 #include <AP_Common/AP_Common.h>
 #include <AP_Param/AP_Param.h>
 #include <AP_Math/AP_Math.h>
+#include <AP_Math/SCurve.h>
 #include <AP_Motors/AP_Motors.h>
 #include <AP_Motors/AP_MotorsHeli_RSC.h>
 #include <Filter/LowPassFilter.h>
@@ -40,7 +41,7 @@ public:
     void run_hover_entry(float des_lat_accel_norm);
 
     // Init and run the touchdown phase controller
-    void init_touchdown(void);
+    bool init_touchdown(void);
     void run_touchdown(float des_lat_accel_norm);
 
     // Run the landed phase controller to zero the desired vels and accels
@@ -141,7 +142,7 @@ private:
     AP_Int8  _dual_enable;
     AP_Int8 _param_rpm2_instance;
     AP_Float _safe_head_speed_ratio;
-    AP_Float _param_td_exp;
+    AP_Float _param_td_jerk_max;
     AP_Float _height_filt_hz;
 
     // Navigation controller
@@ -178,6 +179,16 @@ private:
     LowPassFilterFloat _lagged_vel_z;    // (m/s) A slow filter on velocity that purposefully lags behind the latest measurements so that we can get an idea of whether we can be considered to be in steady conditions
 
     // Touchdown controller functions and variables
+    void calc_scurve_trajectory_times(float a0, float v0, float& tj1, float& tj2) const;
+    GuardedHeight _touchdown_hgt;       // (m) Height above ground for touchdown phase to begin
+    float _calculated_touchdown_hgt;    // (m) Used for logging the calculated touchdown height so that we can keep track of the calculations output. This value is not used for the touchdown phase decision.
+    uint32_t _td_init_time;              // (ms) System time when touchdown phase is init
+    float _td_init_az;                   // (m/s/s) The measured acceleration when the touchdown phase is init
+    float _td_init_vz;                   // (m/s) The measured climb rate (positive up) when the touchdown phase is init
+    float _td_init_pos;                  // (m) The measured height above the ground when the touchdown phase is init
+    const SCurve _scurve;                // Use the Scurve lib for outputting JAVP trajectories.  We calculate the trajectory for the autorotation a different way to the SCurves lib using different fundamental assumptions, hence only using const functions
+    float _tj1;
+    float _tj2;
 
     // Flags used to check if we believe the aircraft has landed
     struct {
@@ -192,5 +203,5 @@ private:
     float get_solidity(void) const { return MAX(_param_solidity.get(), 0.01); }
 
     const float MIN_MANOEUVERING_SPEED = 2.0; // (m/s)
-
+    const float BUFFER_HEIGHT = 0.5; // (m)
 };
