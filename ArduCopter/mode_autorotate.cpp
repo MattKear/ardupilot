@@ -155,7 +155,10 @@ void ModeAutorotate::run()
             break;
 
         case Phase::TOUCH_DOWN_INIT:
-            g2.arot.init_touchdown();
+            if (!g2.arot.init_touchdown()) {
+                // If we fail to init the touchdown we do not advance the flight phase so that we can try again at next update
+                break;
+            }
             current_phase = Phase::TOUCH_DOWN;
             FALLTHROUGH;
 
