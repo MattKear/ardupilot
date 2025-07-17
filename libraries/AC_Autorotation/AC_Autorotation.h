@@ -56,7 +56,7 @@ public:
     bool below_flare_height(void) const;
 
     // Determine if we are above the touchdown height using the descent rate and param values
-    bool should_begin_touchdown(void) const;
+    bool should_begin_touchdown(void);
 
     // Determine if we should be performing a hover autorotation
     bool should_hover_autorotate(void) const;
@@ -189,6 +189,7 @@ private:
     const SCurve _scurve;                // Use the Scurve lib for outputting JAVP trajectories.  We calculate the trajectory for the autorotation a different way to the SCurves lib using different fundamental assumptions, hence only using const functions
     float _tj1;
     float _tj2;
+    float _td_last_pos;
 
     // Flags used to check if we believe the aircraft has landed
     struct {

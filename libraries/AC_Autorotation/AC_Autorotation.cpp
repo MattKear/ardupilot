@@ -440,19 +440,21 @@ void AC_Autorotation::run_touchdown(float des_lat_accel_norm)
         // We are in the 2nd phase of the trajectory with negative jerk
         // Calc the exit conditions from the first phase
         float j1, a1, v1, p1;
-        _scurve.calc_javp_for_segment_incr_jerk(_tj1, _tj1, _param_td_jerk_max.get(), _td_init_az, _td_init_vz, _td_init_pos, j1, a1, v1, p1);
+        _scurve.calc_javp_for_segment_incr_jerk(T1, _tj1, _param_td_jerk_max.get(), _td_init_az, _td_init_vz, _td_init_pos, j1, a1, v1, p1);
         // Now calc the trajectory targets
         const float t2 = td_time - T1;
-        _scurve.calc_javp_for_segment_decr_jerk(t2, _tj2, _param_td_jerk_max.get(), a1, v1, p1, j, a, v, p);
+        _scurve.calc_javp_for_segment_incr_jerk(t2, _tj2, _param_td_jerk_max.get() * -1.0, a1, v1, p1, j, a, v, p);
 
     } else {
         // We have finished the SCurve trajectory and in the very last steady state decent to touch the ground (BUFFER_HEIGHT)
+        j = 0.0;
         a = 0.0;
-        v = float(_land_speed_cm.get()) * 1e-2;
-        const AP_AHRS &ahrs = AP::ahrs();
-        IGNORE_RETURN(ahrs.get_relative_position_D_origin(p));
-        p *= -1.0;
+        v = fabsf(float(_land_speed_cm.get())) * -1e-2;
+        p = _td_last_pos + v * _dt;
     }
+
+    // Store last target position for transitions to zero jerk descent phase
+    _td_last_pos = p;
 
     // Convert units of targets ready to be fed into position controller
     a *= 100.0;
@@ -984,7 +986,7 @@ bool AC_Autorotation::below_flare_height(void) const
 void AC_Autorotation::calc_scurve_trajectory_times(float a0, float v0, float& tj1, float& tj2) const
 {
     // Desired exit to steady state descent at land speed
-    const float v2 = float(_land_speed_cm.get()) * 1e-2;
+    const float v2 = fabsf(float(_land_speed_cm.get())) * -1e-2; // Ensure land speed is positive up
     const float a2 = 0.0; 
     const float jm = _param_td_jerk_max.get();
 
@@ -995,7 +997,7 @@ void AC_Autorotation::calc_scurve_trajectory_times(float a0, float v0, float& tj
 
 
 // Determine if we are above the touchdown height using the descent rate and param values
-bool AC_Autorotation::should_begin_touchdown(void) const
+bool AC_Autorotation::should_begin_touchdown(void)
 {
     // we cannot transition to the touchdown phase if we do not know what height we are at
     if (!_hagl_valid) {
@@ -1014,22 +1016,27 @@ bool AC_Autorotation::should_begin_touchdown(void) const
 
     // Use Scurve trajectory to look ahead at what height we will finish the touchdown at
     // Initial conditions come from current measurements
+    bool trajectory_check;
     const AP_AHRS &ahrs = AP::ahrs();
     const float a0 = ahrs.get_accel_ef().z;
     const float v0 = get_ef_velocity_up();
-    float tj1, tj2;
-    calc_scurve_trajectory_times(a0, v0, tj1, tj2);
+    calc_scurve_trajectory_times(a0, v0, _tj1, _tj2);
 
-    // Look ahead to end of first phase scurve to get initial conditions for 2nd phase
-    float j1, a1, v1, p1;
-    _scurve.calc_javp_for_segment_incr_jerk(tj1, tj1, _param_td_jerk_max.get(), a0, v0, _hagl, j1, a1, v1, p1);
+    if (is_positive(_tj1) && is_positive(_tj2)) {
+        // Look ahead to end of first phase scurve to get initial conditions for 2nd phase
+        float j1, a1, v1, p1;
+        _scurve.calc_javp_for_segment_incr_jerk(_tj1 * 2.0, _tj1, _param_td_jerk_max.get(), a0, v0, _hagl, j1, a1, v1, p1);
 
-    // Look ahead to end of second phase scurve to get exit conditions
-    float j2, a2, v2, future_pos;
-    _scurve.calc_javp_for_segment_decr_jerk(tj2, tj2, _param_td_jerk_max.get(), a1, v1, p1, j2, a2, v2, future_pos);
+        // Look ahead to end of second phase scurve to get exit conditions
+        float j2, a2, v2, future_pos;
+        _scurve.calc_javp_for_segment_incr_jerk(_tj2 * 2.0, _tj2, _param_td_jerk_max.get() * -1.0, a1, v1, p1, j2, a2, v2, future_pos);
 
-    // We give ourselves a small buffer to leave some margin for error
-    const bool trajectory_check = future_pos <= BUFFER_HEIGHT;
+        // We give ourselves a small buffer to leave some margin for error
+        trajectory_check = future_pos <= BUFFER_HEIGHT;
+
+    } else {
+        trajectory_check = false;
+    }
 
     // Force the flare if we are below the minimum guard height
     const bool min_height_check = _hagl < _touchdown_hgt.min_height;
@@ -1187,21 +1194,25 @@ void AC_Autorotation::log_write_autorotation(void) const
     // @Field: FHgt: Flare Height
     // @Field: CTDH: Unfiltered Calculated Touchdown Height
     // @Field: TDHgt: Touchdown Height
+    // @Field: T1: Touchdown phase 1 time
+    // @Field: T2: Touchdown phase 2 time
     // @Field: LR: Landed Reason state flags
     // @FieldBitmaskEnum: LR: AC_Autorotation_Landed_Reason
 
     // Write to data flash log
     AP::logger().WriteStreaming("AROT",
-                                "TimeUS,MHgt,CFH,FHgt,CTDH,TDHgt,LR",
-                                "smmmmm-",
-                                "F00000-",
-                                "QfffffB",
+                                "TimeUS,MHgt,CFH,FHgt,CTDH,TDHgt,T1,T2,LR",
+                                "smmmmmss-",
+                                "F0000000-",
+                                "QfffffffB",
                                 AP_HAL::micros64(),
                                 _hagl,
                                 _calculated_flare_hgt,
                                 _flare_hgt.get(),
                                 _calculated_touchdown_hgt,
                                 _touchdown_hgt.get(),
+                                _tj1*2.0,
+                                _tj2*2.0,
                                 reason);
 }
 #endif  // HAL_LOGGING_ENABLED
