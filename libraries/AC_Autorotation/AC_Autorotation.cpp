@@ -1121,20 +1121,14 @@ void AC_Autorotation::run_landed(void)
     _pos_control->soften_for_landing_NE();
     _pos_control->update_NE_controller();
 
-    // Force collective output to decay to zero
-    _pos_control->relax_U_controller(0.0f);
-    // run the vertical position controller and set output collective
-    _pos_control->update_U_controller();
-
     // Output to the attitude controller
     AC_AttitudeControl::HeadingCommand desired_heading;
     desired_heading.heading_mode = AC_AttitudeControl::HeadingMode::Rate_Only;
     desired_heading.yaw_rate_cds = 0.0;
     _attitude_control->input_thrust_vector_heading_cd(_pos_control->get_thrust_vector(), desired_heading);
 
-    // Move collective to zero thrust position
-    float collective_out = _motors_heli->get_coll_mid();
-    collective_out = constrain_value(collective_out, 0.0f, 1.0f);
+    // To get to this phase the collective has to be below land col min due to the landed check
+    // So we do not need to do anything with collective at this point
 }
 
 // Determine the body frame forward speed in m/s
