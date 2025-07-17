@@ -143,6 +143,7 @@ private:
     AP_Int8 _param_rpm2_instance;
     AP_Float _safe_head_speed_ratio;
     AP_Float _param_td_jerk_max;
+    AP_Float _param_td_accel_max;
     AP_Float _height_filt_hz;
 
     // Navigation controller
@@ -179,7 +180,7 @@ private:
     LowPassFilterFloat _lagged_vel_z;    // (m/s) A slow filter on velocity that purposefully lags behind the latest measurements so that we can get an idea of whether we can be considered to be in steady conditions
 
     // Touchdown controller functions and variables
-    void calc_scurve_trajectory_times(float a0, float v0, float& tj1, float& tj2) const;
+    void calc_scurve_trajectory_constants(float a0, float v0, float& tj1, float& tj23, float& jm23) const;
     GuardedHeight _touchdown_hgt;       // (m) Height above ground for touchdown phase to begin
     float _calculated_touchdown_hgt;    // (m) Used for logging the calculated touchdown height so that we can keep track of the calculations output. This value is not used for the touchdown phase decision.
     uint32_t _td_init_time;              // (ms) System time when touchdown phase is init
@@ -188,7 +189,8 @@ private:
     float _td_init_pos;                  // (m) The measured height above the ground when the touchdown phase is init
     const SCurve _scurve;                // Use the Scurve lib for outputting JAVP trajectories.  We calculate the trajectory for the autorotation a different way to the SCurves lib using different fundamental assumptions, hence only using const functions
     float _tj1;
-    float _tj2;
+    float _tj23;
+    float _jm23;
     float _td_last_pos;
 
     // Flags used to check if we believe the aircraft has landed
