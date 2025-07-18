@@ -292,6 +292,7 @@ public:
 #endif
     // metre accessors - use these in preference to the cm accessors
     float distance_orient(enum Rotation orientation) const;
+    float distance_minus_gnd_clearence_orient(enum Rotation orientation) const;
     float max_distance_orient(enum Rotation orientation) const;
     float min_distance_orient(enum Rotation orientation) const;
     float ground_clearance_orient(enum Rotation orientation) const;
