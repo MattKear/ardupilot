@@ -168,11 +168,18 @@ private:
     void exchange_data(const struct sitl_input &input);
     void parse_reply(const char *reply);
 
+    float get_rpm_from_model(const float col) const;
+    float get_col2_rpm(const float col1, const float col2, const float interlock_ch, const float measured_rpm1, const double dt);
+    float _last_rpm;
+
     void update_loop(void);
     void report_FPS(void);
     void socket_creator(void);
 
     struct sitl_input last_input;
+
+    float last_col1_out;
+    float last_col2_out;
 
     AP_Int32 _options;
 
