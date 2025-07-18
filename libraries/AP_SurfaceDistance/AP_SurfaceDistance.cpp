@@ -69,7 +69,7 @@ void AP_SurfaceDistance::update()
     }
 
     // tilt corrected but unfiltered, not glitch protected alt
-    alt_cm = tilt_correction * rangefinder->distance_orient(rotation)*100;
+    alt_cm = tilt_correction * rangefinder->distance_minus_gnd_clearence_orient(rotation)*100;
 
     // glitch handling.  rangefinder readings more than RANGEFINDER_GLITCH_ALT_CM from the last good reading
     // are considered a glitch and glitch_count becomes non-zero
