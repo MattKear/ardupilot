@@ -186,6 +186,16 @@ void AP_SurfaceDistance::Log_Write(void) const
 }
 #endif  // HAL_LOGGING_ENABLED
 
+bool AP_SurfaceDistance::rangefinder_configured(void) const
+{
+    const RangeFinder *rangefinder = RangeFinder::get_singleton();
+    if (rangefinder == nullptr) {
+        return false;
+    }
+    return rangefinder->status_orient(rotation) != RangeFinder::Status::NotConnected &&
+           rangefinder->status_orient(rotation) != RangeFinder::Status::NoData;
+}
+
 #endif // AP_RANGEFINDER_ENABLED
 
 bool AP_SurfaceDistance::data_stale(void)

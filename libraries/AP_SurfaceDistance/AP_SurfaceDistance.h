@@ -19,6 +19,10 @@ public:
     // helper to check that rangefinder was last reported as enabled and healthy
     bool enabled_and_healthy(void) const;
 
+    // check that there is a rangefinder in the correct orientation configured, used for pre-arm checks
+    // when the rangefinder may not be reporting healthy (e.g. on ground reporting out of range low)
+    bool rangefinder_configured(void) const;
+
     // get inertially interpolated rangefinder height
     bool get_rangefinder_height_interpolated_cm(int32_t& ret) const;
 
