@@ -14,8 +14,15 @@ public:
 
     CLASS_NO_COPY(AC_PI);
 
-    // update controller
-    float update(float measurement, float target, float dt);
+    // update controller - set target and measured inputs to PI controller and calculate outputs
+    // The integral is updated based on the setting of the limit flag
+    float update(float measurement, float target, float dt, bool limit = false);
+    float update(float measurement, float target, float dt, bool limit_neg, bool limit_pos);
+
+    // integrator setting functions
+    void set_integrator(float target, float measurement, float i);
+    void set_integrator(float error, float i);
+    void set_integrator(float i);
 
     // parameter var table
     static const struct AP_Param::GroupInfo var_info[];
@@ -26,6 +33,9 @@ public:
     float get_I() const {
         return integrator;
     }
+    float get_error() const {
+        return err;
+    }
 
 protected:
     AP_Float        kP;
@@ -33,8 +43,13 @@ protected:
     AP_Float        imax;
     float           integrator;
     float           output_P;
+    float           err;
 
 private:
+
+    // Update I term with limit handling
+    void update_i(float dt, bool limit_neg, bool limit_pos);
+
     const float default_kp;
     const float default_ki;
     const float default_imax;
