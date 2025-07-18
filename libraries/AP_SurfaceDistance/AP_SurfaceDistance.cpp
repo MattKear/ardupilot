@@ -111,9 +111,12 @@ void AP_SurfaceDistance::update()
     }
 
     // remember inertial alt to allow us to interpolate rangefinder
+    // we need to get the ekf position at the latest rangefinder measurement not at the latest time that we updated surface distance.
+    const uint32_t new_last_reading_ms = rangefinder->last_reading_ms(rotation);
     float pos_d_m;
-    if (AP::ahrs().get_relative_position_D_origin_float(pos_d_m)) {
+    if (AP::ahrs().get_relative_position_D_origin_float(pos_d_m) && last_reading_ms != new_last_reading_ms) {
         inertial_alt_cm = -pos_d_m * 100.0f; // convert from m to cm
+        last_reading_ms = new_last_reading_ms;
     }
 
     // handle reset of terrain offset
