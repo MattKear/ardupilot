@@ -740,6 +740,15 @@ float RangeFinder::distance_orient(enum Rotation orientation) const
     return backend->distance();
 }
 
+float RangeFinder::distance_minus_gnd_clearence_orient(enum Rotation orientation) const
+{
+    AP_RangeFinder_Backend *backend = find_instance(orientation);
+    if (backend == nullptr) {
+        return 0;
+    }
+    return backend->distance() - backend->ground_clearance();
+}
+
 int8_t RangeFinder::signal_quality_pct_orient(enum Rotation orientation) const
 {
     AP_RangeFinder_Backend *backend = find_instance(orientation);
