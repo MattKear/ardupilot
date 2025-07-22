@@ -298,15 +298,21 @@ void AP_MotorsHeli_Dual::calculate_scalars()
 void AP_MotorsHeli_Dual::mix_tandem(float pitch_input, float roll_input, float yaw_input, float collective1_input, float collective2_input)
 {
     // Differential cyclic roll is used for yaw and combined for roll
-    const float swash1_roll = roll_input + _yaw_scaler * yaw_input;
-    const float swash2_roll = roll_input - _yaw_scaler * yaw_input;
+    float swash1_roll = roll_input + _yaw_scaler * yaw_input;
+    float swash2_roll = roll_input - _yaw_scaler * yaw_input;
+
+    // Handle combined control limiting
+    const bool limit_swash = limit_outputs(swash1_roll, swash1_roll);
+    // Update limit flags which may have already been limited in move_actuators(). Always reset to false at start of move_actuators().
+    limit.roll |= limit_swash;
+    limit.yaw |= limit_swash;
 
     // cyclic is not used for pitch control
     const float swash_pitch = 0.0;
 
     // Differential collective for pitch and combined for thrust
-    const float swash1_coll =  0.45 * _dcp_scaler * (pitch_input + constrain_float(_dcp_trim, -0.2, 0.2)) + collective1_input;
-    const float swash2_coll = -0.45 * _dcp_scaler * (pitch_input + constrain_float(_dcp_trim, -0.2, 0.2)) + collective2_input;
+    float swash1_coll =  0.45 * _dcp_scaler.get() * (pitch_input + constrain_float(_dcp_trim.get(), -0.2, 0.2)) + collective1_input;
+    float swash2_coll = -0.45 * _dcp_scaler.get() * (pitch_input + constrain_float(_dcp_trim.get(), -0.2, 0.2)) + collective2_input;
 
     // Calculate servo positions in swashplate library
     _swashplate1.calculate(swash1_roll, swash_pitch, swash1_coll);
@@ -320,12 +326,18 @@ void AP_MotorsHeli_Dual::mix_transverse(float pitch_input, float roll_input, flo
     const float swash_roll = 0.0;
 
     // Differential cyclic pitch is used for yaw
-    const float swash1_pitch = pitch_input - _yaw_scaler * yaw_input;
-    const float swash2_pitch = pitch_input + _yaw_scaler * yaw_input;
+    float swash1_pitch = pitch_input - _yaw_scaler * yaw_input;
+    float swash2_pitch = pitch_input + _yaw_scaler * yaw_input;
+
+    // Handle combined control limiting
+    const bool limit_swash = limit_outputs(swash1_pitch, swash2_pitch);
+    // Update limit flags which may have already been limited in move_actuators(). Always reset to false at start of move_actuators().
+    limit.pitch |= limit_swash;
+    limit.yaw |= limit_swash;
 
     // Differential collective for roll and combined for thrust
-    const float swash1_coll =  0.45 * _dcp_scaler * (roll_input + constrain_float(_dcp_trim, -0.2, 0.2)) + collective1_input;
-    const float swash2_coll = -0.45 * _dcp_scaler * (roll_input + constrain_float(_dcp_trim, -0.2, 0.2)) + collective2_input;
+    const float swash1_coll =  0.45 * _dcp_scaler.get() * (roll_input + constrain_float(_dcp_trim.get(), -0.2, 0.2)) + collective1_input;
+    const float swash2_coll = -0.45 * _dcp_scaler.get() * (roll_input + constrain_float(_dcp_trim.get(), -0.2, 0.2)) + collective2_input;
 
     // Calculate servo positions in swashplate library
     _swashplate1.calculate(swash_roll, swash1_pitch, swash1_coll);
@@ -339,16 +351,44 @@ void AP_MotorsHeli_Dual::mix_intermeshing(float pitch_input, float roll_input, f
     const float swash_roll = roll_input;
 
     // Differential cyclic pitch is used for yaw and combined for pitch
-    const float swash1_pitch = pitch_input - _yaw_scaler * yaw_input;
-    const float swash2_pitch = pitch_input + _yaw_scaler * yaw_input;
+    float swash1_pitch = pitch_input - _yaw_scaler * yaw_input;
+    float swash2_pitch = pitch_input + _yaw_scaler * yaw_input;
+
+    // Handle combined control limiting
+    const bool limit_swash = limit_outputs(swash1_pitch, swash2_pitch);
+    // Update limit flags which may have already been limited in move_actuators(). Always reset to false at start of move_actuators().
+    limit.pitch |= limit_swash;
+    limit.yaw |= limit_swash;
 
     // Differential collective for yaw and combined for thrust
-    const float swash1_coll =   0.45 * _dcp_scaler * yaw_input + collective1_input;
-    const float swash2_coll =  -0.45 * _dcp_scaler * yaw_input + collective2_input;
+    const float swash1_coll =   0.45 * _dcp_scaler.get() * yaw_input + collective1_input;
+    const float swash2_coll =  -0.45 * _dcp_scaler.get() * yaw_input + collective2_input;
 
     // Calculate servo positions in swashplate library
     _swashplate1.calculate(swash_roll, swash1_pitch, swash1_coll);
     _swashplate2.calculate(swash_roll, swash2_pitch, swash2_coll);
+}
+
+// helper function to mix two inputs and proportionally rescale them, ensuring the output does not exceed +/-1.0
+bool AP_MotorsHeli_Dual::limit_outputs(float& output1, float& output2) const
+{
+    float scale = 1.0;
+    bool output_limit = false;
+
+    if (fabsf(output1) > 1.0) {
+        scale = 1.0 / fabsf(output1);
+        output_limit = true;
+    }
+
+    if (fabsf(output2) > 1.0) {
+        scale = MIN(1.0 / fabsf(output2), scale);
+        output_limit = true;
+    }
+
+    // Scale back the outputs so that they fit in +/-1.0
+    output1 *= scale;
+    output2 *= scale;
+    return output_limit;
 }
 
 // update_motor_controls - sends commands to motor controllers
