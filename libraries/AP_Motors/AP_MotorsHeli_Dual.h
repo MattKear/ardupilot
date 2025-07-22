@@ -80,6 +80,9 @@ protected:
 
     const char* _get_frame_string() const override { return "HELI_DUAL"; }
 
+    // helper function to mix two inputs and proportionally rescale them, ensuring the output does not exceed +/-1.0
+    bool limit_outputs(float& output1, float& output2) const;
+
     //  objects we depend upon
     AP_MotorsHeli_Swash _swashplate1 { CH_1, CH_2, CH_3, CH_7, 1U }; // swashplate1
     AP_MotorsHeli_Swash _swashplate2 { CH_4, CH_5, CH_6, CH_8, 2U }; // swashplate2
