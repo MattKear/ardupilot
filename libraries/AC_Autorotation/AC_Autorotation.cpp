@@ -3,11 +3,13 @@
 #include <AP_RPM/AP_RPM.h>
 #include <AP_AHRS/AP_AHRS.h>
 #include <GCS_MAVLink/GCS.h>
+#include <AP_RangeFinder/AP_RangeFinder.h>
 
 extern const AP_HAL::HAL& hal;
 
 // Autorotation controller defaults
-#define HEAD_SPEED_TARGET_RATIO 1.0 // Normalised target main rotor head speed
+#define HEAD_SPEED_TARGET_RATIO  1.0    // Normalised target main rotor head speed
+#define AP_ALPHA_TPP             20.0  // (deg) Maximum angle of the Tip Path Plane
 
 const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
 
@@ -19,12 +21,26 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     AP_GROUPINFO_FLAGS("ENABLE", 1, AC_Autorotation, _param_enable, 0, AP_PARAM_FLAG_ENABLE),
 
     // @Param: HS_P
-    // @DisplayName: P gain for head speed controller
-    // @Description: Increase value to increase sensitivity of head speed controller during autonomous autorotation.
-    // @Range: 0.3 1
+    // @DisplayName: Head speed controller proportional gain
+    // @Description: Proportional gain for head speed controller.
+    // @Range: 0.3 1 TODO
     // @Increment: 0.01
     // @User: Standard
-    AP_SUBGROUPINFO(_p_hs, "HS_", 2, AC_Autorotation, AC_P),
+
+    // @Param: HS_I
+    // @DisplayName: Head speed controller integrator gain
+    // @Description: Integrator gain for head speed controller.
+    // @Range: 0.3 1 TODO
+    // @Increment: 0.01
+    // @User: Standard
+
+    // @Param: HS_IMAX
+    // @DisplayName: Head speed controller max integrator magnitude
+    // @Description: Integrator magnitude constraint for head speed controller.
+    // @Range: 0.3 1 TODO
+    // @Increment: 0.01
+    // @User: Standard
+    AP_SUBGROUPINFO(_hs_ctrl, "HS_", 2, AC_Autorotation, AC_PI),
 
     // @Param: HS_SET_PT
     // @DisplayName: Target Head Speed
@@ -42,25 +58,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Range: 8 20
     // @Increment: 0.5
     // @User: Standard
-    AP_GROUPINFO("FWD_SP_TARG", 4, AC_Autorotation, _param_target_speed_ms, 11),
-
-    // @Param: COL_FILT_E
-    // @DisplayName: Entry Phase Collective Filter
-    // @Description: Cut-off frequency for collective low pass filter. For the entry phase. Acts as a following trim.  Must be higher than AROT_COL_FILT_G.
-    // @Units: Hz
-    // @Range: 0.2 0.5
-    // @Increment: 0.01
-    // @User: Standard
-    AP_GROUPINFO("COL_FILT_E", 5, AC_Autorotation, _param_col_entry_cutoff_freq, 0.7),
-
-    // @Param: COL_FILT_G
-    // @DisplayName: Glide Phase Collective Filter
-    // @Description: Cut-off frequency for collective low pass filter. For the glide phase. Acts as a following trim.  Must be lower than AROT_COL_FILT_E.
-    // @Units: Hz
-    // @Range: 0.03 0.15
-    // @Increment: 0.01
-    // @User: Standard
-    AP_GROUPINFO("COL_FILT_G", 6, AC_Autorotation, _param_col_glide_cutoff_freq, 0.1),
+    AP_GROUPINFO("FWD_SP_TARG", 4, AC_Autorotation, _param_target_speed, 11),
 
     // @Param: XY_ACC_MAX
     // @DisplayName: Body Frame XY Acceleration Limit
@@ -69,92 +67,200 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Range: 0.5 8.0
     // @Increment: 0.1
     // @User: Standard
-    AP_GROUPINFO("XY_ACC_MAX", 7, AC_Autorotation, _param_accel_max_mss, 2.0),
+    AP_GROUPINFO("XY_ACC_MAX", 7, AC_Autorotation, _param_accel_max, 5.0),
 
     // @Param: HS_SENSOR
-    // @DisplayName: Main Rotor RPM Sensor 
-    // @Description: Allocate the RPM sensor instance to use for measuring head speed. RPM1 = 0.  RPM2 = 1.
-    // @Units: s
-    // @Range: 0.5 3
-    // @Increment: 0.1
+    // @DisplayName: Main Rotor RPM Sensor
+    // @Description: Allocate the RPM sensor instance to use for measuring head speed.
+    // @Values: 0:RPM1,1:RPM2,2:RPM3,3:RPM4
     // @User: Standard
     AP_GROUPINFO("HS_SENSOR", 8, AC_Autorotation, _param_rpm_instance, 0),
 
-    // @Param: FWD_P
-    // @DisplayName: Forward Speed Controller P Gain
-    // @Description: Converts the difference between desired forward speed and actual speed into an acceleration target that is passed to the pitch angle controller.
-    // @Range: 1.000 8.000
-    // @User: Standard
-
-    // @Param: FWD_I
-    // @DisplayName: Forward Speed Controller I Gain
-    // @Description: Corrects long-term difference in desired velocity to a target acceleration.
-    // @Range: 0.02 1.00
-    // @Increment: 0.01
-    // @User: Advanced
-
-    // @Param: FWD_IMAX
-    // @DisplayName: Forward Speed Controller I Gain Maximum
-    // @Description: Constrains the target acceleration that the I gain will output.
-    // @Range: 1.000 8.000
-    // @User: Standard
-
-    // @Param: FWD_D
-    // @DisplayName: Forward Speed Controller D Gain
-    // @Description: Provides damping to velocity controller.
-    // @Range: 0.00 1.00
+    // @Param: ROT_SOL
+    // @DisplayName: rotor solidity
+    // @Description: helicopter specific main rotor solidity
+    // @Range: 0.01 0.1
     // @Increment: 0.001
-    // @User: Advanced
+    // @User: Standard
+    AP_GROUPINFO("ROT_SOL", 10, AC_Autorotation, _param_solidity, 0.05),
 
-    // @Param: FWD_FF
-    // @DisplayName: Forward Speed Controller Feed Forward Gain
-    // @Description: Produces an output that is proportional to the magnitude of the target.
-    // @Range: 0 1
+    // @Param: ROT_DIAM
+    // @DisplayName: rotor diameter
+    // @Description: helicopter specific main rotor diameter
+    // @Units: m
+    // @Range: 0.001 0.01
+    // @Increment: 0.001
+    // @User: Standard
+    AP_GROUPINFO("ROT_DIAM", 11, AC_Autorotation, _param_diameter, 1.25),
+
+    // @Param: TD_TIME
+    // @DisplayName: Touchdown Time
+    // @Description: Desired time for the touchdown phase to last. Using the measured vertical velocity, this parameter is used to calculate the height that the vehicle will transition from the flare to the touchdown phase. Minimum value used is 0.3 s.
+    // @Units: s
+    // @Range: 0.3 2.0
+    // @Increment: 0.001
+    // @User: Standard
+    AP_GROUPINFO("TD_TIME", 12, AC_Autorotation, _param_touchdown_time, 1.0),
+
+    // @Param: FLR_MIN_HGT
+    // @DisplayName: Minimum Flare Height
+    // @Description: A safety cutoff feature to ensure that the calculated flare height cannot go below this value. This is the absolute minimum height that the flare will initiate. Ensure that this is appropriate for your vehicle.
+    // @Units: m
+    // @Range: 10 30
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("FLR_MIN_HGT", 13, AC_Autorotation, _flare_hgt.min_height, 6),
+
+    // @Param: TD_MIN_HGT
+    // @DisplayName: Minimum Touchdown Height
+    // @Description: A safety cutoff feature to ensure that the calculated touchdown height cannot go below this value. This is the absolute minimum height that the touchdown will initiate. Touchdown height must be less than flare height. Ensure that this is appropriate for your vehicle.
+    // @Units: m
+    // @Range: 0.5 10
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("TD_MIN_HGT", 14, AC_Autorotation, _touchdown_hgt.min_height, 0.5),
+
+    // @Param: FLR_MAX_HGT
+    // @DisplayName: Maximum Flare Height
+    // @Description: A safety cutoff feature to ensure that the calculated flare height cannot go above this value. This is the absolute maximum height above ground that the flare will initiate. Ensure that this is appropriate for your vehicle.
+    // @Units: m
+    // @Range: 10 30
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("FLR_MAX_HGT", 17, AC_Autorotation, _flare_hgt.max_height, 30),
+
+    // @Param: NAV_MODE
+    // @DisplayName: Autorotation Navigation Mode
+    // @Description: Select the navigation mode to use when in the autonomous autorotation.
+    // @Values: 0:Pilot lateral accel control,1:Turn into wind,2:Maintain velocity vector with cross track.
+    // @User: Standard
+    AP_GROUPINFO("NAV_MODE", 18, AC_Autorotation, _param_nav_mode, 0),
+
+    // @Param: TD_JERK_MAX
+    // @DisplayName: Touchdown Max Jerk
+    // @Description: The peak jerk to be applied in the scurve trajectory calculated for the touchdown phase.
+    // @Units: m/s/s/s
+    // @Range: 10 100
+    // @Increment: 1.0
+    // @User: Standard
+    AP_GROUPINFO("TD_JERK_MAX", 19, AC_Autorotation, _param_td_jerk_max, 50),
+
+    // @Param: HEIGHT_FILT
+    // @DisplayName: Surface distance filter frequency
+    // @Description: Surface distance filter frequency
+    // @Unit: Hz
+    // @Range: 1 20
     // @Increment: 0.01
-    // @User: Advanced
+    // @User: Standard
+    AP_GROUPINFO("HEIGHT_FILT", 20, AC_Autorotation, _height_filt_hz, 20),
 
-    // @Param: FWD_FLTE
-    // @DisplayName: Forward Speed Controller Error Filter
-    // @Description: This filter low pass filter is applied to the input for P and I terms.
-    // @Range: 0 100
-    // @Units: Hz
-    // @User: Advanced
+    // @Param: COL_TRIM
+    // @DisplayName: Collective Trim Angle to Achieve Target Head Speed
+    // @Description: The collective trim angle that will achieve the target head speed. This value is used in the entry phases and in the event that the RPM sensor fails.
+    // @Unit: Deg
+    // @Range: -12 -4
+    // @Increment: 0.01
+    // @User: Standard
+    AP_GROUPINFO("COL_TRIM", 21, AC_Autorotation, col_angle_trim, -6),
 
-    // @Param: FWD_FLTD
-    // @DisplayName: Forward Speed Controller input filter for D term
-    // @Description: This filter low pass filter is applied to the input for D terms.
-    // @Range: 0 100
-    // @Units: Hz
-    // @User: Advanced
-    AP_SUBGROUPINFO(_fwd_speed_pid, "FWD_", 9, AC_Autorotation, AC_PID_Basic),
+    // @Param: AS_DUAL
+    // @DisplayName: Enable Asynchronous Dual Rotor Autorotation
+    // @Description: This enables additional autorotation functionality to support the autorotation dual helis that do not have a gearbox/drive mechanism between the two rotor heads.  This is not needed if the two rotors of your dual heli are mechanically linked together.
+    // @Values: 0:Disable,1:Enable
+    // @User: Standard
+    // @RebootRequired: True
+    AP_GROUPINFO_FLAGS("AS_DUAL", 25, AC_Autorotation, _dual_enable, 0, AP_PARAM_FLAG_ENABLE),
+
+    // @Param: HS_SENSOR2
+    // @DisplayName: Second Rotor RPM Sensor 
+    // @Description: Allocate the RPM sensor instance to use for measuring head speed of the 2nd swashplate on the dual heli.  On a tandem this will be the rear head.
+    // @Values: 0:RPM1,1:RPM2,2:RPM3,3:RPM4
+    // @User: Standard
+    AP_GROUPINFO("HS_SENSOR2", 26, AC_Autorotation, _param_rpm2_instance, 0),
+
+    // @Param: HS_PTCH_LIM
+    // @DisplayName: Headspeed Error to Constrain Pitch Demands
+    // @Description: Defines the minimum ratio of target head speed, beyond which the pitch controller will be constrained to prevent the pitch controller from slowing one head any further. If either head gets to a measured speed of less than AROT_HS_PTCH_LIM x AROT_HS_SET_PT then the speed controller will constrain the pitch demand until both head speeds return to speeds above the ratio defined by AROT_HS_PTCH_LIM.
+    // @Range: 0.7 1
+    // @Increment: 0.01
+    // @User: Standard
+    AP_GROUPINFO("HS_PTCH_LIM", 27, AC_Autorotation, _safe_head_speed_ratio, 0.8),
 
     AP_GROUPEND
 };
 
 // Constructor
-AC_Autorotation::AC_Autorotation(AP_MotorsHeli*& motors, AC_AttitudeControl*& att_crtl) :
+AC_Autorotation::AC_Autorotation(AP_MotorsHeli*& motors, AC_AttitudeControl*& att_crtl, AC_PosControl*& pos_ctrl, AP_Int16& land_speed_cm) :
     _motors_heli(motors),
-    _attitude_control(att_crtl)
+    _attitude_control(att_crtl),
+    _pos_control(pos_ctrl),
+    _land_speed_cm(land_speed_cm)
     {
+#if AP_RANGEFINDER_ENABLED
+        // ensure the AP_SurfaceDistance object is enabled
+        _ground_surface.enabled = true;
+#endif
+
         AP_Param::setup_object_defaults(this, var_info);
     }
 
 void AC_Autorotation::init(void)
 {
+    const AP_AHRS &ahrs = AP::ahrs();
+
+    // Calculate the direction vector for use in CROSS_TRACK navigation control
+    Vector2f ground_speed_NE = ahrs.groundspeed_vector();
+
+    // TODO add a constrain so that the track vector must be within +/- 90 of heading (heli going backwards aint pretty)
+
+    if (ground_speed_NE.length() > MIN_MANOEUVERING_SPEED) {
+        // We are moving with sufficient speed that the vehicle is moving "with purpose" and the
+        // ground velocity vector can be used to define the track vector
+        _track_vector = ground_speed_NE.normalized();
+
+    } else {
+        // We are better off using the vehicle's current heading to define the track vector.
+        Vector2f unit_vec = {1.0, 0.0};
+        _track_vector = ahrs.body_to_earth2D(unit_vec);
+    }
+
     // Initialisation of head speed controller
     // Set initial collective position to be the current collective position for smooth init
-    const float collective_out = _motors_heli->get_throttle_out();
+    const float collective_out = _motors_heli->get_throttle();
+    // Set head speed controller integrator
+    // Note that the headspeed controller is inverted (positive error needs to lead to reducing collective)
+    // so we set the I term with negative collective and invert the controller output again before sending it to motors
+    _hs_ctrl.set_integrator(-collective_out);
 
-    // Reset feed forward filter
-    col_trim_lpf.reset(collective_out);
+    // Reset the lagged velocity filter. We use this so that we can estimate if we are in steady conditions in the flare height calc.
+    _lagged_vel_z.reset(get_ef_velocity_up());
 
-    // Protect against divide by zero TODO: move this to an accessor function
-    _param_head_speed_set_point.set(MAX(_param_head_speed_set_point, 500.0));
+    // Set limits and initialise NE pos controller
+    _pos_control->set_max_speed_accel_NE_cm(_param_target_speed.get()*100.0, _param_accel_max.get()*100.0);
+    _pos_control->set_correction_speed_accel_NE_cm(_param_target_speed.get()*100.0, _param_accel_max.get()*100.0);
+    _pos_control->set_pos_error_max_NE_cm(2000);
+    _pos_control->init_NE_controller();
 
     // Reset the landed reason
     _landed_reason.min_speed = false;
     _landed_reason.land_col = false;
     _landed_reason.is_still = false;
+
+    // Reset the guarded height measurements to ensure that they init to the min value
+    _flare_hgt.reset();
+    _touchdown_hgt.reset();
+
+    // set the guarded heights
+    _touchdown_hgt.max_height = _flare_hgt.min_height;
+
+    // Reset flags for limiting pitch controller based on headspeed
+    head_speed_pitch_limit = false;
+
+    // Update the ground surface filtered alt cutoff_frequency
+    _ground_surface.alt_cm_filt.set_cutoff_frequency(_height_filt_hz);
+
+    // Calc initial estimate of what height we think we should flare at
+    initial_flare_hgt_estimate();
 }
 
 // Functions and config that are only to be done once at the beginning of the entry
@@ -163,7 +269,7 @@ void AC_Autorotation::init_entry(void)
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "AROT: Entry Phase");
 
     // Target head speed is set to rpm at initiation to prevent steps in controller
-    if (!get_norm_head_speed(_target_head_speed)) {
+    if (!get_mean_norm_headspeed(_target_head_speed)) {
         // Cannot get a valid RPM sensor reading so we default to not slewing the head speed target
         _target_head_speed = HEAD_SPEED_TARGET_RATIO;
     }
@@ -171,32 +277,19 @@ void AC_Autorotation::init_entry(void)
     // The rate to move the head speed from the current measurement to the target
     _hs_accel = (HEAD_SPEED_TARGET_RATIO - _target_head_speed) / (float(entry_time_ms)*1e-3);
 
-    // Set collective following trim low pass filter cut off frequency
-    col_trim_lpf.set_cutoff_frequency(_param_col_entry_cutoff_freq.get());
-
-    // Set collective low-pass cut off filter at 2 Hz
-    _motors_heli->set_throttle_filter_cutoff(2.0);
-
     // Set speed target to maintain the current speed whilst we enter the autorotation
-    _desired_vel_ms = _param_target_speed_ms.get();
-    _target_vel_ms = get_speed_forward_ms();
+    _desired_vel = _param_target_speed.get();
 
-    // Reset I term of velocity PID
-    _fwd_speed_pid.reset_filter();
-    _fwd_speed_pid.set_integrator(0.0);
+    // When entering the autorotation we can have some roll target applied depending on what condition that
+    // the position controller initialised on. If we are in the TURN_INTO_WIND or CROSS_TRACK navigation mode
+    // we want to prevent changes in heading initially as the roll target may turn the aircraft in the wrong direction
+    _heading_hold = Nav_Mode(_param_nav_mode.get()) == Nav_Mode::TURN_INTO_WIND ||
+                    Nav_Mode(_param_nav_mode.get()) == Nav_Mode::CROSS_TRACK;
 }
 
 // The entry controller just a special case of the glide controller with head speed target slewing
 void AC_Autorotation::run_entry(float pilot_accel_norm)
 {
-    // Slowly change the target head speed until the target head speed matches the parameter defined value
-    float head_speed_norm;
-    if (!get_norm_head_speed(head_speed_norm)) {
-        // RPM sensor is bad, so we don't attempt to slew the head speed target as we do not know what head speed actually is
-        // The collective output handling of the rpm sensor failure is handled later in the head speed controller 
-         head_speed_norm = HEAD_SPEED_TARGET_RATIO;
-    }
-
     // Slew the head speed target from the initial condition to the target head speed ratio for the glide
     const float max_change = _hs_accel * _dt;
     _target_head_speed = constrain_float(HEAD_SPEED_TARGET_RATIO, _target_head_speed - max_change, _target_head_speed + max_change);
@@ -209,47 +302,225 @@ void AC_Autorotation::init_glide(void)
 {
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "AROT: Glide Phase");
 
-    // Set collective following trim low pass filter cut off frequency
-    col_trim_lpf.set_cutoff_frequency(_param_col_glide_cutoff_freq.get());
-
     // Ensure target head speed is set to setpoint, in case it didn't reach the target during entry
     _target_head_speed = HEAD_SPEED_TARGET_RATIO;
 
     // Ensure desired forward speed target is set to param value
-    _desired_vel_ms = _param_target_speed_ms.get();
+    _desired_vel = _param_target_speed.get();
+
+    // unlock any heading hold if we had one
+    _heading_hold = false;
 }
 
 // Maintain head speed and forward speed as we glide to the ground
-void AC_Autorotation::run_glide(float pilot_accel_norm)
+void AC_Autorotation::run_glide(float des_lat_accel_norm)
 {
+    check_headspeed_limits();
+
     update_headspeed_controller();
 
-    update_forward_speed_controller(pilot_accel_norm);
+    update_navigation_controller(des_lat_accel_norm);
+
+    // Keep flare altitude estimate up to date so state machine can decide when to flare
+    update_flare_hgt();
 }
+
+// Functions and config that are only to be done once at the beginning of the flare
+void AC_Autorotation::init_flare(void)
+{
+    gcs().send_text(MAV_SEVERITY_INFO, "AROT: Flare Phase");
+
+    // Ensure target head speed, we may have skipped the glide phase if we did not have time to complete the
+    // entry phase before hitting the flare height
+    _target_head_speed = HEAD_SPEED_TARGET_RATIO;
+
+    // We cannot limit the speed target in the flare, the manoeuver will aid in generating head speed anyway
+    head_speed_pitch_limit = false;
+
+    if(_pos_control->is_active_NE()) {
+        // Init to position control targets if it has been running
+        Vector3f vel_target_NEU = _pos_control->get_vel_target_NEU_ms();
+        _flare_entry_fwd_speed = AP::ahrs().earth_to_body(vel_target_NEU).x;
+        gcs().send_text(MAV_SEVERITY_INFO, "Flare Target Path");
+    } else {
+        // Incase we have jumped to the flare phase because we are low
+        _flare_entry_fwd_speed = get_bf_speed_forward();
+    }
+
+
+    // Lock heading for the flare if the navigation mode uses roll components in the calculations
+    _heading_hold = Nav_Mode(_param_nav_mode.get()) == Nav_Mode::TURN_INTO_WIND ||
+                    Nav_Mode(_param_nav_mode.get()) == Nav_Mode::CROSS_TRACK;
+}
+
+void AC_Autorotation::run_flare(float des_lat_accel_norm)
+{
+    check_headspeed_limits();
+
+    // Update head speed/ collective controller
+    update_headspeed_controller();
+
+    // During the flare we want to linearly slow the aircraft to a stop as we
+    // reach the touchdown alt for the start of the touchdown phase
+    _desired_vel = linear_interpolate(0.0f, _flare_entry_fwd_speed, _hagl, _touchdown_hgt.get(), _flare_hgt.get());
+
+    // Run forward speed controller
+    update_navigation_controller(des_lat_accel_norm);
+}
+
+// Functions and config that are only to be done once at the beginning of the hover auto entry
+void AC_Autorotation::init_hover_entry()
+{
+    gcs().send_text(MAV_SEVERITY_INFO, "Hover Entry Phase");
+
+    // set pitch target to current state for smooth transfer
+    _desired_vel = get_bf_speed_forward();
+
+    // Ensure no heading hold
+    _heading_hold = false;
+}
+
+
+// Controller phase where the aircraft is too low and too slow to perform a full autorotation
+// instead, we will try to minimize rotor drag until we can jump to the touchdown phase
+void AC_Autorotation::run_hover_entry(float des_lat_accel_norm)
+{
+    // Move collective to min drag position
+    float collective_out = _motors_heli->get_coll_mid();
+
+    // Send collective setting to motors output library
+    _attitude_control->set_throttle_out(collective_out, false, COLLECTIVE_CUTOFF_FREQ_HZ);
+
+    // Smoothly decay desired forward speed to zero over the entry time
+    _desired_vel *= 1 - (_dt / (float(entry_time_ms) * 1e-3));
+
+    update_navigation_controller(des_lat_accel_norm);
+}
+
+
+void AC_Autorotation::init_touchdown(void)
+{
+    gcs().send_text(MAV_SEVERITY_INFO, "AROT: Touchdown Phase");
+
+    // Ensure we are not limiting the speed target in this phase, incase we jumped to it from a low height entry
+    head_speed_pitch_limit = false;
+
+    // Set vertical speed and acceleration limits
+    // TODO: make some of these constraints parameter values
+    _pos_control->set_max_speed_accel_U_cm(-30.0, 5.0, 2.0 * GRAVITY_MSS);
+    _pos_control->set_correction_speed_accel_U_cmss(-30.0, 5.0, 2.0 * GRAVITY_MSS);
+
+    // Initialise the vertical position controller
+    _pos_control->init_U_controller();
+
+    // Use the same measurements as the position controller as the initial conditions for the generated trajectory
+    _td_init_time = AP_HAL::millis();
+    _td_init_az = _pos_control->get_measured_accel_U_mss();
+    _td_init_vz = _pos_control->get_vel_estimate_NEU_ms().z;
+    _td_init_pos = _pos_control->get_pos_desired_NEU_m().z;
+    calc_scurve_trajectory_times(_td_init_az, _td_init_vz, _tj1, _tj2);
+
+    // unlock any heading hold if we had one
+    _heading_hold = false;
+}
+
+
+void AC_Autorotation::run_touchdown(float des_lat_accel_norm)
+{
+    // Calc the desired trajectory that we want
+    const float td_time = float(AP_HAL::millis() - _td_init_time) * 1e-3;
+    const float T1 = _tj1 * 2.0;
+    const float T2 = _tj2 * 2.0;
+    float j, a, v, p;
+    if (td_time <= T1) {
+        // We are in the first phase of the trajectory with positive jerk
+        _scurve.calc_javp_for_segment_incr_jerk(td_time, _tj1, _param_td_jerk_max.get(), _td_init_az, _td_init_vz, _td_init_pos, j, a, v, p);
+
+    } else if (td_time <= T1 + T2) {
+        // We are in the 2nd phase of the trajectory with negative jerk
+        // Calc the exit conditions from the first phase
+        float j1, a1, v1, p1;
+        _scurve.calc_javp_for_segment_incr_jerk(T1, _tj1, _param_td_jerk_max.get(), _td_init_az, _td_init_vz, _td_init_pos, j1, a1, v1, p1);
+        // Now calc the trajectory targets
+        const float t2 = td_time - T1;
+        _scurve.calc_javp_for_segment_incr_jerk(t2, _tj2, _param_td_jerk_max.get() * -1.0, a1, v1, p1, j, a, v, p);
+
+    } else {
+        // We have finished the SCurve trajectory and in the very last steady state decent to touch the ground (BUFFER_HEIGHT)
+        j = 0.0;
+        a = 0.0;
+        v = fabsf(float(_land_speed_cm.get())) * -1e-2;
+        p = _td_last_pos + v * _dt;
+    }
+
+    // Store last target position for transitions to zero jerk descent phase
+    _td_last_pos = p;
+
+    // Convert units of targets from m to cm ready to be fed into position controller
+    a *= 100.0;
+    v *= 100.0;
+    p *= 100.0;
+
+    // Check that we are not saturated on collective output
+    const bool collective_limit = _motors_heli->limit.throttle_lower || _motors_heli->limit.throttle_upper;
+
+    // Set velocity target in Z position controller
+    _pos_control->input_pos_vel_accel_U_cm(p, v, a, collective_limit);
+
+    // Run the vertical position controller and set output collective
+    _pos_control->update_U_controller();
+
+    // Update XY targets and controller
+    // We don't know exactly at what point we transitioned into the touchdown phase, so we need to 
+    // keep driving the desired XY speed to zero. This will help with getting the vehicle level for touchdown
+    _desired_vel *= 1 - (_dt / get_touchdown_time());
+
+    update_navigation_controller(des_lat_accel_norm);
+
+#if HAL_LOGGING_ENABLED
+    // @LoggerMessage: ARTD
+    // @Vehicles: Copter
+    // @Description: Helicopter autorotation touch down trajectory information
+    // @Field: TimeUS: Time since system startup
+    // @Field: J: Touchdown trajectory jerk, positive up, m/s/s/s
+    // @Field: A: Touchdown trajectory acceleration, positive up, m/s/s
+    // @Field: V: Touchdown trajectory velocity, positive up, m/s/
+    // @Field: P: Touchdown trajectory position, positive up, m
+
+    // Write to data flash log
+    AP::logger().WriteStreaming("ARTD",
+                       "TimeUS,J,A,V,P",
+                        "Qffff",
+                        AP_HAL::micros64(),
+                        j,
+                        a*1e-2,
+                        v*1e-2,
+                        p*1e-2);
+#endif
+}
+
 
 void AC_Autorotation::update_headspeed_controller(void)
 {
-    // Get current rpm and update healthy signal counters
-    float head_speed_norm;
-    if (!get_norm_head_speed(head_speed_norm)) {
-        // RPM sensor is bad, set collective to angle of -2 deg and hope for the best
-         _motors_heli->set_coll_from_ang(-2.0);
-         return;
+    // Get current rpm
+    float head_speed_norm = 0;
+    const bool measurement_valid = get_mean_norm_headspeed(head_speed_norm);
+
+    float collective_out;
+    if (measurement_valid) {
+        // Update PI controller
+        const bool collective_limit = _motors_heli->limit.throttle_lower || _motors_heli->limit.throttle_upper;
+        collective_out = _hs_ctrl.update(head_speed_norm, _target_head_speed, _dt, collective_limit);
+
+        // Invert the output of collective as positive error needs to lead to decreasing collective
+        collective_out *= -1.0;
+
+    } else {
+        // RPM sensor is bad, set collective to parameter provided trim
+         collective_out = _motors_heli->get_coll_from_ang_deg(col_angle_trim.get());
     }
 
-    // Calculate the head speed error.
-    _head_speed_error = head_speed_norm - _target_head_speed;
-
-    _p_term_hs = _p_hs.get_p(_head_speed_error);
-
-    // Adjusting collective trim using feed forward (not yet been updated, so this value is the previous time steps collective position)
-    _ff_term_hs = col_trim_lpf.apply(_motors_heli->get_throttle(), _dt);
-
-    // Calculate collective position to be set
-    const float collective_out = constrain_value((_p_term_hs + _ff_term_hs), 0.0f, 1.0f);
-
-    // Send collective to setting to motors output library
-    _motors_heli->set_throttle(collective_out);
+    _attitude_control->set_throttle_out(collective_out, false, COLLECTIVE_CUTOFF_FREQ_HZ);
 
 #if HAL_LOGGING_ENABLED
     // @LoggerMessage: ARHS
@@ -261,24 +532,51 @@ void AC_Autorotation::update_headspeed_controller(void)
     // @Field: Err: Head speed controller error
     // @Field: P: P-term for head speed controller response
     // @Field: FF: FF-term for head speed controller response
+    // @Field: Out: Output from the head speed controller
+    // @Field: H: Measurement health, 1 = healthy, 0 = unhealthy
 
     // Write to data flash log
     AP::logger().WriteStreaming("ARHS",
-                                "TimeUS,Tar,Act,Err,P,FF",
-                                "s-----",
-                                "F00000",
-                                "Qfffff",
+                                "TimeUS,Tar,Act,Err,P,I,Out,H",
+                                "s-------",
+                                "F0000000",
+                                "QffffffB",
                                 AP_HAL::micros64(),
                                 _target_head_speed,
                                 head_speed_norm,
-                                _head_speed_error,
-                                _p_term_hs,
-                                _ff_term_hs);
+                                _hs_ctrl.get_error(),
+                                _hs_ctrl.get_P(),
+                                _hs_ctrl.get_I(),
+                                _motors_heli->get_throttle(),
+                                uint8_t(measurement_valid));
 #endif
 }
 
+
+// Get the normalised mean headspeed of both heads if dual is enabled
+// Non-averaged value is returned if single heli
+bool AC_Autorotation::get_mean_norm_headspeed(float& norm_rpm) const
+{
+    // Speed of first head
+    bool headspeed_valid = get_norm_head_speed(norm_rpm, _param_rpm_instance.get());
+
+    if (_dual_enable.get() == 0) {
+        // only need the measurement for the first head so return early
+        return headspeed_valid;
+    }
+
+    // Speed of second head
+    float norm_rpm2 = 0.0;
+    headspeed_valid &= get_norm_head_speed(norm_rpm2, _param_rpm2_instance.get());
+
+    // Compute the average
+    norm_rpm = (norm_rpm + norm_rpm2) * 0.5;
+    return headspeed_valid;
+}
+
+
 // Get measured head speed and normalise by head speed set point. Returns false if a valid rpm measurement cannot be obtained
-bool AC_Autorotation::get_norm_head_speed(float& norm_rpm) const
+bool AC_Autorotation::get_norm_head_speed(float& norm_rpm, uint8_t instance) const
 {
     // Assuming zero rpm is safer as it will drive collective in the direction of increasing head speed
     float current_rpm = 0.0;
@@ -293,113 +591,506 @@ bool AC_Autorotation::get_norm_head_speed(float& norm_rpm) const
     }
 
     // Check RPM sensor is returning a healthy status
-    if (!rpm->get_rpm(_param_rpm_instance.get(), current_rpm)) {
+    if (!rpm->get_rpm(instance, current_rpm)) {
         return false;
     }
 #endif
 
     // Protect against div by zeros later in the code
-    float head_speed_set_point = MAX(1.0, _param_head_speed_set_point.get());
+    const float head_speed_set_point = get_headspeed_setpoint_rpm();
 
     // Normalize the RPM by the setpoint
     norm_rpm = current_rpm/head_speed_set_point;
     return true;
 }
 
-// Update speed controller
-void AC_Autorotation::update_forward_speed_controller(float pilot_accel_norm)
-{
-    // Limiting the desired velocity based on the max acceleration limit to get an update target
-    const float min_vel_ms = _target_vel_ms - get_accel_max_mss() * _dt;
-    const float max_vel_ms = _target_vel_ms + get_accel_max_mss() * _dt;
-    _target_vel_ms = constrain_float(_desired_vel_ms, min_vel_ms, max_vel_ms); // (m/s)
+void AC_Autorotation::calc_yaw_rate_from_roll_target(float& yaw_rate_rad, float& lat_accel) {
+    // We will be rolling into the wind to resist the error introduced by the wind pushing us
+    // Get the current roll angle target from the attitude controller
+    float target_roll_deg = _attitude_control->get_att_target_euler_cd().x * 0.01;
 
-    // Calculate acceleration target
-    const float fwd_accel_target_mss  = _fwd_speed_pid.update_all(_target_vel_ms, get_speed_forward_ms(), _dt, _limit_accel); // (m/s/s)
+    const float roll_deadzone_deg = 2.0;
+    if (fabsf(target_roll_deg) < roll_deadzone_deg) {
+        target_roll_deg = 0.0;
 
-    // Build the body frame XY accel vector.
-    // Pilot can request as much as 1/2 of the max accel laterally to perform a turn.
-    // We only allow up to half as we need to prioritize building/maintaining airspeed.
-    Vector2f bf_accel_target_mss = {fwd_accel_target_mss, pilot_accel_norm * get_accel_max_mss() * 0.5};
-
-    // Ensure we do not exceed the accel limit
-    _limit_accel = bf_accel_target_mss.limit_length(get_accel_max_mss());
-
-    // Calculate roll and pitch targets from angles, negative accel for negative pitch (pitch forward)
-    Vector2f angle_target_rad = { accel_mss_to_angle_rad(-bf_accel_target_mss.x), // Pitch
-                                  accel_mss_to_angle_rad(bf_accel_target_mss.y)}; // Roll
-
-    // Ensure that the requested angles do not exceed angle max
-    _limit_accel |= angle_target_rad.limit_length(_attitude_control->lean_angle_max_rad());
-
-    // we may have scaled the lateral accel in the angle limit scaling, so we need to
-    // back calculate the resulting accel from this constrained angle for the yaw rate calc
-    const float bf_lat_accel_target_mss = angle_rad_to_accel_mss(angle_target_rad.y);
-
-    // Calc yaw rate from desired body-frame accels
-    // this seems suspiciously simple, but it is correct
-    // accel = r * w^2, r = radius and w = angular rate
-    // radius can be calculated as the distance traveled in the time it takes to do 360 deg
-    // One rotation takes: (2*pi)/w seconds
-    // Distance traveled in that time: (vel*2*pi)/w
-    // radius for that distance: ((vel*2*pi)/w) / (2*pi)
-    // r = vel / w
-    // accel = (vel / w) * w^2
-    // accel = vel * w
-    // w = accel / vel
-    float yaw_rate_rads = 0.0;
-    if (!is_zero(_target_vel_ms)) {
-        yaw_rate_rads = bf_lat_accel_target_mss / _target_vel_ms;
+    } else if (is_positive(target_roll_deg)) {
+        // smooth out steps in target accels when coming out of the dead zone
+        target_roll_deg -= roll_deadzone_deg;
+    } else {
+        // smooth out steps in target accels when coming out of the dead zone
+        target_roll_deg += roll_deadzone_deg;
     }
 
-    // Output to attitude controller
-    _attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw_rad(angle_target_rad.y, angle_target_rad.x, yaw_rate_rads);
+    // protect against math error in the angle_deg_to_accel_mss calc
+    target_roll_deg = constrain_float(target_roll_deg, -85, 85);
+
+    // Convert it to a lateral acceleration
+    float accel = angle_deg_to_accel_mss(target_roll_deg);
+
+    // Maintain the same accel limit that we impose on the pilot inputs so as to prioritize managing forward accels/speeds
+    accel = MIN(accel, get_accel_max() * 0.5);
+
+    // Calculate the yaw rate from the lateral acceleration
+    if (fabsf(_desired_vel) > MIN_MANOEUVERING_SPEED) {
+        // Calc yaw rate from desired body-frame accels
+        // this seems suspiciously simple, but it is correct
+        // accel = r * w^2, r = radius and w = angular rate
+        // radius can be calculated as the distance traveled in the time it takes to do 360 deg
+        // One rotation takes: (2*pi)/w seconds
+        // Distance traveled in that time: (s*2*pi)/w
+        // radius for that distance: ((s*2*pi)/w) / (2*pi)
+        // r = s / w
+        // accel = (s / w) * w^2
+        // accel = s * w
+        // w = accel / s
+        yaw_rate_rad = accel / _desired_vel;
+
+        // Only apply the acceleration if we are going to apply the yaw rate
+        lat_accel = accel;
+    }
+}
+
+
+// When using dual heli, we want to ensure that the head speed is not too slow before
+// allowing pitch control. Pitch limit flag is set if either headspeed is above the target.
+void AC_Autorotation::check_headspeed_limits(void)
+{
+    if (_dual_enable.get() == 0) {
+        // Do not need this check for single helis
+        head_speed_pitch_limit = false;
+        return;
+    }
+
+    // Check head 1
+    float norm_rpm;
+    if (!get_norm_head_speed(norm_rpm, _param_rpm_instance.get()) || (norm_rpm < _safe_head_speed_ratio.get())) {
+        head_speed_pitch_limit = true;
+        return;
+    }
+
+    // Check head 2
+    float norm_rpm2;
+    if (!get_norm_head_speed(norm_rpm2, _param_rpm2_instance.get()) || (norm_rpm2 < _safe_head_speed_ratio.get())) {
+        head_speed_pitch_limit = true;
+        return;
+    }
+
+    // Add some headroom between recovery and headspeed ratio by only enabling pitch when both heads are at or above target speed
+    if ((norm_rpm >= HEAD_SPEED_TARGET_RATIO) && (norm_rpm2 >= HEAD_SPEED_TARGET_RATIO)) {
+        head_speed_pitch_limit = false;
+    }
+}
+
+
+// Update speed controller
+void AC_Autorotation::update_navigation_controller(float pilot_norm_accel)
+{
+    const AP_AHRS &ahrs = AP::ahrs();
+
+    float yaw_rate_rads = 0.0;
+    Vector3f desired_velocity_bf;
+    Vector3f desired_accel_bf;
+    Vector3f desired_velocity_NED;
+    Vector3f desired_accel_NED;
+
+    // Set body frame velocity targets
+    desired_velocity_bf.x = _desired_vel;
+    desired_velocity_bf.y = 0.0; // Start with the assumption that we want zero side slip
+    desired_velocity_bf.z = MAX(get_bf_speed_down(), 0.0); // Always match the current vz. We add this in because the vz is significant proportion of the speed that needs to be accounted for when we rotate from body frame to earth frame.
+
+    switch (Nav_Mode(_param_nav_mode.get())) {
+        case Nav_Mode::TURN_INTO_WIND: {
+            // Mode seeks to maintain body frame velocity target whilst turning into wind.
+
+            // The position controller will be resisting the wind by rolling into the wind.
+            // Calc the needed lateral accel and yaw rate to make a co-ordinated turn into roll.
+            calc_yaw_rate_from_roll_target(yaw_rate_rads, desired_accel_bf.y);
+
+            // Convert body frame targets into earth frame
+            desired_velocity_NED = ahrs.body_to_earth(desired_velocity_bf);
+            desired_accel_NED = ahrs.body_to_earth(desired_accel_bf);
+
+            break;
+        }
+        case Nav_Mode::CROSS_TRACK: {
+            // Mode seeks to maintain either the velocity vector or the heading (slow speed case)
+            // recorded on mode init, then yawing into wind to cross-track, reducing drag and roll angle.
+
+            // The position controller will be resisting the wind by rolling into the wind.
+            // Calc the needed yaw rate needed to turn into wind and to cross track.
+            float unused_lat_accel = 0.0;
+            calc_yaw_rate_from_roll_target(yaw_rate_rads, unused_lat_accel);
+
+            // Convert body frame targets into earth frame
+            const Vector3f desired_velocity_ef_NED = ahrs.body_to_earth(desired_velocity_bf);
+
+            // Calculate the resulting speed that we want in the NE plane
+            const float desired_NE_speed = desired_velocity_ef_NED.xy().length();
+
+            // We already have the earth-frame unit vector that we want to maintain the velocity vector along.
+            // Now we can use the track vector to apportion the vector direction
+            desired_velocity_NED = Vector3f{_track_vector, 0.0} * desired_NE_speed;
+
+            break;
+        }
+        case Nav_Mode::PILOT_LAT_ACCEL:
+        default: {
+            // Mode lets pilot request a lateral acceleration. The roll and yaw rates
+            // are then calculated to perform a coordinated turn.
+
+            // Pilot can request as much as 1/2 of the max accel laterally to perform a turn.
+            // We only allow up to half as we need to prioritize building/maintaining airspeed.
+            desired_accel_bf.y = pilot_norm_accel * get_accel_max() * 0.5;
+
+            // In the case where we have low ground speed (e.g. touchdown phase) we still want to let the
+            // pilot yaw. We use the min manoeuvering speed as the default "time constant" so that the yaw
+            // feels consistant below the min ground speed and to avoid a div by zero.
+            float bf_fwd_speed = MAX(fabsf(desired_velocity_bf.x), MIN_MANOEUVERING_SPEED);
+
+            // Calc yaw rate from desired body-frame accels
+            // this seems suspiciously simple, but it is correct
+            // accel = r * w^2, r = radius and w = angular rate
+            // radius can be calculated as the distance traveled in the time it takes to do 360 deg
+            // One rotation takes: (2*pi)/w seconds
+            // Distance traveled in that time: (s*2*pi)/w
+            // radius for that distance: ((s*2*pi)/w) / (2*pi)
+            // r = s / w
+            // accel = (s / w) * w^2
+            // accel = s * w
+            // w = accel / s
+            yaw_rate_rads = desired_accel_bf.y / bf_fwd_speed;
+
+            // Only perform coordinated turns when above the min manoeuvering speed
+            if (fabsf(desired_velocity_bf.x) < MIN_MANOEUVERING_SPEED) {
+                desired_accel_bf.y = 0.0;
+            }
+
+            // Convert body frame targets into earth frame
+            desired_velocity_NED = ahrs.body_to_earth(desired_velocity_bf);
+            desired_accel_NED = ahrs.body_to_earth(desired_accel_bf);
+        }
+    }
+
+    // zero yaw rate if we are in a heading hold
+    if (_heading_hold) {
+        yaw_rate_rads = 0.0;
+    }
+
+    // We only use 2D NE position controller so discard z target and convert to cm
+    Vector2f desired_velocity_NE_cm = desired_velocity_NED.xy() * 100.0;
+    Vector2f desired_accel_NE_cm = desired_accel_NED.xy() * 100.0;
+
+    // Check with motors that we have not saturated
+    bool motors_limit = false;
+    motors_limit |= _motors_heli->limit.pitch;
+    if (_dual_enable.get() > 0) {
+        // Dual heli uses combined controls, so we need to check for limits in motors
+        // as collective control can be used for pitch
+        motors_limit |= _motors_heli->limit.throttle_upper;
+        motors_limit |= _motors_heli->limit.throttle_lower;
+    }
+
+    // Update the position controller
+    _pos_control->input_vel_accel_NE_cm(desired_velocity_NE_cm, desired_accel_NE_cm, true);
+
+    if (motors_limit || head_speed_pitch_limit) {
+        _pos_control->set_externally_limited_NE();
+    }
+
+    _pos_control->update_NE_controller();
+
+    // Output to the attitude controller
+    _attitude_control->input_thrust_vector_rate_heading_rads(_pos_control->get_thrust_vector(), yaw_rate_rads);
+
+    // Calculate the unit velocity vector for wp bearing telemetry data
+    if (desired_velocity_NE_cm.length() > MIN_MANOEUVERING_SPEED * 100.0) {
+        _bearing_vector = desired_velocity_NE_cm;
+        _bearing_vector.normalize();
+    } else {
+        _bearing_vector = {0.0, 0.0};
+    }
 
 #if HAL_LOGGING_ENABLED
     // @LoggerMessage: ARSC
     // @Vehicles: Copter
     // @Description: Helicopter AutoRotation Speed Controller (ARSC) information 
     // @Field: TimeUS: Time since system startup
-    // @Field: Des: Desired forward velocity
-    // @Field: Tar: Target forward velocity
-    // @Field: Act: Measured forward velocity
-    // @Field: P: Velocity to acceleration P-term component
-    // @Field: I: Velocity to acceleration I-term component
-    // @Field: D: Velocity to acceleration D-term component
-    // @Field: FF: Velocity to acceleration feed forward component
-    // @Field: Lim: Accel limit flag
-    // @Field: FA: Forward acceleration target
-    // @Field: LA: Lateral acceleration target
+    // @Field: VX: Desired velocity X in body frame
+    // @Field: VY: Desired velocity Y in body frame
+    // @Field: AX: Desired Acceleration X in body frame
+    // @Field: AY: Desired Acceleration Y in body frame
 
-    const AP_PIDInfo& pid_info = _fwd_speed_pid.get_pid_info();
     AP::logger().WriteStreaming("ARSC",
-                                "TimeUS,Des,Tar,Act,P,I,D,FF,Lim,FA,LA",
-                                "snnn-----oo",
-                                "F0000000-00",
-                                "QfffffffBff",
+                                "TimeUS,VX,VY,VZ,AX,AY,TX,TY",
+                                "snnnoo--",
+                                "F0000000",
+                                "Qfffffff",
                                 AP_HAL::micros64(),
-                                _desired_vel_ms,
-                                pid_info.target,
-                                pid_info.actual,
-                                pid_info.P,
-                                pid_info.I,
-                                pid_info.D,
-                                pid_info.FF,
-                                uint8_t(_limit_accel),
-                                bf_accel_target_mss.x,
-                                bf_accel_target_mss.y);
+                                desired_velocity_bf.x,
+                                desired_velocity_bf.y,
+                                desired_velocity_bf.z,
+                                desired_accel_bf.x,
+                                desired_accel_bf.y,
+                                _track_vector.x,
+                                _track_vector.y);
+
 #endif
 }
 
-// smoothly zero velocity and accel
-void AC_Autorotation::run_landed(void)
+// Calculate an initial estimate of when the aircraft needs to flare
+// This function calculates and stores a few constants that are used again in subsequent flare height update calculations
+void AC_Autorotation::initial_flare_hgt_estimate(void)
 {
-    _desired_vel_ms *= 0.95;
-    update_forward_speed_controller(0.0);
+    // Get blade pitch angle, accounting for non-zero zero thrust blade pitch for the asymmetric blade case
+    float blade_pitch_hover_rad = radians(_motors_heli->get_hover_coll_ang());
+
+    // Ensure safe math operations below by constraining blade_pitch_hover_rad to be > 0.
+    // Assuming 0.1 deg will never be enough to blade pitch angle to maintain hover.
+    blade_pitch_hover_rad = MAX(blade_pitch_hover_rad, radians(0.1));
+
+    static const float CL_ALPHA = M_2PI;
+    const float b = get_solidity() * CL_ALPHA;
+    float disc_area = M_PI * 0.25 * sq(_param_diameter.get()); // (m^2)
+    if (_dual_enable > 0) {
+        disc_area *= 2.0;
+    }
+
+    // Calculating the equivalent inflow ratio (average across the whole blade)
+    float lambda_eq = -b / 16.0 + safe_sqrt(sq(b) / 256.0 + b * blade_pitch_hover_rad / 12.0);
+
+    // Tip speed = head speed (rpm) / 60 * 2pi * rotor diameter/2. Eq below is simplified.
+    float tip_speed_auto = get_headspeed_setpoint_rpm() * M_PI * _param_diameter.get() / 60.0;
+
+    // Calc the coefficient of thrust in the hover
+    float c_t_hover = 0.5 * b * (blade_pitch_hover_rad / 3.0 - lambda_eq / 2.0);
+    c_t_hover = MAX(c_t_hover, 0.00001); //TODO improve this constrain
+    _hover_thrust = c_t_hover * SSL_AIR_DENSITY * disc_area * sq(tip_speed_auto);
+
+    // Estimate rate of descent
+    static const float ASSUMED_CD0 = 0.011;
+    const float sink_rate = ((0.25 * get_solidity() * ASSUMED_CD0 / c_t_hover) + (sq(c_t_hover) / (get_solidity() * ASSUMED_CD0))) * tip_speed_auto;
+
+    // Calc flare altitude
+    // TODO: We need to come up with some way to modify the forward speed target here as the target speed is
+    // body frame forward speed and the flare height calculation needs earth frame forward speed.  The trouble is
+    // that this is a projection into the future so we cannot provide a measured value at this stage
+    float des_spd_fwd = _param_target_speed.get();
+    calc_flare_hgt(des_spd_fwd, -1.0 * sink_rate);
+
+    // Always save the initial flare and touchdown height estimates as they do not use measured conditions like the
+    // continuous update method hence the model calculations above already assume steady state conditions.
+    _touchdown_hgt.set(_calculated_touchdown_hgt);
+    _flare_hgt.set(_calculated_flare_hgt);
+
+    gcs().send_text(MAV_SEVERITY_INFO, "Ct/sigma=%.4f W=%.2f kg flare_alt=%.2f", c_t_hover/get_solidity(), _hover_thrust/GRAVITY_MSS, _flare_hgt.get());
+    gcs().send_text(MAV_SEVERITY_INFO, "sink rate=%.3f", sink_rate);
+    gcs().send_text(MAV_SEVERITY_INFO, "inflow spd=%.3f", lambda_eq*tip_speed_auto);
 }
 
-// Determine the body frame forward speed
-float AC_Autorotation::get_speed_forward_ms(void) const
+void AC_Autorotation::calc_flare_hgt(const float fwd_speed, float climb_rate)
+{
+    // we must be descending for this maths to sensible
+    if (!is_negative(climb_rate)) {
+        return;
+    }
+
+    // Keep the slow filter of vel z up to date. We always update this with a fresh measurement as the
+    // climb_rate argument maybe from an approximated climb rate not a measured one
+    _lagged_vel_z.apply(get_ef_velocity_up(), _dt);
+
+    // Estimate total rotor drag force coefficient in the descent
+    // This is not the fully non-dimensionalized drag force to avoid having to constantly
+    // dividing and multiply vehicle constants like rotor diameter
+    float CR = _hover_thrust / sq(climb_rate);
+    CR = constrain_float(CR, 0.01, 1.7); // TODO: confirm typical range of drag coefficients expected
+
+    // Compute speed module and glide path angle during descent
+    const float speed_module = MAX(norm(climb_rate, fwd_speed), 0.1); // (m/s)
+    const float glide_angle = M_PI / 2 - safe_asin(fwd_speed / speed_module); // (rad)
+
+    // Estimate inflow velocity at beginning of flare
+    float entry_inflow = - speed_module * sinf(glide_angle + radians(AP_ALPHA_TPP));
+
+    const float k_1 = safe_sqrt(_hover_thrust / CR); // TODO: discuss: in the initial estimate k1 will always equal climb rate, see definition of CR above
+    const float ASYMPT_THRESHOLD = 0.05;
+    const float final_sink_rate = climb_rate + ASYMPT_THRESHOLD; //relative to rotor ref system
+
+    // Protect against div by 0 case
+    if (is_zero(final_sink_rate + k_1)) {
+        climb_rate -= ASYMPT_THRESHOLD;
+    }
+    if (is_zero(entry_inflow + k_1)) {
+        entry_inflow -= ASYMPT_THRESHOLD;
+    }
+
+    // Estimate flare duration
+    const float m = _hover_thrust / GRAVITY_MSS;
+    const float k_3 = safe_sqrt((CR * GRAVITY_MSS) / m);
+    const float k_2 = 1 / (2 * k_3) * logf(fabsf((entry_inflow - k_1)/(entry_inflow + k_1)));
+    const float a = logf(fabsf((final_sink_rate - k_1)/(final_sink_rate + k_1)));
+    const float b = logf(fabsf((entry_inflow - k_1)/(entry_inflow + k_1)));
+    const float delta_t_flare = (1 / (2 * k_3)) * (a - b);
+
+    // Estimate flare delta altitude
+    const float k_4 = (2 * k_2 * k_3) + (2 * k_3 * delta_t_flare);
+    const float flare_distance = ((k_1 / k_3) * (k_4 - logf(fabsf(1-expf(k_4))) - (2 * k_2 * k_3 - logf(fabsf(1 - expf(2 * k_2 * k_3)))))) - k_1 * delta_t_flare;
+    const float delta_h = -flare_distance * cosf(radians(AP_ALPHA_TPP));
+
+    // Estimate altitude to begin touchdown phase. This value is preserved for logging without constraining it to the min/max allowable
+    _calculated_touchdown_hgt = -1.0 * climb_rate * get_touchdown_time();
+
+    // Ensure that we keep the calculated touchdown height within the allowable min/max values
+    // before it is used in the _calculated_flare_hgt. Not doing this can lead to a zero-ground speed 
+    // condition before the state machine is permited to progress onto the touchdown phase.
+    const float calc_td_hgt = constrain_float(_calculated_touchdown_hgt, _touchdown_hgt.min_height.get(), _touchdown_hgt.max_height.get());
+
+    // Total delta altitude to ground
+    _calculated_flare_hgt = calc_td_hgt + delta_h;
+
+    // Save these calculated values for use, if the conditions were appropriate for us to consider the value reliable
+    const float speed_error = fabsf(_desired_vel - get_bf_speed_forward());
+    if (speed_error < 0.2 * _desired_vel &&  // Check that our forward speed is withing 20% of target
+        fabsf(_lagged_vel_z.get() - get_ef_velocity_up()) < 1.0) // Sink rate can be considered approx steady
+    {
+        _touchdown_hgt.set(calc_td_hgt);
+        _flare_hgt.set(_calculated_flare_hgt);
+    }
+}
+
+void AC_Autorotation::update_flare_hgt(void)
+{
+    const float vel_z = get_ef_velocity_up();
+    const float fwd_speed = get_ef_speed_forward(); // (m/s)
+
+    // update the flare height calc
+    calc_flare_hgt(fwd_speed, vel_z);
+
+    // TODO figure out cause of spikes in flare height estimate
+}
+
+bool AC_Autorotation::below_flare_height(void) const
+{
+    // we cannot transition to the flare phase if we do not know what height we are at
+    if (!_hagl_valid) {
+        return false;
+    }
+    return _hagl < _flare_hgt.get();
+}
+
+// Assuming a two-phase s-curve trajectory we keep the jerk max constant and calculate
+// the two cosine periods tj1 & tj2 that satisfy our entry (a0, v0) and exit (a2, v2) conditions
+// See ./Derivations.md for more details
+void AC_Autorotation::calc_scurve_trajectory_times(float a0, float v0, float& tj1, float& tj2) const
+{
+    // Desired exit to steady state descent at land speed
+    const float v2 = fabsf(float(_land_speed_cm.get())) * -1e-2; // Ensure land speed is positive up
+    const float a2 = 0.0; 
+    const float jm = _param_td_jerk_max.get();
+
+    // Times computed from positive roots of the accel and velocity continuity equations
+    tj1 = (- a0 + safe_sqrt(0.5 * ((a0 * a0) + (a2 * a2) + jm * (v2 - v0)))) / jm;
+    tj2 = (- a2 + safe_sqrt(0.5 * ((a0 * a0) + (a2 * a2) + jm * (v2 - v0)))) / jm;
+}
+
+
+// Determine if we are above the touchdown height using the descent rate and param values
+bool AC_Autorotation::should_begin_touchdown(void)
+{
+    // we cannot transition to the touchdown phase if we do not know what height we are at
+    if (!_hagl_valid) {
+        return false;
+    }
+
+    // We maybe descending with significant descent rate that could lead to an early
+    // progression into the touchdown phase. Either we still have significant ground speed
+    // and we want to let the flare do more work to reduce the speed (both vertical and forward)
+    // or we have low ground speed in which case we still want the head speed controller to manage
+    // the energy in the head in the flare controller.  Hence we will not allow the touchdown
+    // phase to begin.
+    if (_hagl > _touchdown_hgt.max_height) {
+        return false;
+    }
+
+    // Use Scurve trajectory to look ahead at what height we will finish the touchdown at
+    // Initial conditions come from current measurements
+    bool trajectory_check;
+    const float a0 = _pos_control->get_measured_accel_U_cmss() * 1e-2;
+    const float v0 = get_ef_velocity_up();
+    calc_scurve_trajectory_times(a0, v0, _tj1, _tj2);
+
+    if (is_positive(_tj1) && is_positive(_tj2)) {
+        // Look ahead to end of first phase scurve to get initial conditions for 2nd phase
+        float j1, a1, v1, p1;
+        _scurve.calc_javp_for_segment_incr_jerk(_tj1 * 2.0, _tj1, _param_td_jerk_max.get(), a0, v0, _hagl, j1, a1, v1, p1);
+
+        // Look ahead to end of second phase scurve to get exit conditions
+        float j2, a2, v2, future_pos;
+        _scurve.calc_javp_for_segment_incr_jerk(_tj2 * 2.0, _tj2, _param_td_jerk_max.get() * -1.0, a1, v1, p1, j2, a2, v2, future_pos);
+
+        // We give ourselves a small buffer to leave some margin for error
+        trajectory_check = future_pos <= BUFFER_HEIGHT;
+
+    } else {
+        trajectory_check = false;
+    }
+
+    // Force the flare if we are below the minimum guard height
+    const bool min_height_check = _hagl < _touchdown_hgt.min_height;
+
+    return trajectory_check || min_height_check;
+}
+
+// Determine if we should be performing a hover autorotation
+// We use a speed height cone from flare height at zero speed to min touchdown height at cruise speed
+// to decide whether we consider it a hover autorotation
+bool AC_Autorotation::should_hover_autorotate(void) const
+{
+    // we cannot judge if we should do a hover autorotation we do not know what height we are at
+    if (!_hagl_valid) {
+        return false;
+    }
+
+    const float bf_forwad_spd = get_bf_speed_forward();
+
+    // Get the max speed for a given hagl that we expect 
+    const float min_height = linear_interpolate(_flare_hgt.get(), _touchdown_hgt.min_height.get(), bf_forwad_spd, 0.0, _param_target_speed);
+
+    return _hagl < min_height;
+
+}
+
+// Zero velocity and accel to bring all of the controls into position to trip Copter's landing detector.
+void AC_Autorotation::run_landed(void)
+{
+    // Update the position controller with zero vels and accels
+    Vector2f desired_velocity_NE_cm;
+    Vector2f desired_accel_NE_cm;
+    _pos_control->input_vel_accel_NE_cm(desired_velocity_NE_cm, desired_accel_NE_cm, true);
+    _pos_control->soften_for_landing_NE();
+    _pos_control->update_NE_controller();
+
+    // Output to the attitude controller
+    const float yaw_rate_rads = 0.0;
+    _attitude_control->input_thrust_vector_rate_heading_rads(_pos_control->get_thrust_vector(), yaw_rate_rads);
+
+    // To get to this phase the collective has to be below land col min due to the landed check
+    // So we do not need to do anything with collective at this point
+}
+
+// Determine the body frame forward speed in m/s
+float AC_Autorotation::get_bf_speed_forward(void) const
+{
+    return get_bf_vel().x;
+}
+
+// Determine the body frame down speed in m/s
+float AC_Autorotation::get_bf_speed_down(void) const
+{
+    return get_bf_vel().z;
+}
+
+// Determine the body frame forward speed in m/s
+Vector3f AC_Autorotation::get_bf_vel(void) const
 {
     Vector3f vel_NED = {0,0,0};
     const AP_AHRS &ahrs = AP::ahrs();
@@ -407,13 +1098,54 @@ float AC_Autorotation::get_speed_forward_ms(void) const
         vel_NED = ahrs.earth_to_body(vel_NED);
     }
     // TODO: need to improve the handling of the velocity NED not ok case
-    return vel_NED.x;
+    return vel_NED;
+}
+
+// Determine the earth frame forward speed in m/s
+float AC_Autorotation::get_ef_speed_forward(void) const
+{
+    const AP_AHRS &ahrs = AP::ahrs();
+    Vector2f groundspeed_vector = ahrs.groundspeed_vector();
+    // Calculate the forward speed in ef by projecting the ground speed vector onto our heading vector.
+    float speed_forward = groundspeed_vector * Vector2f{ahrs.cos_yaw(), ahrs.sin_yaw()}; // (m/s)
+    return speed_forward;
+}
+
+// Get the earth frame vertical velocity in m/s, positive is up
+float AC_Autorotation::get_ef_velocity_up(void) const
+{
+    const AP_AHRS &ahrs = AP::ahrs();
+    Vector3f vel_NED = {0,0,0};
+    IGNORE_RETURN(ahrs.get_velocity_NED(vel_NED));
+    // TODO: need to improve the handling of the velocity NED not ok case
+    return vel_NED.z * -1.0;
+}
+
+// Update the height above ground estimate in meters
+void AC_Autorotation::update_hagl(void)
+{
+    // Always reset the hagl valid flag
+    _hagl_valid = false;
+
+#if AP_RANGEFINDER_ENABLED
+
+    // Keep the ground surface object up to date
+    _ground_surface.update();
+
+    // Get the height above ground estimate from the surface tracker library.
+    int32_t hagl = 0;
+    _hagl_valid = _ground_surface.get_rangefinder_height_interpolated_cm(hagl);
+    _hagl = float(hagl) * 0.01;
+
+    // TODO: improve fail over to terrain and then home
+
+#endif //AP_RANGEFINDER_ENABLED
 }
 
 #if HAL_LOGGING_ENABLED
 // Logging of lower rate autorotation specific variables. This is meant for stuff that
 // doesn't need a high rate, e.g. controller variables that are need for tuning.
-void AC_Autorotation::log_write_autorotation(void) const
+void AC_Autorotation::log_write_autorotation(uint8_t phase) const
 {
     // enum class for bitmask documentation in logging
     enum class AC_Autorotation_Landed_Reason : uint8_t {
@@ -437,16 +1169,32 @@ void AC_Autorotation::log_write_autorotation(void) const
     // @Vehicles: Copter
     // @Description: Helicopter AutoROTation (AROT) information
     // @Field: TimeUS: Time since system startup
+    // @Field: Phase: Autorotation flight phase
+    // @Field: MH: Measured Height
+    // @Field: CFH: Unfiltered Calculated Flare Height
+    // @Field: FH: Flare Height
+    // @Field: CTDH: Unfiltered Calculated Touchdown Height
+    // @Field: TDH: Touchdown Height
+    // @Field: T1: Touchdown phase 1 time
+    // @Field: T2: Touchdown phase 2 time
     // @Field: LR: Landed Reason state flags
     // @FieldBitmaskEnum: LR: AC_Autorotation_Landed_Reason
 
     // Write to data flash log
     AP::logger().WriteStreaming("AROT",
-                                "TimeUS,LR",
-                                "s-",
-                                "F-",
-                                "QB",
+                                "TimeUS,Phase,MH,CFH,FH,CTDH,TDH,T1,T2,LR",
+                                "s-mmmmmss-",
+                                "F-0000000-",
+                                "QBfffffffB",
                                 AP_HAL::micros64(),
+                                phase,
+                                _hagl,
+                                _calculated_flare_hgt,
+                                _flare_hgt.get(),
+                                _calculated_touchdown_hgt,
+                                _touchdown_hgt.get(),
+                                _tj1*2.0,
+                                _tj2*2.0,
                                 reason);
 }
 #endif  // HAL_LOGGING_ENABLED
@@ -488,6 +1236,48 @@ bool AC_Autorotation::arming_checks(size_t buflen, char *buffer) const
         return false;
     }
 
+#if AP_RANGEFINDER_ENABLED
+    // Check that we can see a healthy rangefinder
+    if (!_ground_surface.rangefinder_configured()) {
+        hal.util->snprintf(buffer, buflen, "Downward rangefinder not configured");
+        return false;
+    }
+
+    const RangeFinder *rangefinder = RangeFinder::get_singleton();
+    if (rangefinder == nullptr) {
+        hal.util->snprintf(buffer, buflen, "Downward rangefinder not configured");
+        return false;
+    }
+
+    // Sanity check that the rangefinder is adequate and can at least read up to the minimum height required to flare
+    if (float(rangefinder->max_distance_orient(ROTATION_PITCH_270)) < _flare_hgt.min_height.get()) {
+        hal.util->snprintf(buffer, buflen, "Rngfnd max distance < min flare height");
+        return false;
+    }
+#else
+    // We currently rely too heavily on rangefinders, thow an arming check if we do not have Rangefinder compiled in
+    hal.util->snprintf(buffer, buflen, "Rngfnd not compiled in");
+    return false;
+#endif
+
+    // Check that the blade pitch collective appears plausible. Would expect at least 1 deg of blade pitch required for hover.
+    if (_motors_heli->get_hover_coll_ang() < 1.0) {
+        hal.util->snprintf(buffer, buflen, "Hover pit < 1 deg. Check H_COL_* setup");
+        return false;
+    }
+
+    // Check that the collective trim angle appears plausible
+    if (_motors_heli->get_zero_thrust_angle_deg() < col_angle_trim.get()) {
+        hal.util->snprintf(buffer, buflen, "AROT_COL_TRIM > H_COL_ZERO_THST");
+        return false;
+    }
+
+    // Sanity check that min touchdown height is less than min flare height
+    if (_flare_hgt.min_height.get() < _touchdown_hgt.min_height) {
+        hal.util->snprintf(buffer, buflen, "FLR_MIN_HGT < TD_MIN_HGT");
+        return false;
+    }
+
     return true;
 }
 
@@ -515,4 +1305,51 @@ void AC_Autorotation::set_dt(float delta_sec)
         return;
     }
     _dt = 2.5e-3; // Assume 400 Hz
+}
+
+int32_t AC_Autorotation::get_wp_bearing(void) const
+{
+    Vector2f origin;
+    return get_bearing_cd(origin, _bearing_vector) * 0.01;
+}
+
+float AC_Autorotation::wp_distance_m(void) const
+{
+    if (is_positive(_hagl) && _hagl_valid) {
+    // We don't have waypoints to fly towards in this mode, so instead we send a crude estimate of
+    // where we think we might land if we continue on this course.  We will likely be getting a glide
+    // ratio of roughly 1:1 so reporting the HAGL will give an approximate distance travelled.
+        return _hagl;
+    }
+
+    // We may not be in rangefinder range in which case we just return height above origin
+    const AP_AHRS &ahrs = AP::ahrs();
+    float down;
+    if (ahrs.get_relative_position_D_origin_float(down)) {
+        return fabsf(down);
+    }
+
+    // If we got this far things went really wrong, just return a fixed value so a direction vector
+    // at least displays in GCS
+    return 200.0;
+}
+
+float AC_Autorotation::crosstrack_error(void) const
+{
+    return _pos_control->crosstrack_error();
+}
+
+// Set height value with protections in place to ensure we do not exceed the minimum value
+void AC_Autorotation::GuardedHeight::set(float hgt)
+{
+    // ensure that min and max heights are positive and remotely sensible
+    const float min_hgt = MAX(min_height.get(), 0.2);
+    const float max_hgt = MAX(max_height.get(), 1.0);
+    height = constrain_float(hgt, min_hgt, max_hgt);
+}
+
+// Reset height to midpoint between min and max
+void AC_Autorotation::GuardedHeight::reset(void)
+{
+    set((max_height.get() * min_height.get()) * 0.5);
 }
