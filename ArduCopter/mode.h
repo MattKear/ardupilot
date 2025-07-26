@@ -2048,6 +2048,11 @@ public:
     bool has_manual_throttle() const override { return false; }
     bool allows_arming(AP_Arming::Method method) const override { return false; };
 
+    // Functions to support NAV_CONTROLLER_OUTPUT telemetry
+    float wp_bearing_deg() const override;
+    float wp_distance_m() const override;
+    float crosstrack_error() const override;
+
     static const struct AP_Param::GroupInfo  var_info[];
 
 protected:
@@ -2058,7 +2063,7 @@ protected:
 private:
 
     uint32_t _entry_time_start_ms;  // time remaining until entry phase moves on to glide phase
-    uint32_t _last_logged_ms;       // used for timing slow rate autorotation log
+    bool _hover_autorotation;       // Set true if we are in a low height & low speed case and should enter a hover autorotation
 
     enum class Phase {
         ENTRY_INIT,
@@ -2067,6 +2072,8 @@ private:
         GLIDE,
         FLARE_INIT,
         FLARE,
+        HOVER_ENTRY_INIT,
+        HOVER_ENTRY,
         TOUCH_DOWN_INIT,
         TOUCH_DOWN,
         LANDED_INIT,
