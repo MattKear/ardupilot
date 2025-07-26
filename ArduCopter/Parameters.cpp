@@ -1270,7 +1270,7 @@ ParametersG2::ParametersG2(void) :
     ,mode_systemid_ptr(&copter.mode_systemid)
 #endif
 #if MODE_AUTOROTATE_ENABLED
-    ,arot(copter.motors, copter.attitude_control)
+    ,arot(copter.motors, copter.attitude_control, copter.pos_control, copter.g.land_speed)
 #endif
 #if MODE_ZIGZAG_ENABLED
     ,mode_zigzag_ptr(&copter.mode_zigzag)
