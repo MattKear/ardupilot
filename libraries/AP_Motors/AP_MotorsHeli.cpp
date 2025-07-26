@@ -629,9 +629,14 @@ void AP_MotorsHeli::heli_motors_param_conversions(void)
     }
 }
 
-// function to calculate and set the normalised collective position given a desired blade pitch angle (deg)
-void AP_MotorsHeli::set_coll_from_ang(float col_ang_deg)
+// Return collective hover position as an angle in deg
+float AP_MotorsHeli::get_hover_coll_ang(void) const
 {
-    const float col_norm = (col_ang_deg - _collective_min_deg.get()) / MAX((_collective_max_deg.get() - _collective_min_deg.get()), 1.0);
-    set_throttle(constrain_float(col_norm, 0.0, 1.0));
+    return (_collective_max_deg.get() - _collective_min_deg.get()) * _collective_hover.get() + _collective_min_deg.get() - _collective_zero_thrust_deg.get();
+}
+
+// Calculate the collective position that needs to be output to obtain given a desired blade pitch angle (deg)
+float AP_MotorsHeli::get_coll_from_ang_deg(float col_ang_deg)
+{
+    return (col_ang_deg - _collective_min_deg.get()) / MAX((_collective_max_deg.get() - _collective_min_deg.get()), 1.0);
 }
