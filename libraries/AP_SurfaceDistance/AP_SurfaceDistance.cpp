@@ -2,8 +2,8 @@
 
 #include <AP_RangeFinder/AP_RangeFinder.h>
 
-#ifndef RANGEFINDER_TIMEOUT_MS
- # define RANGEFINDER_TIMEOUT_MS 1000        // rangefinder filter reset if no updates from sensor in 1 second
+#ifndef RANGEFINDER_TIMEOUT
+ # define RANGEFINDER_TIMEOUT 1.0        // rangefinder filter reset if no updates from sensor in 1 second
 #endif
 
 #if AP_RANGEFINDER_ENABLED
@@ -68,6 +68,13 @@ void AP_SurfaceDistance::update()
         status |= (uint8_t)Surface_Distance_Status::Unhealthy;
     }
 
+    // don't do any further processing if rangefinder does not have a new measurement.
+    const uint32_t new_last_reading_ms = rangefinder->last_reading_ms(rotation);
+    if (last_reading_ms == new_last_reading_ms) {
+        return;
+    }
+    last_reading_ms = new_last_reading_ms;
+
     // tilt corrected but unfiltered, not glitch protected alt
     alt_cm = tilt_correction * rangefinder->distance_minus_gnd_clearence_orient(rotation)*100;
 
@@ -96,7 +103,8 @@ void AP_SurfaceDistance::update()
     }
 
     // filter rangefinder altitude
-    const bool timed_out = now - last_healthy_ms > RANGEFINDER_TIMEOUT_MS;
+    const float dt = float(now - last_healthy_ms) * 1e-3;
+    const bool timed_out = dt > RANGEFINDER_TIMEOUT;
     if (alt_healthy) {
         if (timed_out) {
             // reset filter if we haven't used it within the last second
@@ -105,18 +113,15 @@ void AP_SurfaceDistance::update()
             status |= (uint8_t)Surface_Distance_Status::Stale_Data;
         } else {
             // TODO: When we apply this library in plane we will need to be able to set the filter freq
-            alt_cm_filt.apply(alt_cm, 0.05);
+            alt_cm_filt.apply(alt_cm, dt);
         }
         last_healthy_ms = now;
     }
 
     // remember inertial alt to allow us to interpolate rangefinder
-    // we need to get the ekf position at the latest rangefinder measurement not at the latest time that we updated surface distance.
-    const uint32_t new_last_reading_ms = rangefinder->last_reading_ms(rotation);
     float pos_d_m;
-    if (AP::ahrs().get_relative_position_D_origin_float(pos_d_m) && last_reading_ms != new_last_reading_ms) {
+    if (AP::ahrs().get_relative_position_D_origin_float(pos_d_m)) {
         inertial_alt_cm = -pos_d_m * 100.0f; // convert from m to cm
-        last_reading_ms = new_last_reading_ms;
     }
 
     // handle reset of terrain offset
@@ -201,7 +206,7 @@ bool AP_SurfaceDistance::rangefinder_configured(void) const
 bool AP_SurfaceDistance::data_stale(void)
 {
     WITH_SEMAPHORE(sem);
-    return (AP_HAL::millis() - last_healthy_ms) > RANGEFINDER_TIMEOUT_MS;
+    return (AP_HAL::millis() - last_healthy_ms) > RANGEFINDER_TIMEOUT * 1000;
 }
 
 bool AP_SurfaceDistance::enabled_and_healthy(void) const
