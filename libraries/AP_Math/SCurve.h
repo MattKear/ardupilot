@@ -97,6 +97,9 @@ public:
     // Calculate the jerk, acceleration, velocity and position at time t when running the increasing jerk magnitude time segment based on a raised cosine profile
     void calc_javp_for_segment_incr_jerk(float time_now, float tj, float Jm, float A0, float V0, float P0, float &Jt, float &At, float &Vt, float &Pt) const;
 
+    // calculate the jerk, acceleration, velocity and position at time t when running the constant jerk time segment
+    void calc_javp_for_segment_const_jerk(float time_now, float J0, float A0, float V0, float P0, float &Jt, float &At, float &Vt, float &Pt) const;
+
 private:
 
     // increment time and return the position, velocity and acceleration vectors relative to the origin
@@ -146,9 +149,6 @@ private:
 
     // calculate the jerk, acceleration, velocity and position at time t
     void get_jerk_accel_vel_pos_at_time(float time_now, float &Jt_out, float &At_out, float &Vt_out, float &Pt_out) const;
-
-    // calculate the jerk, acceleration, velocity and position at time t when running the constant jerk time segment
-    void calc_javp_for_segment_const_jerk(float time_now, float J0, float A0, float V0, float P0, float &Jt, float &At, float &Vt, float &Pt) const;
 
     // Calculate the jerk, acceleration, velocity and position at time t when running the decreasing jerk magnitude time segment based on a raised cosine profile
     void calc_javp_for_segment_decr_jerk(float time_now, float tj, float Jm, float A0, float V0, float P0, float &Jt, float &At, float &Vt, float &Pt) const;
