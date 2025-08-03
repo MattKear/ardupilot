@@ -144,6 +144,7 @@ private:
     AP_Float _param_td_jerk_max;
     AP_Float _height_filt_hz;
     AP_Float col_angle_trim;
+    AP_Float _td_accel_max;
 
     // Navigation controller
     void update_navigation_controller(float des_lat_accel_norm);
@@ -179,7 +180,9 @@ private:
     LowPassFilterFloat _lagged_vel_z{0.5};  // (m/s) A slow filter on velocity that purposefully lags behind the latest measurements so that we can get an idea of whether we can be considered to be in steady conditions
 
     // Touchdown controller functions and variables
-    void calc_scurve_trajectory_times(float a0, float v0, float& tj1, float& tj2) const;
+    bool calc_scurve_trajectory_times(float a0, float v0, float p0, float& tj1, float& tj2, float& tj3) const;
+    bool calc_cosine_trajectory_times(float a0, float v0, float a3, float v3, float jm, float& tj1, float& tj3) const;
+    void update_trajectory(float time_now, float A0, float V0, float P0, float tj1, float tj2, float tj3, float& Jt, float& At, float& Vt, float& Pt) const;
     GuardedHeight _touchdown_hgt;        // (m) Height above ground for touchdown phase to begin
     float _calculated_touchdown_hgt;     // (m) Used for logging the calculated touchdown height so that we can keep track of the calculations output. This value is not used for the touchdown phase decision.
     uint32_t _td_init_time;              // (ms) System time when touchdown phase is init
@@ -189,7 +192,7 @@ private:
     const SCurve _scurve;                // Use the Scurve lib for outputting JAVP trajectories.  We calculate the trajectory for the autorotation a different way to the SCurves lib using different fundamental assumptions, hence only using const functions
     float _tj1;
     float _tj2;
-    float _td_last_pos;
+    float _tj3;
 
     // Flags used to check if we believe the aircraft has landed
     struct {
@@ -203,6 +206,9 @@ private:
     float get_touchdown_time(void) const { return MAX(_param_touchdown_time.get(), 0.3); }
     float get_solidity(void) const { return MAX(_param_solidity.get(), 0.01); }
     float get_headspeed_setpoint_rpm(void) const { return MAX(_param_head_speed_set_point.get(), 60); }
+    float get_land_speed(void) const { return fabsf(float(_land_speed_cm.get())) * -1e-2; }
+    float get_td_accel_max(void) const { return MAX(_td_accel_max.get(), 1.0); }
+    float get_td_jerk_max(void) const { return MAX(_param_td_jerk_max.get(), 1.0); }
 
     const float MIN_MANOEUVERING_SPEED = 2.0; // (m/s)
     const float BUFFER_HEIGHT = 0.5; // (m)

@@ -97,10 +97,10 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @DisplayName: Touchdown Time
     // @Description: Desired time for the touchdown phase to last. Using the measured vertical velocity, this parameter is used to calculate the height that the vehicle will transition from the flare to the touchdown phase. Minimum value used is 0.3 s.
     // @Units: s
-    // @Range: 0.3 2.0
+    // @Range: 2.0 8.0
     // @Increment: 0.001
     // @User: Standard
-    AP_GROUPINFO("TD_TIME", 12, AC_Autorotation, _param_touchdown_time, 1.0),
+    AP_GROUPINFO("TD_TIME", 12, AC_Autorotation, _param_touchdown_time, 3.0),
 
     // @Param: FLR_MIN_HGT
     // @DisplayName: Minimum Flare Height
@@ -143,7 +143,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Range: 10 100
     // @Increment: 1.0
     // @User: Standard
-    AP_GROUPINFO("TD_JERK_MAX", 19, AC_Autorotation, _param_td_jerk_max, 50),
+    AP_GROUPINFO("TD_JERK_MAX", 19, AC_Autorotation, _param_td_jerk_max, 15),
 
     // @Param: HEIGHT_FILT
     // @DisplayName: Surface distance filter frequency
@@ -162,6 +162,15 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @Increment: 0.01
     // @User: Standard
     AP_GROUPINFO("COL_TRIM", 21, AC_Autorotation, col_angle_trim, -6),
+
+    // @Param: TD_ACC_MAX
+    // @DisplayName: Touchdown Acceleration Limit
+    // @Description: The maximum positive acceleration that the z-position controller can request in the touchdown phase
+    // @Unit: m/s/s
+    // @Range: 1 20
+    // @Increment: 0.01
+    // @User: Standard
+    AP_GROUPINFO("TD_ACC_MAX", 22, AC_Autorotation, _td_accel_max, 5),
 
     // @Param: AS_DUAL
     // @DisplayName: Enable Asynchronous Dual Rotor Autorotation
@@ -200,7 +209,6 @@ AC_Autorotation::AC_Autorotation(AP_MotorsHeli*& motors, AC_AttitudeControl*& at
         // ensure the AP_SurfaceDistance object is enabled
         _ground_surface.enabled = true;
 #endif
-
         AP_Param::setup_object_defaults(this, var_info);
     }
 
@@ -407,8 +415,8 @@ void AC_Autorotation::init_touchdown(void)
 
     // Set vertical speed and acceleration limits
     // TODO: make some of these constraints parameter values
-    _pos_control->set_max_speed_accel_U_cm(-30.0, 5.0, 2.0 * GRAVITY_MSS);
-    _pos_control->set_correction_speed_accel_U_cmss(-30.0, 5.0, 2.0 * GRAVITY_MSS);
+    _pos_control->set_max_speed_accel_U_cm(-30.0, 5.0, get_td_accel_max());
+    _pos_control->set_correction_speed_accel_U_cmss(-30.0, 5.0, get_td_accel_max());
 
     // Initialise the vertical position controller
     _pos_control->init_U_controller();
@@ -418,7 +426,6 @@ void AC_Autorotation::init_touchdown(void)
     _td_init_az = _pos_control->get_measured_accel_U_mss();
     _td_init_vz = _pos_control->get_vel_estimate_NEU_ms().z;
     _td_init_pos = _pos_control->get_pos_desired_NEU_m().z;
-    calc_scurve_trajectory_times(_td_init_az, _td_init_vz, _tj1, _tj2);
 
     // unlock any heading hold if we had one
     _heading_hold = false;
@@ -427,45 +434,18 @@ void AC_Autorotation::init_touchdown(void)
 
 void AC_Autorotation::run_touchdown(float des_lat_accel_norm)
 {
-    // Calc the desired trajectory that we want
+
     const float td_time = float(AP_HAL::millis() - _td_init_time) * 1e-3;
-    const float T1 = _tj1 * 2.0;
-    const float T2 = _tj2 * 2.0;
+
+    // Calc the desired javp targets for our calculated trajectory
     float j, a, v, p;
-    if (td_time <= T1) {
-        // We are in the first phase of the trajectory with positive jerk
-        _scurve.calc_javp_for_segment_incr_jerk(td_time, _tj1, _param_td_jerk_max.get(), _td_init_az, _td_init_vz, _td_init_pos, j, a, v, p);
-
-    } else if (td_time <= T1 + T2) {
-        // We are in the 2nd phase of the trajectory with negative jerk
-        // Calc the exit conditions from the first phase
-        float j1, a1, v1, p1;
-        _scurve.calc_javp_for_segment_incr_jerk(T1, _tj1, _param_td_jerk_max.get(), _td_init_az, _td_init_vz, _td_init_pos, j1, a1, v1, p1);
-        // Now calc the trajectory targets
-        const float t2 = td_time - T1;
-        _scurve.calc_javp_for_segment_incr_jerk(t2, _tj2, _param_td_jerk_max.get() * -1.0, a1, v1, p1, j, a, v, p);
-
-    } else {
-        // We have finished the SCurve trajectory and in the very last steady state decent to touch the ground (BUFFER_HEIGHT)
-        j = 0.0;
-        a = 0.0;
-        v = fabsf(float(_land_speed_cm.get())) * -1e-2;
-        p = _td_last_pos + v * _dt;
-    }
-
-    // Store last target position for transitions to zero jerk descent phase
-    _td_last_pos = p;
-
-    // Convert units of targets from m to cm ready to be fed into position controller
-    a *= 100.0;
-    v *= 100.0;
-    p *= 100.0;
+    update_trajectory(td_time, _td_init_az, _td_init_vz, _td_init_pos, _tj1, _tj2, _tj3, j, a, v, p);
 
     // Check that we are not saturated on collective output
     const bool collective_limit = _motors_heli->limit.throttle_lower || _motors_heli->limit.throttle_upper;
 
     // Set velocity target in Z position controller
-    _pos_control->input_pos_vel_accel_U_cm(p, v, a, collective_limit);
+    _pos_control->input_pos_vel_accel_U_m(p, v, a, collective_limit);
 
     // Run the vertical position controller and set output collective
     _pos_control->update_U_controller();
@@ -493,9 +473,9 @@ void AC_Autorotation::run_touchdown(float des_lat_accel_norm)
                         "Qffff",
                         AP_HAL::micros64(),
                         j,
-                        a*1e-2,
-                        v*1e-2,
-                        p*1e-2);
+                        a,
+                        v,
+                        p);
 #endif
 }
 
@@ -977,19 +957,122 @@ bool AC_Autorotation::below_flare_height(void) const
     return _hagl < _flare_hgt.get();
 }
 
-// Assuming a two-phase s-curve trajectory we keep the jerk max constant and calculate
-// the two cosine periods tj1 & tj2 that satisfy our entry (a0, v0) and exit (a2, v2) conditions
-// See ./Derivations.md for more details
-void AC_Autorotation::calc_scurve_trajectory_times(float a0, float v0, float& tj1, float& tj2) const
+void AC_Autorotation::update_trajectory(float time_now, float A0, float V0, float P0, float tj1, float tj2, float tj3, float& Jt, float& At, float& Vt, float& Pt) const
 {
-    // Desired exit to steady state descent at land speed
-    const float v2 = fabsf(float(_land_speed_cm.get())) * -1e-2; // Ensure land speed is positive up
-    const float a2 = 0.0; 
-    const float jm = _param_td_jerk_max.get();
+    const float T1 = 2 * tj1;
+    const float T2 = tj2;
+    const float T3 = 2 * tj3;
+    const float Jm = get_td_jerk_max();
 
-    // Times computed from positive roots of the accel and velocity continuity equations
-    tj1 = (- a0 + safe_sqrt(0.5 * ((a0 * a0) + (a2 * a2) + jm * (v2 - v0)))) / jm;
-    tj2 = (- a2 + safe_sqrt(0.5 * ((a0 * a0) + (a2 * a2) + jm * (v2 - v0)))) / jm;
+    // Section 1
+    const float t1 = MIN(time_now, T1);
+    float J1, A1, V1, P1;
+    _scurve.calc_javp_for_segment_incr_jerk(t1, tj1, Jm, A0, V0, P0, J1, A1, V1, P1);
+
+    if (time_now <= T1) {
+        // We are still in phase 1
+        Jt = J1; At = A1; Vt = V1; Pt = P1;
+        return;
+    }
+
+    // Section 2
+    const float t2 = MIN(time_now - T1, T2);
+    float J2, A2, V2, P2;
+    _scurve.calc_javp_for_segment_const_jerk(t2, J1, A1, V1, P1, J2, A2, V2, P2);
+
+    if ( time_now <= T1 + T2) {
+        // We are still in phase 2
+        Jt = J2; At = A2; Vt = V2; Pt = P2;
+        return;
+    }
+
+    // Section 3
+    const float t3 = MIN(time_now - T1 - T2, T3);
+    float J3, A3, V3, P3;
+    _scurve.calc_javp_for_segment_incr_jerk(t3, tj3, -Jm, A2, V2, P2, J3, A3, V3, P3);
+
+    if ( time_now <= T1 + T2 + T3) {
+        // we are still in phase 3
+        Jt = J3; At = A3; Vt = V3; Pt = P3;
+        return;
+    }
+
+    // Section 4
+    // Constant velocity descent (after the "touchdown manoeuver")
+    // All being well we arrived here at a nice smooth trajectory so jerk and accel is zero. However, there is a corner case in the
+    // very low hover autorotation where we have to force the jerk and accel targets to zero so that the vehicle simply does its
+    // best to maintain the descent rate and bring the accel under control.
+    const float t4 = time_now - T1 - T2 - T3;
+    _scurve.calc_javp_for_segment_const_jerk(t4, 0.0, 0.0, V3, P3, Jt, At, Vt, Pt);
+}
+
+// Solving for roots of the continuity equations in the non-accel limited case
+bool AC_Autorotation::calc_cosine_trajectory_times(float a0, float v0, float a3, float v3, float jm, float& tj1, float& tj3) const
+{
+    float discriminant = 0.5 * ((a0 * a0) + (a3 * a3) + jm * (v3 - v0));
+    if (discriminant < 0) {
+        // Invalid solution if the discriminant is negative. we will just wait until
+        // the boundary conditions have changed to a state that we can solve for.
+        tj1 = 0;
+        tj3 = 0;
+        return false;
+    }
+
+    // Compute the trajectory time periods
+    tj1 = (-a0 + safe_sqrt(discriminant)) / jm;
+    tj3 = (-a3 + safe_sqrt(discriminant)) / jm;
+
+    return is_positive(tj1) && is_positive(tj3);
+}
+
+// Assuming a three-section s-curve trajectory we keep the jerk max constant and calculate
+// the two cosine periods tj1 & tj3 that satisfy our entry (a0, v0) and exit (a3, v3) conditions
+// tj2 becomes non-zero if we need to accel limit the trajectory
+// See ./Derivations.md for more details
+bool AC_Autorotation::calc_scurve_trajectory_times(float a0, float v0, float p0, float& tj1, float& tj2, float& tj3) const
+{
+    bool solution_valid = false;
+    tj1 = 0.0;
+    tj2 = 0.0;
+    tj3 = 0.0;
+    const float v3 = get_land_speed();
+    // Due to the assumed trajectory shape that has been constructed, we wait for the entry velocity to be <= to the exit condition
+    // This reduces the number of scenarios that we need to handle and simplifies the code structure, focusing on the most probable cases.
+    // For this application, we can simply wait for the descent rate to increase which is an assured thing in an autorotation.
+    if (v0 > v3) {
+        return solution_valid;
+    }
+
+    // start by calculating the unconstrained acceleration trajectory to get the times needed for this case
+    const float a3 = 0.0;
+    const float jm = get_td_jerk_max();
+    solution_valid = calc_cosine_trajectory_times(a0, v0, a3, v3, jm, tj1, tj3);
+
+    // See if we need to apply acceleration limiting
+    const float am = get_td_accel_max();
+    const float a_peak = a0 + jm * tj1;
+    if ((a_peak < am) && solution_valid) {
+        // we do not need to apply any accel limits, we can begin touch down
+        return solution_valid;
+    }
+
+    // If we got this far we either need to apply accel limits or the previously invalid solution my have a solution with this approach
+    // Calculate the time periods required to meet the acceleration boundary conditions
+    tj1 = (am - a0) / jm;
+    tj3 = (am - a3) / jm;
+
+    // Calculate the time required to meet the velocity condition
+    tj2 = (v3 - v0 - (2 * a0 * tj1) - (jm * tj1 * tj1) - (2 * a3 * tj3) - (jm * tj3 * tj3)) / am;
+
+    // Check that the exit conditions match our desired conditions
+    const float end_time = (tj1 + tj3) * 2 + tj2;
+    float je, ae, ve, pe;
+    update_trajectory(end_time, a0, v0, p0, tj1, tj2, tj3, je, ae, ve, pe);
+
+    const float TOL = 1e-5;
+    solution_valid = ((fabsf(ve - v3) < TOL) && (fabsf(ae - a3) < TOL));
+
+    return solution_valid;
 }
 
 
@@ -1001,43 +1084,55 @@ bool AC_Autorotation::should_begin_touchdown(void)
         return false;
     }
 
-    // We maybe descending with significant descent rate that could lead to an early
-    // progression into the touchdown phase. Either we still have significant ground speed
-    // and we want to let the flare do more work to reduce the speed (both vertical and forward)
-    // or we have low ground speed in which case we still want the head speed controller to manage
-    // the energy in the head in the flare controller.  Hence we will not allow the touchdown
-    // phase to begin.
-    if (_hagl > _touchdown_hgt.max_height) {
+    // Check max height condition
+    if (_hagl > _touchdown_hgt.max_height.get()) {
+        // We are higher than our guarded height, no need to continue calculation
         return false;
     }
 
-    // Use Scurve trajectory to look ahead at what height we will finish the touchdown at
-    // Initial conditions come from current measurements
-    bool trajectory_check;
-    const float a0 = _pos_control->get_measured_accel_U_cmss() * 1e-2;
-    const float v0 = get_ef_velocity_up();
-    calc_scurve_trajectory_times(a0, v0, _tj1, _tj2);
-
-    if (is_positive(_tj1) && is_positive(_tj2)) {
-        // Look ahead to end of first phase scurve to get initial conditions for 2nd phase
-        float j1, a1, v1, p1;
-        _scurve.calc_javp_for_segment_incr_jerk(_tj1 * 2.0, _tj1, _param_td_jerk_max.get(), a0, v0, _hagl, j1, a1, v1, p1);
-
-        // Look ahead to end of second phase scurve to get exit conditions
-        float j2, a2, v2, future_pos;
-        _scurve.calc_javp_for_segment_incr_jerk(_tj2 * 2.0, _tj2, _param_td_jerk_max.get() * -1.0, a1, v1, p1, j2, a2, v2, future_pos);
-
-        // We give ourselves a small buffer to leave some margin for error
-        trajectory_check = future_pos <= BUFFER_HEIGHT;
-
-    } else {
-        trajectory_check = false;
+    // Check min height, target speed condition, this case is designed for the very low hover autorotation case
+    const float v0 = _pos_control->get_vel_estimate_NEU_ms().z;
+    if ((_hagl < _touchdown_hgt.min_height.get()) && (v0 <= get_land_speed())) {
+        // Set all trajectory times to zero to jump to constant descent rate case
+        _tj1 = 0;
+        _tj2 = 0;
+        _tj3 = 0;
+        return true;
     }
 
-    // Force the flare if we are below the minimum guard height
-    const bool min_height_check = _hagl < _touchdown_hgt.min_height;
+    const float a0 = _pos_control->get_measured_accel_U_mss();
+    bool solution_valid = calc_scurve_trajectory_times(a0, v0, _hagl, _tj1, _tj2, _tj3);
 
-    return trajectory_check || min_height_check;
+    if (!solution_valid) {
+        return false;
+    }
+
+    // look forward to see if we intersect with the ground before the manoeuvre is complete
+    const float manoeuvre_time = (_tj1 + _tj3) * 2 + _tj2;
+    float j3, a3, v3, p3;
+    update_trajectory(manoeuvre_time, a0, v0, _hagl, _tj1, _tj2, _tj3, j3, a3, v3, p3);
+    if (p3 <= BUFFER_HEIGHT) {
+        // we need to initiate the manoeuvre now
+        return true;
+    }
+
+    // Check what time we will have remaining from the touchdown time parameter value
+    const float tj4 = get_touchdown_time() - manoeuvre_time;
+
+    if (tj4 < 0) {
+        // invalid time. we already know that we won't intersect the exit position by the end of the manoeuvre so don't start
+        return false;
+    }
+
+    // See if we intersect the ground by the end of the constant velocity phase.
+    const float p4 = p3 + tj4 * v3;
+    if (p4 <= 0.0) {
+        // we need to initiate the manoeuvre now
+        return true;
+    }
+
+    // If we got this far then we do not need to start touchdown manoeuvre yet
+    return false;
 }
 
 // Determine if we should be performing a hover autorotation
