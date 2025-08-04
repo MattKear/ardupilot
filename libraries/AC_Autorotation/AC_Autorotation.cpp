@@ -1029,7 +1029,7 @@ void AC_Autorotation::update_trajectory(float time_now, float A0, float V0, floa
 bool AC_Autorotation::calc_cosine_trajectory_times(float a0, float v0, float a3, float v3, float jm, float& tj1, float& tj3) const
 {
     float discriminant = 0.5 * ((a0 * a0) + (a3 * a3) + jm * (v3 - v0));
-    if (discriminant < 0) {
+    if (is_negative(discriminant)) {
         // Invalid solution if the discriminant is negative. we will just wait until
         // the boundary conditions have changed to a state that we can solve for.
         tj1 = 0;
