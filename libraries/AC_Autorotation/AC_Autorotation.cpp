@@ -253,9 +253,9 @@ void AC_Autorotation::init(void)
     _lagged_vel_z.reset(get_ef_velocity_up());
 
     // Set limits and initialise NE pos controller
-    _pos_control->set_max_speed_accel_NE_cm(_param_target_speed.get()*100.0, _param_accel_max.get()*100.0);
-    _pos_control->set_correction_speed_accel_NE_cm(_param_target_speed.get()*100.0, _param_accel_max.get()*100.0);
-    _pos_control->set_pos_error_max_NE_cm(2000);
+    _pos_control->set_max_speed_accel_NE_m(_param_target_speed.get(), _param_accel_max.get());
+    _pos_control->set_correction_speed_accel_NE_m(_param_target_speed.get(), _param_accel_max.get());
+    _pos_control->set_pos_error_max_NE_m(20);
     _pos_control->init_NE_controller();
 
     // Reset the landed reason
@@ -434,8 +434,8 @@ void AC_Autorotation::init_touchdown(void)
 
     // Set vertical speed and acceleration limits
     // TODO: make some of these constraints parameter values
-    _pos_control->set_max_speed_accel_U_cm(-30.0, 5.0, get_td_accel_max());
-    _pos_control->set_correction_speed_accel_U_cmss(-30.0, 5.0, get_td_accel_max());
+    _pos_control->set_max_speed_accel_U_m(-30.0, 5.0, get_td_accel_max());
+    _pos_control->set_correction_speed_accel_U_mss(-30.0, 5.0, get_td_accel_max());
 
     // Initialise the vertical position controller
     _pos_control->init_U_controller();
