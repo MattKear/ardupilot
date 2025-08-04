@@ -1098,40 +1098,115 @@ bool AC_Autorotation::calc_scurve_trajectory_times(float a0, float v0, float p0,
 // Determine if we are above the touchdown height using the descent rate and param values
 bool AC_Autorotation::should_begin_touchdown(void)
 {
+    enum class Reason : int8_t {
+        ACCEL_LIMITED_INSUFFICIENT_S4_TIME = -6,
+        INVALID_ACCEL_LIMIT = -5,
+        VALID_BELOW_ACCEL_LIMIT_NO_INTERSECTION = -4,
+        SLOWER_THAN_LANDING_SPEED  = -3,
+        ABOVE_TD_MAX_HEIGHT  = -2,
+        HAGL_INVALID = -1,
+        NO_SOLUTION = 0,
+        BELOW_TD_MIN_HEIGHT = 1,
+        VALID_BELOW_ACCEL_LIMIT_TO_BUFFER_HGT = 2,
+        VALID_BELOW_ACCEL_LIMIT_S4_DESCENT = 3,
+        VALID_ACCEL_LIMTED_TO_BUFFER_HGT = 4,
+        VALID_ACCEL_LIMITED_S4_DESCENT = 5,
+    };
+
     // we cannot transition to the touchdown phase if we do not know what height we are at
     if (!_hagl_valid) {
+        _td_start_reason = int8_t(Reason::HAGL_INVALID);
         return false;
     }
 
     // Check max height condition
     if (_hagl > _touchdown_hgt.max_height.get()) {
         // We are higher than our guarded height, no need to continue calculation
+        _td_start_reason = int8_t(Reason::ABOVE_TD_MAX_HEIGHT);
         return false;
     }
+
+    // rest all trajectory times to zero
+    _tj1 = 0.0;
+    _tj2 = 0.0;
+    _tj3 = 0.0;
 
     // Check min height, target speed condition, this case is designed for the very low hover autorotation case
     const float v0 = _pos_control->get_vel_estimate_NEU_ms().z;
     if ((_hagl < _touchdown_hgt.min_height.get()) && (v0 <= get_land_speed())) {
-        // Set all trajectory times to zero to jump to constant descent rate case
-        _tj1 = 0;
-        _tj2 = 0;
-        _tj3 = 0;
+        // Jump to constant descent case
+        _td_start_reason = int8_t(Reason::BELOW_TD_MIN_HEIGHT);
         return true;
     }
 
     const float a0 = _pos_control->get_measured_accel_U_mss();
-    bool solution_valid = calc_scurve_trajectory_times(a0, v0, _hagl, _tj1, _tj2, _tj3);
+    const float v3 = get_land_speed();
+    // Due to the assumed trajectory shape that has been constructed, we wait for the entry velocity to be <= to the exit condition
+    // This reduces the number of scenarios that we need to handle and simplifies the code structure, focusing on the most probable cases.
+    // For this application, we can simply wait for the descent rate to increase which is an assured thing in an autorotation.
+    if (v0 > v3) {
+        _td_start_reason = int8_t(Reason::SLOWER_THAN_LANDING_SPEED);
+        return false;
+    }
+
+    // start by calculating the unconstrained acceleration trajectory to get the times needed for this case
+    float a3 = 0.0;
+    const float jm = get_td_jerk_max();
+    bool solution_valid = calc_cosine_trajectory_times(a0, v0, a3, v3, jm, _tj1, _tj3);
+
+    // Check that the exit conditions match our desired conditions
+    float manoeuvre_time = (_tj1 + _tj3) * 2 + _tj2;
+    float je, ae, ve, pe;
+    update_trajectory(manoeuvre_time, a0, v0, _hagl, _tj1, _tj2, _tj3, je, ae, ve, pe);
+
+    // See if we need to apply acceleration limiting
+    const float am = get_td_accel_max();
+    const float a_peak = a0 + jm * _tj1;
+    if ((a_peak < am) && solution_valid) {
+        if ((pe <= BUFFER_HEIGHT)) {
+            // we do not need to apply any accel limits, we can begin touch down
+            _td_start_reason = int8_t(Reason::VALID_BELOW_ACCEL_LIMIT_TO_BUFFER_HGT);
+            return true;
+        }
+
+        // See if we have sufficient time to intersect the floor with the constant descent rate section
+        const float tj4 = get_touchdown_time() - manoeuvre_time;
+        const float p4 = pe + tj4 * v3;
+        if (is_positive(tj4) && (p4 <= 0.0)) {
+            // we have enough time (therefore enough rotor head energy) to safely intersect the ground descending at constant speed
+            _td_start_reason = int8_t(Reason::VALID_BELOW_ACCEL_LIMIT_S4_DESCENT);
+            return true;
+        }
+
+        // If we got this far then we have a valid solution for accel and vel boundary conditions but we will not meet out exit position criteria
+        _td_start_reason = int8_t(Reason::VALID_BELOW_ACCEL_LIMIT_NO_INTERSECTION);
+        return false;
+    }
+
+    // If we got this far we either need to apply accel limits or the previously invalid solution my have a solution with this approach (e.g. tj1 = 0 case)
+    // Calculate the time periods required to meet the acceleration boundary conditions
+    _tj1 = (am - a0) / jm;
+    _tj3 = (am - a3) / jm;
+
+    // Calculate the time required to meet the velocity condition
+    _tj2 = (v3 - v0 - (2 * a0 * _tj1) - (jm * _tj1 * _tj1) - (2 * a3 * _tj3) - (jm * _tj3 * _tj3)) / am;
+
+    // Check that the exit conditions match our desired conditions
+    manoeuvre_time = (_tj1 + _tj3) * 2 + _tj2;
+    update_trajectory(manoeuvre_time, a0, v0, _hagl, _tj1, _tj2, _tj3, je, ae, ve, pe);
+
+    const float TOL = 1e-5;
+    solution_valid = ((fabsf(ve - v3) < TOL) && (fabsf(ae - a3) < TOL));
 
     if (!solution_valid) {
+        _td_start_reason = int8_t(Reason::INVALID_ACCEL_LIMIT);
         return false;
     }
 
     // look forward to see if we intersect with the ground before the manoeuvre is complete
-    const float manoeuvre_time = (_tj1 + _tj3) * 2 + _tj2;
-    float j3, a3, v3, p3;
-    update_trajectory(manoeuvre_time, a0, v0, _hagl, _tj1, _tj2, _tj3, j3, a3, v3, p3);
-    if (p3 <= BUFFER_HEIGHT) {
+    if (pe <= BUFFER_HEIGHT) {
         // we need to initiate the manoeuvre now
+        _td_start_reason = int8_t(Reason::VALID_ACCEL_LIMTED_TO_BUFFER_HGT);
         return true;
     }
 
@@ -1139,18 +1214,22 @@ bool AC_Autorotation::should_begin_touchdown(void)
     const float tj4 = get_touchdown_time() - manoeuvre_time;
 
     if (tj4 < 0) {
-        // invalid time. we already know that we won't intersect the exit position by the end of the manoeuvre so don't start
+        // invalid time. we already know that we won't intersect the exit position by the end of the manoeuvre
+        // and we don't have any additional time specifed by touchdown time, so don't start the manouver,
+        _td_start_reason = int8_t(Reason::ACCEL_LIMITED_INSUFFICIENT_S4_TIME);
         return false;
     }
 
     // See if we intersect the ground by the end of the constant velocity phase.
-    const float p4 = p3 + tj4 * v3;
+    const float p4 = pe + tj4 * v3;
     if (p4 <= 0.0) {
         // we need to initiate the manoeuvre now
+        _td_start_reason = int8_t(Reason::VALID_ACCEL_LIMITED_S4_DESCENT);
         return true;
     }
 
     // If we got this far then we do not need to start touchdown manoeuvre yet
+    _td_start_reason = int8_t(Reason::NO_SOLUTION);
     return false;
 }
 
@@ -1279,36 +1358,54 @@ void AC_Autorotation::log_write_autorotation(uint8_t phase) const
         reason |= uint8_t(AC_Autorotation_Landed_Reason::IS_STILL);
     }
 
-    // @LoggerMessage: AROT
+    // @LoggerMessage: ARO1
     // @Vehicles: Copter
-    // @Description: Helicopter AutoROTation (AROT) information
+    // @Description: First Helicopter AutoROtation (ARO1) information message
     // @Field: TimeUS: Time since system startup
     // @Field: Phase: Autorotation flight phase
     // @Field: MH: Measured Height
     // @Field: CFH: Unfiltered Calculated Flare Height
     // @Field: FH: Flare Height
-    // @Field: CTDH: Unfiltered Calculated Touchdown Height
-    // @Field: TDH: Touchdown Height
-    // @Field: T1: Touchdown phase 1 time
-    // @Field: T2: Touchdown phase 2 time
-    // @Field: LR: Landed Reason state flags
-    // @FieldBitmaskEnum: LR: AC_Autorotation_Landed_Reason
 
     // Write to data flash log
-    AP::logger().WriteStreaming("AROT",
-                                "TimeUS,Phase,MH,CFH,FH,CTDH,TDH,T1,T2,LR",
-                                "s-mmmmmss-",
-                                "F-0000000-",
-                                "QBfffffffB",
+    AP::logger().WriteStreaming("ARO1",
+                                "TimeUS,Phase,MH,CFH,FH",
+                                "s-mmm",
+                                "F-000",
+                                "QBfff",
                                 AP_HAL::micros64(),
                                 phase,
                                 _hagl,
                                 _calculated_flare_hgt,
-                                _flare_hgt.get(),
+                                _flare_hgt.get()
+                                );
+
+    // @LoggerMessage: ARO2
+    // @Vehicles: Copter
+    // @Description: Second Helicopter AutoROation (ARO2) information message
+    // @Field: TimeUS: Time since system startup
+    // @Field: CTDH: Unfiltered Calculated Touchdown Height
+    // @Field: TDH: Touchdown Height
+    // @Field: T1: Touchdown phase 1 time
+    // @Field: T2: Touchdown phase 2 time
+    // @Field: T3: Touchdown phase 3 time
+    // @Field: TDR: Touchdown reason
+    // @Field: LR: Landed Reason state flags
+    // @FieldBitmaskEnum: LR: AC_Autorotation_Landed_Reason
+
+    // Write to data flash log
+    AP::logger().WriteStreaming("ARO2",
+                                "TimeUS,CTDH,TDH,T1,T2,T3,TDR,LR",
+                                "smmsss--",
+                                "F00000--",
+                                "QfffffbB",
+                                AP_HAL::micros64(),
                                 _calculated_touchdown_hgt,
                                 _touchdown_hgt.get(),
                                 _tj1*2.0,
-                                _tj2*2.0,
+                                _tj2,
+                                _tj3*2.0,
+                                _td_start_reason,
                                 reason);
 }
 #endif  // HAL_LOGGING_ENABLED

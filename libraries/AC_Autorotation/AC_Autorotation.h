@@ -194,6 +194,7 @@ private:
     float _tj1;
     float _tj2;
     float _tj3;
+    int8_t _td_start_reason;             // log the reason that we either started or not the touch down phase
 
     // Flags used to check if we believe the aircraft has landed
     struct {
