@@ -142,6 +142,9 @@ public:
     // Calculate the collective position that needs to be output to obtain given a desired blade pitch angle (deg)
     float get_coll_from_ang_deg(float col_ang_deg);
 
+    // Return current collective position as blade pitch angle in degrees
+    float get_current_col_angle_deg(void) const;
+
     //return zero lift collective position
     float get_coll_mid() const { return _collective_zero_thrust_pct; }
 

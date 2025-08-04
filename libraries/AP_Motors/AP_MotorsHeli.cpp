@@ -660,3 +660,9 @@ float AP_MotorsHeli::get_coll_from_ang_deg(float col_ang_deg)
 {
     return (col_ang_deg - _collective_min_deg.get()) / MAX((_collective_max_deg.get() - _collective_min_deg.get()), 1.0);
 }
+
+// Return current collective position as blade pitch angle in degrees
+float AP_MotorsHeli::get_current_col_angle_deg(void) const
+{
+     return (_collective_max_deg.get() - _collective_min_deg.get()) * get_throttle() + _collective_min_deg.get();
+}
