@@ -434,8 +434,8 @@ void AC_Autorotation::init_touchdown(void)
 
     // Set vertical speed and acceleration limits
     // TODO: make some of these constraints parameter values
-    _pos_control->set_max_speed_accel_U_m(-30.0, 5.0, get_td_accel_max());
-    _pos_control->set_correction_speed_accel_U_mss(-30.0, 5.0, get_td_accel_max());
+    _pos_control->set_max_speed_accel_U_m(-10.0, 5.0, get_td_accel_max());
+    _pos_control->set_correction_speed_accel_U_mss(-10.0, 5.0, get_td_accel_max());
 
     // Initialise the vertical position controller
     _pos_control->init_U_controller();
@@ -465,6 +465,11 @@ void AC_Autorotation::run_touchdown(float des_lat_accel_norm)
 
     // Set velocity target in Z position controller
     _pos_control->input_pos_vel_accel_U_m(p, v, a, collective_limit);
+
+    // Soften for landing if below the buffer height
+    if (_hagl < BUFFER_HEIGHT) {
+         _pos_control->relax_U_controller(_attitude_control->get_throttle_in());
+    }
 
     // Run the vertical position controller and set output collective
     _pos_control->update_U_controller();
@@ -794,6 +799,11 @@ void AC_Autorotation::update_navigation_controller(float pilot_norm_accel)
 
     if (motors_limit || head_speed_pitch_limit) {
         _pos_control->set_externally_limited_NE();
+    }
+
+    // Soften for landing if below the touch down min height
+    if (_hagl < _touchdown_hgt.min_height.get()) {
+         _pos_control->soften_for_landing_NE();
     }
 
     _pos_control->update_NE_controller();
