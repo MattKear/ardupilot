@@ -184,6 +184,7 @@ private:
     bool calc_scurve_trajectory_times(float a0, float v0, float p0, float& tj1, float& tj2, float& tj3) const;
     bool calc_cosine_trajectory_times(float a0, float v0, float a3, float v3, float jm, float& tj1, float& tj3) const;
     void update_trajectory(float time_now, float A0, float V0, float P0, float tj1, float tj2, float tj3, float& Jt, float& At, float& Vt, float& Pt) const;
+    float calc_td_trajectory_time(void) const;
     GuardedHeight _touchdown_hgt;        // (m) Height above ground for touchdown phase to begin
     float _calculated_touchdown_hgt;     // (m) Used for logging the calculated touchdown height so that we can keep track of the calculations output. This value is not used for the touchdown phase decision.
     uint32_t _td_init_time;              // (ms) System time when touchdown phase is init

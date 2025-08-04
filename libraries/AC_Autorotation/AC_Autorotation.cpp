@@ -477,7 +477,8 @@ void AC_Autorotation::run_touchdown(float des_lat_accel_norm)
     // Update XY targets and controller
     // We don't know exactly at what point we transitioned into the touchdown phase, so we need to 
     // keep driving the desired XY speed to zero. This will help with getting the vehicle level for touchdown
-    _desired_vel *= 1 - (_dt / get_touchdown_time());
+    const float td_time_total = MIN(calc_td_trajectory_time(), get_touchdown_time());
+    _desired_vel *= 1 - (_dt / td_time_total);
 
     update_navigation_controller(des_lat_accel_norm);
 
@@ -1165,7 +1166,7 @@ bool AC_Autorotation::should_begin_touchdown(void)
     bool solution_valid = calc_cosine_trajectory_times(a0, v0, a3, v3, jm, _tj1, _tj3);
 
     // Check that the exit conditions match our desired conditions
-    float manoeuvre_time = (_tj1 + _tj3) * 2 + _tj2;
+    float manoeuvre_time = calc_td_trajectory_time();
     float je, ae, ve, pe;
     update_trajectory(manoeuvre_time, a0, v0, _hagl, _tj1, _tj2, _tj3, je, ae, ve, pe);
 
@@ -1202,7 +1203,7 @@ bool AC_Autorotation::should_begin_touchdown(void)
     _tj2 = (v3 - v0 - (2 * a0 * _tj1) - (jm * _tj1 * _tj1) - (2 * a3 * _tj3) - (jm * _tj3 * _tj3)) / am;
 
     // Check that the exit conditions match our desired conditions
-    manoeuvre_time = (_tj1 + _tj3) * 2 + _tj2;
+    manoeuvre_time = calc_td_trajectory_time();
     update_trajectory(manoeuvre_time, a0, v0, _hagl, _tj1, _tj2, _tj3, je, ae, ve, pe);
 
     const float TOL = 1e-5;
@@ -1516,6 +1517,11 @@ bool AC_Autorotation::check_landed(void)
     _landed_reason.is_still = AP::ins().is_still();
 
     return _landed_reason.min_speed && _landed_reason.land_col && _landed_reason.is_still;
+}
+
+float AC_Autorotation::calc_td_trajectory_time(void) const
+{
+    return (_tj1 + _tj3) * 2 + _tj2;
 }
 
 // Dynamically update time step used in autorotation controllers
