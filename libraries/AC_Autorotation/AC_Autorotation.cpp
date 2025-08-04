@@ -181,6 +181,15 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("ENT_COL_RAT", 23, AC_Autorotation, _entry_col_rate_deg, 3.0),
 
+    // @Param: XY_DECEL
+    // @DisplayName: Body Frame XY Deceleration
+    // @Description: The decceleration value used to reduce the target speed of the aircraft if the speed at entry is higher than AROT_FWD_SP_TARG.
+    // @Units: m/s/s
+    // @Range: 0.5 8.0
+    // @Increment: 0.1
+    // @User: Standard
+    AP_GROUPINFO("XY_DECEL", 24, AC_Autorotation, _xy_decel_max, 2.0),
+
     // @Param: AS_DUAL
     // @DisplayName: Enable Asynchronous Dual Rotor Autorotation
     // @Description: This enables additional autorotation functionality to support the autorotation dual helis that do not have a gearbox/drive mechanism between the two rotor heads.  This is not needed if the two rotors of your dual heli are mechanically linked together.
@@ -295,7 +304,11 @@ void AC_Autorotation::init_entry(void)
     _hs_accel = (HEAD_SPEED_TARGET_RATIO - _target_head_speed) / (float(entry_time_ms)*1e-3);
 
     // Set speed target to maintain the current speed whilst we enter the autorotation
-    _desired_vel = _param_target_speed.get();
+    if (_pos_control->is_active_NE()) {
+        _desired_vel = _pos_control->get_vel_desired_NEU_ms().xy().length();
+    } else {
+        _desired_vel = _pos_control->get_vel_estimate_NEU_ms().xy().length();
+    }
 
     // When entering the autorotation we can have some roll target applied depending on what condition that
     // the position controller initialised on. If we are in the TURN_INTO_WIND or CROSS_TRACK navigation mode
@@ -322,9 +335,6 @@ void AC_Autorotation::init_glide(void)
     // Ensure target head speed is set to setpoint, in case it didn't reach the target during entry
     _target_head_speed = HEAD_SPEED_TARGET_RATIO;
 
-    // Ensure desired forward speed target is set to param value
-    _desired_vel = _param_target_speed.get();
-
     // unlock any heading hold if we had one
     _heading_hold = false;
 }
@@ -335,6 +345,9 @@ void AC_Autorotation::run_glide(float des_lat_accel_norm)
     check_headspeed_limits();
 
     update_headspeed_controller();
+
+    // update desired velocity target if we need to decelerate from the init speed
+    _desired_vel = MAX(_desired_vel - get_xy_decel() * _dt, _param_target_speed.get());
 
     update_navigation_controller(des_lat_accel_norm);
 
@@ -1522,6 +1535,16 @@ bool AC_Autorotation::check_landed(void)
 float AC_Autorotation::calc_td_trajectory_time(void) const
 {
     return (_tj1 + _tj3) * 2 + _tj2;
+}
+
+float AC_Autorotation::get_xy_decel(void) const
+{
+    if (is_positive(_xy_decel_max.get())) {
+        // Ensure decel value is always positive
+        return fabsf(_xy_decel_max.get());
+    }
+    // Treat decel max < 0 as disabled and use accel max param
+    return _param_accel_max.get();
 }
 
 // Dynamically update time step used in autorotation controllers

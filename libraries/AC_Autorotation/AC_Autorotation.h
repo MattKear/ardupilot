@@ -146,6 +146,7 @@ private:
     AP_Float col_angle_trim;
     AP_Float _td_accel_max;
     AP_Float _entry_col_rate_deg;
+    AP_Float _xy_decel_max;
 
     // Navigation controller
     void update_navigation_controller(float des_lat_accel_norm);
@@ -212,6 +213,7 @@ private:
     float get_land_speed(void) const { return fabsf(float(_land_speed_cm.get())) * -1e-2; }
     float get_td_accel_max(void) const { return MAX(_td_accel_max.get(), 1.0); }
     float get_td_jerk_max(void) const { return MAX(_param_td_jerk_max.get(), 1.0); }
+    float get_xy_decel(void) const;
 
     const float MIN_MANOEUVERING_SPEED = 2.0; // (m/s)
     const float BUFFER_HEIGHT = 0.5; // (m)
