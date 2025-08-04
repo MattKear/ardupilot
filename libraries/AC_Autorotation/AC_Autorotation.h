@@ -145,6 +145,7 @@ private:
     AP_Float _height_filt_hz;
     AP_Float col_angle_trim;
     AP_Float _td_accel_max;
+    AP_Float _entry_col_rate_deg;
 
     // Navigation controller
     void update_navigation_controller(float des_lat_accel_norm);

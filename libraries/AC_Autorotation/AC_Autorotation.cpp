@@ -172,6 +172,15 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("TD_ACC_MAX", 22, AC_Autorotation, _td_accel_max, 5),
 
+    // @Param: ENT_COL_RAT
+    // @DisplayName: Hover Entry phase collective rate
+    // @Description: The rate at which the collective will move to zero thrust position in the hover entry phase
+    // @Unit: deg/s
+    // @Range: 1 5
+    // @Increment: 0.01
+    // @User: Standard
+    AP_GROUPINFO("ENT_COL_RAT", 23, AC_Autorotation, _entry_col_rate_deg, 3.0),
+
     // @Param: AS_DUAL
     // @DisplayName: Enable Asynchronous Dual Rotor Autorotation
     // @Description: This enables additional autorotation functionality to support the autorotation dual helis that do not have a gearbox/drive mechanism between the two rotor heads.  This is not needed if the two rotors of your dual heli are mechanically linked together.
@@ -393,8 +402,18 @@ void AC_Autorotation::init_hover_entry()
 // instead, we will try to minimize rotor drag until we can jump to the touchdown phase
 void AC_Autorotation::run_hover_entry(float des_lat_accel_norm)
 {
-    // Move collective to min drag position
-    float collective_out = _motors_heli->get_coll_mid();
+    // Move collective to min drag position at parameter specified rate
+    float col_angle_deg_out = _motors_heli->get_current_col_angle_deg() - _entry_col_rate_deg.get() * _dt;
+    // constrain collective to zero thrust angle (min rotor drag)
+    col_angle_deg_out = MAX(col_angle_deg_out, _motors_heli->get_zero_thrust_angle_deg());
+
+    // convert desired collective angle to collective output (0 to 1)
+    float collective_out = _motors_heli->get_coll_from_ang_deg(col_angle_deg_out);
+
+    // Do not move collective if we are below the min touch down height
+    if (_hagl <= _touchdown_hgt.min_height.get()) {
+        collective_out = _motors_heli->get_throttle();
+    }
 
     // Send collective setting to motors output library
     _attitude_control->set_throttle_out(collective_out, false, COLLECTIVE_CUTOFF_FREQ_HZ);
