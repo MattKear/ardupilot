@@ -708,6 +708,10 @@ bool ModeAuto::start_command(const AP_Mission::Mission_Command& cmd)
         do_RTL();
         break;
 
+    case MAV_CMD_NAV_WAYPOINT_ARC:              // 34
+        do_nav_wp_arc(cmd);
+        break;
+
     case MAV_CMD_NAV_SPLINE_WAYPOINT:           // 82  Navigate to Waypoint using spline
         do_spline_wp(cmd);
         break;
@@ -919,6 +923,10 @@ bool ModeAuto::verify_command(const AP_Mission::Mission_Command& cmd)
 
     case MAV_CMD_NAV_WAYPOINT:
         cmd_complete = verify_nav_wp(cmd);
+        break;
+
+    case MAV_CMD_NAV_WAYPOINT_ARC:
+        cmd_complete = verify_nav_wp_arc();
         break;
 
     case MAV_CMD_NAV_VTOL_LAND:
@@ -1602,6 +1610,9 @@ bool ModeAuto::set_next_wp(const AP_Mission::Mission_Command& current_cmd, const
     switch (next_cmd.id) {
     case MAV_CMD_NAV_WAYPOINT:
     case MAV_CMD_NAV_LOITER_UNLIM:
+    case MAV_CMD_NAV_WAYPOINT_ARC:
+        // Search Tag: WAYPOINT_ARC_SANDBOX
+        // We may need to have a think about how this exit condition is satisfied
 #if AP_MISSION_NAV_PAYLOAD_PLACE_ENABLED
     case MAV_CMD_NAV_PAYLOAD_PLACE:
 #endif
@@ -1631,6 +1642,54 @@ bool ModeAuto::set_next_wp(const AP_Mission::Mission_Command& current_cmd, const
     }
 
     return true;
+}
+
+// do_nav_wp_arc - define an circular arc path in the mission
+void ModeAuto::do_nav_wp_arc(const AP_Mission::Mission_Command& cmd)
+{
+    // calculate default location used when lat, lon or alt is zero
+    Location default_loc = copter.current_loc;
+
+    // subtract position offsets
+    subtract_pos_offsets(default_loc);
+
+    if (wp_nav->is_active() && wp_nav->reached_wp_destination()) {
+        if (!wp_nav->get_wp_destination_loc(default_loc)) {
+            // this should never happen
+            INTERNAL_ERROR(AP_InternalError::error_t::flow_of_control);
+        }
+    }
+
+    // get waypoint's location from command
+    const Location arc_center = loc_from_cmd(cmd, default_loc);
+
+    // Debug prints that can be deleted.  Only here to test the mission implementation of the new command
+    gcs().send_text(MAV_SEVERITY_DEBUG, "WP ARC: Centre Lat = %.9f", double(arc_center.lat)*1e-7);
+    gcs().send_text(MAV_SEVERITY_DEBUG, "WP ARC: Centre Lng = %.9f", double(arc_center.lng)*1e-7);
+    float centre_alt;
+    if (arc_center.get_alt_m(Location::AltFrame::ABOVE_ORIGIN, centre_alt)) {
+        gcs().send_text(MAV_SEVERITY_DEBUG, "WP ARC: Centre alt = %.2f", centre_alt);
+    }
+    gcs().send_text(MAV_SEVERITY_DEBUG, "WP ARC: angle = %u deg", cmd.p1);
+
+
+    // this is where the special sauce needs to be added for arc navigation....
+    // Search Tag: WAYPOINT_ARC_SANDBOX
+
+
+    // NOTE: For the time being I have just left this in so that the arc centre is treated as regular wp
+    // and the mission will run. The stuff below will need reworking based on the arc definition.
+    if (!wp_start(arc_center)) {
+        // failure to set next destination can only be because of missing terrain data
+        copter.failsafe_terrain_on_event();
+        return;
+    }
+    // set next destination
+    if (!set_next_wp(cmd, arc_center)) {
+        // failure to set next destination can only be because of missing terrain data
+        copter.failsafe_terrain_on_event();
+        return;
+    }
 }
 
 // do_land - initiate landing procedure
@@ -2251,6 +2310,18 @@ bool ModeAuto::verify_nav_wp(const AP_Mission::Mission_Command& cmd)
         return true;
     }
     return false;
+}
+
+// verify_nav_wp_arc - check if we have reached the end of the arc
+bool ModeAuto::verify_nav_wp_arc()
+{
+    // Search Tag: WAYPOINT_ARC_SANDBOX
+    // We will need to add some checks in here to return false unless we have reached the end of the arc
+    // For now I have just left this dumb check in for now to basically treat the arc centre as a wp
+    if ( !copter.wp_nav->reached_wp_destination() ) {
+        return false;
+    }
+    return true;
 }
 
 // verify_circle - check if we have circled the point enough

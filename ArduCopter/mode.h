@@ -700,6 +700,7 @@ private:
     void do_nav_script_time(const AP_Mission::Mission_Command& cmd);
 #endif
     void do_nav_attitude_time(const AP_Mission::Mission_Command& cmd);
+    void do_nav_wp_arc(const AP_Mission::Mission_Command& do_nav_wp_arc);
 
     bool verify_takeoff();
     bool verify_land();
@@ -712,6 +713,7 @@ private:
     bool verify_within_distance();
     bool verify_yaw();
     bool verify_nav_wp(const AP_Mission::Mission_Command& cmd);
+    bool verify_nav_wp_arc();
     bool verify_circle(const AP_Mission::Mission_Command& cmd);
     bool verify_spline_wp(const AP_Mission::Mission_Command& cmd);
 #if AC_NAV_GUIDED
