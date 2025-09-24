@@ -680,6 +680,7 @@ bool ModeAuto::start_command(const AP_Mission::Mission_Command& cmd)
         break;
 
     case MAV_CMD_NAV_WAYPOINT:                  // 16  Navigate to Waypoint
+    case MAV_CMD_NAV_ARC_WAYPOINT:              // 35 Navigate to waypoint via an arc
         do_nav_wp(cmd);
         break;
 
@@ -918,6 +919,7 @@ bool ModeAuto::verify_command(const AP_Mission::Mission_Command& cmd)
         break;
 
     case MAV_CMD_NAV_WAYPOINT:
+    case MAV_CMD_NAV_ARC_WAYPOINT:
         cmd_complete = verify_nav_wp(cmd);
         break;
 
@@ -1570,10 +1572,10 @@ void ModeAuto::do_nav_wp(const AP_Mission::Mission_Command& cmd)
     // this will be used to remember the time in millis after we reach or pass the WP.
     loiter_time = 0;
     // this is the delay, stored in seconds
-    if (cmd.id != MAV_CMD_NAV_SPLINE_WAYPOINT) {
-        loiter_time_max = cmd.p1;
+    if (cmd.id == MAV_CMD_NAV_ARC_WAYPOINT) {
+        loiter_time_max = 0; // TODO: fix mission command storage so that we can fit the delay time. For now, we cannot have a delay at the end of an arc wp
     } else {
-        loiter_time_max = 0;
+        loiter_time_max = cmd.p1;
     }
 
     // set next destination if necessary
@@ -1592,7 +1594,7 @@ void ModeAuto::do_nav_wp(const AP_Mission::Mission_Command& cmd)
 bool ModeAuto::set_next_wp(const AP_Mission::Mission_Command& current_cmd, const Location &default_loc)
 {
     // do not add next wp if current command has a delay meaning the vehicle will stop at the destination
-    if (current_cmd.p1 > 0 && current_cmd.id != MAV_CMD_NAV_SPLINE_WAYPOINT) {
+    if (current_cmd.p1 > 0 && current_cmd.id == MAV_CMD_NAV_WAYPOINT) {
         return true;
     }
 
@@ -1615,17 +1617,20 @@ bool ModeAuto::set_next_wp(const AP_Mission::Mission_Command& current_cmd, const
         return wp_nav->set_wp_destination_next_loc(next_dest_loc);
     }
     case MAV_CMD_NAV_SPLINE_WAYPOINT: {
+        // get spline's location and next location from command and send to wp_nav
+        Location next_dest_loc, next_next_dest_loc;
+        bool next_next_dest_loc_is_spline;
+        get_spline_from_cmd(next_cmd, default_loc, next_dest_loc, next_next_dest_loc, next_next_dest_loc_is_spline);
+        return wp_nav->set_spline_destination_next_loc(next_dest_loc, next_next_dest_loc, next_next_dest_loc_is_spline);
+    }
+    case MAV_CMD_NAV_ARC_WAYPOINT: {
         const Location dest_loc = loc_from_cmd(current_cmd, default_loc);
         const Location next_dest_loc = loc_from_cmd(next_cmd, dest_loc);
-        return wp_nav->set_wp_destination_next_loc(next_dest_loc, radians(next_cmd.p1 - 360));
+        // We had to do some special handling to store turn direction/sign of arc_angle as next_cmd.p1 is a uint16_t
+        const float sign = next_cmd.content.location.loiter_ccw == 0 ? 1.0 : -1.0;
+        const float arc_angle = radians(float(next_cmd.p1) * sign);
+        return wp_nav->set_wp_destination_next_loc(next_dest_loc, arc_angle);
     }
-    // case MAV_CMD_NAV_SPLINE_WAYPOINT: {
-    //     // get spline's location and next location from command and send to wp_nav
-    //     Location next_dest_loc, next_next_dest_loc;
-    //     bool next_next_dest_loc_is_spline;
-    //     get_spline_from_cmd(next_cmd, default_loc, next_dest_loc, next_next_dest_loc, next_next_dest_loc_is_spline);
-    //     return wp_nav->set_spline_destination_next_loc(next_dest_loc, next_next_dest_loc, next_next_dest_loc_is_spline);
-    // }
     case MAV_CMD_NAV_VTOL_LAND:
     case MAV_CMD_NAV_LAND:
         // stop because we may change between rel,abs and terrain alt types
