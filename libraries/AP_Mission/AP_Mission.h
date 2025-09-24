@@ -435,6 +435,16 @@ public:
             }
             return turns;
         }
+
+        /*
+          The arc angle in Param1 ARC_WAYPOINT mav cmd is signed, + is CW and - is CCW.
+          The direction is then stored in the loiter_ccw as p1 is unsigned.
+          This is the helper to unpack this from storage.
+         */
+        float get_arc_angle_deg(void) const {
+            const float sign = content.location.loiter_ccw == 0 ? 1.0 : -1.0;
+            return float(p1) * sign;
+        }
     };
 
 
