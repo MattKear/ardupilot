@@ -315,6 +315,9 @@ void AP_Periph_FW::init()
 #if AP_SCRIPTING_ENABLED
     scripting.init();
 #endif
+
+    loadcell.init()
+
     start_ms = AP_HAL::millis();
 }
 

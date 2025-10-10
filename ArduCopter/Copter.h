@@ -168,6 +168,8 @@
   #error AC_Autorotation relies on AP_RPM_ENABLED which is disabled
 #endif
 
+#include <AP_LoadCell/AP_LoadCell.h>
+
 #if HAL_ADSB_ENABLED
 #include "avoidance_adsb.h"
 #endif
@@ -564,6 +566,8 @@ private:
     // Top-level logic
     // setup the var_info table
     AP_Param param_loader;
+
+    AP_LoadCell loadcell;
 
 #if FRAME_CONFIG == HELI_FRAME
     // Tradheli flags

@@ -31,6 +31,7 @@
 #include <AP_RPM/AP_RPM.h>
 #include <AP_SerialManager/AP_SerialManager.h>
 #include <AP_ESC_Telem/AP_ESC_Telem_config.h>
+#include <AP_LoadCell/AP_LoadCell.h>
 #if HAL_WITH_ESC_TELEM
 #include <AP_ESC_Telem/AP_ESC_Telem.h>
 #endif
@@ -452,6 +453,8 @@ public:
 #if AP_PERIPH_RELAY_ENABLED
     AP_Relay relay;
 #endif
+
+    AP_LoadCell loadcell;
 
     // setup the var_info table
     AP_Param param_loader{var_info};

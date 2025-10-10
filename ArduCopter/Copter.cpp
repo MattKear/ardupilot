@@ -783,6 +783,13 @@ void Copter::one_hz_loop()
     // update assigned functions and enable auxiliary servos
     AP::srv().enable_aux_servos();
 
+    float load;
+    if (!loadcell.get(load)) {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Loadcell failed get");
+    } else {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Loadcell updated");
+    }
+
 #if HAL_LOGGING_ENABLED
     // log terrain data
     terrain_logging();

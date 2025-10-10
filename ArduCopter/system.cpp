@@ -176,6 +176,8 @@ void Copter::init_ardupilot()
     custom_control.init();
 #endif
 
+    loadcell.init();
+
     // set landed flags
     set_land_complete(true);
     set_land_complete_maybe(true);
