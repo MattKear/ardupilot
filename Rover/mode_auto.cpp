@@ -40,6 +40,10 @@ void ModeAuto::_exit()
     if (mission.state() == AP_Mission::MISSION_RUNNING) {
         mission.stop();
     }
+
+    if (_submode == SubMode::Loiter) {
+        rover.mode_loiter._exit();
+    }
 }
 
 void ModeAuto::update()

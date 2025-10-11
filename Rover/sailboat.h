@@ -89,6 +89,11 @@ public:
     // by feathering or sheeting right out
     void relax_sails();
 
+    // update speed and heading for sailboat specific loiter behaviour
+    bool calc_loiter_speed_and_heading(const float dist_to_destination, float& desired_speed, float& desired_heading_cd);
+
+    void calc_loiter_turn_rate_and_heading(float& turn_rate, float& desired_heading_cd);
+
 private:
 
     // true if motor is on to assist with slow tack

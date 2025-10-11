@@ -633,6 +633,13 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @Path: mode_circle.cpp
     AP_SUBGROUPINFO(mode_circle, "CIRC", 57, ParametersG2, ModeCircle),
 
+    // @Param: LOIT_OPTIONS
+    // @DisplayName: Loiter options
+    // @Description: Bitmask of options for loiter behaviour
+    // @Bitmask: 0:Enable Lazy Loiter
+    // @User: Standard
+    AP_GROUPINFO("LOIT_OPTIONS", 58, ParametersG2, loiter_options, 0),
+
     AP_GROUPEND
 };
 

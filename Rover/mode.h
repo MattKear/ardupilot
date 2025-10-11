@@ -633,6 +633,8 @@ public:
 
 class ModeLoiter : public Mode
 {
+    friend class ModeAuto;
+
 public:
 
     Number mode_number() const override { return Number::LOITER; }
@@ -661,9 +663,18 @@ public:
 protected:
 
     bool _enter() override;
+    void _exit() override;
+    void calc_heading_and_speed(const float limit_radius, float& heading, float& speed);
+    bool update_lazy_loiter(void);
 
     Location _destination;      // target location to hold position around
     float _desired_speed;       // desired speed (ramped down from initial speed to zero)
+
+    enum class Loiter_Options : uint32_t {
+        Lazy_Loiter_Enable = (1<<0)
+    };
+
+    bool lazy_loiter_active;
 };
 
 class ModeManual : public Mode

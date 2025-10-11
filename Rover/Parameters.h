@@ -427,6 +427,8 @@ public:
     // FS GCS timeout trigger time
     AP_Float fs_gcs_timeout;
 
+    AP_Int32 loiter_options;
+
     class ModeCircle mode_circle;
 };
 

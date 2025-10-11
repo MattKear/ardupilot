@@ -550,3 +550,41 @@ bool Sailboat::motor_assist_low_wind() const
             rover.g2.windvane.wind_speed_enabled() &&
             (rover.g2.windvane.get_true_wind_speed() < sail_windspeed_min));
 }
+
+bool Sailboat::calc_loiter_speed_and_heading(const float dist_to_destination, float& desired_speed, float& desired_heading_cd)
+{
+    const float loiter_radius = tack_enabled() ? get_loiter_radius() : rover.g2.loit_radius.get();
+
+    // Sail boat loiter behaviour
+    // Only modify heading and speed if we are within the loiter radius
+    if (dist_to_destination <= loiter_radius) {
+        // sailboats should not stop unless motoring
+        const float desired_speed_within_radius = tack_enabled() ? 0.1f : 0.0f;
+        desired_speed = rover.g2.attitude_control.get_desired_speed_accel_limited(desired_speed_within_radius, rover.G_Dt);
+
+        // if we have a sail but not trying to use it then point into the wind
+        if (!tack_enabled() && sail_enabled()) {
+            desired_heading_cd = degrees(rover.g2.windvane.get_true_wind_direction_rad()) * 100.0f;
+        }
+
+        return true;
+    }
+
+    // if we got this far then we are not doing any sailboat specific behaviour
+    return false;
+}
+
+void Sailboat::calc_loiter_turn_rate_and_heading(float& turn_rate, float& desired_heading_cd)
+{
+    // make sure sailboats don't try and sail directly into the wind
+    if (!use_indirect_route(desired_heading_cd)) {
+        return;
+    }
+
+    desired_heading_cd = calc_heading(desired_heading_cd);
+    if (tacking()) {
+        // use pivot turn rate for tacks
+        turn_rate = rover.g2.wp_nav.get_pivot_rate();
+    }
+}
+
