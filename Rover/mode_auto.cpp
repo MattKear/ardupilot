@@ -453,6 +453,12 @@ bool ModeAuto::start_loiter()
 {
     if (rover.mode_loiter.enter()) {
         _submode = SubMode::Loiter;
+
+        // by default loiter obtains its destination by calculating a stopping point. As we are initiating the
+        // loiter from auto we already have a destination that we set in loiter controller.
+        Location wp_dest = g2.wp_nav.get_destination();
+        rover.mode_loiter.set_destination(wp_dest);
+
         return true;
     }
     return false;

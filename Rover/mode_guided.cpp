@@ -387,6 +387,14 @@ void ModeGuided::set_steering_and_throttle(float steering, float throttle)
 bool ModeGuided::start_loiter()
 {
     if (rover.mode_loiter.enter()) {
+
+        if (_guided_mode == SubMode::WP) {
+            // by default loiter obtains its destination by calculating a stopping point. As we are initiating the
+            // loiter from guided with a destination position we can set it directly in loiter controller.
+            Location wp_dest = g2.wp_nav.get_destination();
+            rover.mode_loiter.set_destination(wp_dest);
+        }
+
         _guided_mode = SubMode::Loiter;
         return true;
     }

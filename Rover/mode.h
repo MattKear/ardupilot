@@ -652,6 +652,9 @@ public:
     // return desired location
     bool get_desired_location(Location& destination) const override WARN_IF_UNUSED;
 
+    // Allow the loiter destination to be set externally
+    void set_destination(Location& destination) { _destination = destination; }
+
     // return distance (in meters) to destination
     float get_distance_to_destination() const override { return _distance_to_destination; }
 
