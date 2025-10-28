@@ -32,7 +32,8 @@ void AP_RangeFinder_DFRobotUltraSonic::init_serial(uint8_t serial_instance)
 
     // Set flow control and inversion
     if (uart != nullptr) {
-        uart->set_unbuffered_writes(true);
+        uart->configure_parity(0);
+        uart->set_stop_bits(1);
         uart->set_flow_control(AP_HAL::UARTDriver::flow_control::FLOW_CONTROL_RTS_DE);
     }
 }
@@ -46,9 +47,9 @@ bool AP_RangeFinder_DFRobotUltraSonic::get_reading(float &reading_m)
     }
 
     // Send command to read
-    send_read_holding_registers(sensor_ID, 0x0208, 1);
+    send_read_holding_registers(sensor_ID, 0x0101, 1); // Real-time value register 0x0101
 
-    // Try and read data a few times, this could be a while loop, using a for loop gives a upper bound to run time
+    // Try and read data a few times
     bool ret = false;
     for (uint8_t attempts = 0; attempts < sizeof(buffer) * 4; attempts++) {
 
@@ -57,6 +58,7 @@ bool AP_RangeFinder_DFRobotUltraSonic::get_reading(float &reading_m)
             // No data available
             break;
         }
+
         if (buffer_offset < sizeof(buffer)) {
             // Read enough bytes to fill buffer
             ssize_t nread = uart->read(&buffer[buffer_offset], MIN(n, unsigned(sizeof(buffer)-buffer_offset)));
@@ -95,8 +97,8 @@ bool AP_RangeFinder_DFRobotUltraSonic::get_reading(float &reading_m)
             const uint16_t crc = calc_crc_modbus(buffer, 5);
             if ((buffer[5] == LOWBYTE(crc)) && (buffer[6] == HIGHBYTE(crc))) {
                 // CRC matches, valid response
-                uint16_t count = UINT16_VALUE(buffer[3], buffer[4]);
-                reading_m = count * 0.085954 * 0.001;
+                uint16_t dist_mm = UINT16_VALUE(buffer[3], buffer[4]);
+                reading_m = float(dist_mm) * 0.001;
                 ret = true;
 
                 // Zero offset and see if there is any more data
@@ -113,19 +115,20 @@ bool AP_RangeFinder_DFRobotUltraSonic::get_reading(float &reading_m)
     return ret;
 }
 
-void AP_RangeFinder_DFRobotUltraSonic::send_read_holding_registers(const uint8_t ID, const uint16_t start_address, const uint16_t count)
+void AP_RangeFinder_DFRobotUltraSonic::send_read_holding_registers(const uint8_t dev_add, const uint16_t reg_address, const uint16_t count)
 {
     uint8_t data[] {
-        ID,
-        0x03,
-        HIGHBYTE(start_address),
-        LOWBYTE(start_address),
+        dev_add,
+        0x03, // function code = reading
+        HIGHBYTE(reg_address),
+        LOWBYTE(reg_address),
         HIGHBYTE(count),
         LOWBYTE(count),
         0, // crc low
         0  // crc high
     };
 
+    // calculate and add the CRC
     const uint16_t crc = calc_crc_modbus(data, 6);
     data[6] = LOWBYTE(crc);
     data[7] = HIGHBYTE(crc);
