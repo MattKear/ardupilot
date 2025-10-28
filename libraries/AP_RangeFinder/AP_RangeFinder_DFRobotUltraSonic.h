@@ -2,12 +2,12 @@
 
 #include "AP_RangeFinder_config.h"
 
-#if AP_RANGEFINDER_TOUGHSONIC_ENABLED
+#if AP_RANGEFINDER_DFROBOTULTRASONIC_ENABLED
 
 #include "AP_RangeFinder.h"
 #include "AP_RangeFinder_Backend_Serial.h"
 
-class AP_RangeFinder_ToughSonic : public AP_RangeFinder_Backend_Serial
+class AP_RangeFinder_DFRobotUltraSonic : public AP_RangeFinder_Backend_Serial
 {
 
 public:
@@ -15,7 +15,7 @@ public:
     static AP_RangeFinder_Backend_Serial *create(
         RangeFinder::RangeFinder_State &_state,
         AP_RangeFinder_Params &_params) {
-        return new AP_RangeFinder_ToughSonic(_state, _params);
+        return new AP_RangeFinder_DFRobotUltraSonic(_state, _params);
     }
 
     void init_serial(uint8_t serial_instance) override;
@@ -40,4 +40,4 @@ private:
     void send_read_holding_registers(const uint8_t ID, const uint16_t start_address, const uint16_t count);
 
 };
-#endif // AP_RANGEFINDER_TOUGHSONIC_ENABLED
+#endif // AP_RANGEFINDER_DFROBOTULTRASONIC_ENABLED

@@ -13,9 +13,9 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "AP_RangeFinder_ToughSonic.h"
+#include "AP_RangeFinder_DFRobotUltraSonic.h"
 
-#if AP_RANGEFINDER_TOUGHSONIC_ENABLED
+#if AP_RANGEFINDER_DFROBOTULTRASONIC_ENABLED
 
 #include <AP_HAL/AP_HAL.h>
 #include <AP_HAL/utility/sparse-endian.h>
@@ -25,7 +25,7 @@
 
 extern const AP_HAL::HAL& hal;
 
-void AP_RangeFinder_ToughSonic::init_serial(uint8_t serial_instance)
+void AP_RangeFinder_DFRobotUltraSonic::init_serial(uint8_t serial_instance)
 {
     // Run base class config 
     AP_RangeFinder_Backend_Serial::init_serial(serial_instance);
@@ -39,7 +39,7 @@ void AP_RangeFinder_ToughSonic::init_serial(uint8_t serial_instance)
 
 
 // distance returned in reading_m, set to true if sensor reports a good reading
-bool AP_RangeFinder_ToughSonic::get_reading(float &reading_m)
+bool AP_RangeFinder_DFRobotUltraSonic::get_reading(float &reading_m)
 {
     if (uart == nullptr) {
         return false;
@@ -113,7 +113,7 @@ bool AP_RangeFinder_ToughSonic::get_reading(float &reading_m)
     return ret;
 }
 
-void AP_RangeFinder_ToughSonic::send_read_holding_registers(const uint8_t ID, const uint16_t start_address, const uint16_t count)
+void AP_RangeFinder_DFRobotUltraSonic::send_read_holding_registers(const uint8_t ID, const uint16_t start_address, const uint16_t count)
 {
     uint8_t data[] {
         ID,
@@ -133,4 +133,4 @@ void AP_RangeFinder_ToughSonic::send_read_holding_registers(const uint8_t ID, co
     uart->write(data, sizeof(data));
 }
 
-#endif // AP_RANGEFINDER_TOUGHSONIC_ENABLED
+#endif // AP_RANGEFINDER_DFROBOTULTRASONIC_ENABLED
