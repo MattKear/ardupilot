@@ -4,7 +4,6 @@
 # MCU class and specific type
 MCU STM32H7xx STM32H757xx
 
-
 define CORE_CM7
 define SMPS_PWR
 
@@ -124,3 +123,11 @@ define FATFS_HAL_DEVICE SDCD2
 
 # Enable battery monitor
 define AP_BATTERY_INA260_ENABLED 1
+
+# Defining some PWM pins. We also map these pins to GPIO
+PE14 TIM1_CH4 TIM1 PWM(1) GPIO(50)
+PE13 TIM1_CH3 TIM1 PWM(2) GPIO(51)
+PE11 TIM1_CH2 TIM1 PWM(3) GPIO(52)
+PD13 TIM4_CH2 TIM4 PWM(4) GPIO(53)
+PD14 TIM4_CH3 TIM4 PWM(5) GPIO(54)
+PD15 TIM4_CH4 TIM4 PWM(6) GPIO(55)
