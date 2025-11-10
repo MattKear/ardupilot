@@ -22,7 +22,7 @@ local target_node_id = 10
 local have_heartbeat = false
 local have_ever_had_error = false
 local last_heartbeat_ms = millis()
-local HEARTBEAT_TIMEOUT = 5000
+local HEARTBEAT_TIMEOUT = uint32_t(5000)
 
 local CAN_BUFFER_SIZE = 20
 
@@ -79,26 +79,18 @@ end
 -- Parse heartbeat from ODrive and store state
 function update_heartbeat(frame)
 
-   -- update timeout on heartbeat state
-   local now = millis()
-   if now - last_heartbeat_ms > HEARTBEAT_TIMEOUT then
-      have_heartbeat = false
-   end
-
-   odrive_status.axis_errors = frame:data(0) << 24 + frame:data(1) << 16 + frame:data(2) << 8 + frame:data(3)
+   odrive_status.axis_errors = uint32_t(frame:data(0) | (frame:data(1) << 8) | (frame:data(2) << 16) | (frame:data(3) << 24))
    odrive_status.axis_state = frame:data(4)
    odrive_status.procedure_result = frame:data(5)
    odrive_status.trajectory_done_flag = frame:data(6)
 
-   -- local node_id = (frame:id() & NODE_ID_MASK) >> NODE_ID_SHIFT
-   -- gcs:send_text(0,string.format("cmd: " ..  tostring(cmd_id) .." from node " .. tostring(node_id) .. ": %i, %i, %i, %i, %i, %i, %i, %i", frame:data(0), frame:data(1), frame:data(2), frame:data(3), frame:data(4), frame:data(5), frame:data(6), frame:data(7)))
-   --gcs:send_text(4,string.format("Node: " .. tostring(node_id) .. ": Err: %i, State: %i, Res: %i, Done: %i,", odrive_status.axis_errors, odrive_status.axis_state, odrive_status.procedure_result, odrive_status.trajectory_done_flag))
+   --gcs:send_named_float("AErr", odrive_status.axis_errors:toint())
 
    -- We have a valid heartbeat, update timer and state
-   last_heartbeat_ms = now
+   last_heartbeat_ms = millis()
    have_heartbeat = true
-   if odrive_status.axis_errors then
-      have_ever_had_error = (not have_ever_had_error) and (odrive_status.axis_errors ~= 0)
+   if (odrive_status.axis_errors) and (not have_ever_had_error) then
+      have_ever_had_error = odrive_status.axis_errors > 0
    end
 end
 
@@ -154,11 +146,17 @@ end
 local position_des = 0.0
 local position_inc = 0.01
 local pos_max = 20.0
+local odrive_armed = false
 
 function update()
 
    -- read data sent from the ODrive
    read_data()
+
+   -- update timeout on heartbeat state
+   if millis() - last_heartbeat_ms > HEARTBEAT_TIMEOUT then
+      have_heartbeat = false
+   end
 
    -- update_logging()
 
@@ -167,16 +165,23 @@ function update()
       return update, 10
    end
 
-   -- Tie odrive state to safety state of vehicle
-   if (not SRV_Channels:get_safety_state()) and (odrive_status.axis_state == STATE_IDLE) and (not have_ever_had_error) then
+   -- See if we should arm the odrive
+   if (not SRV_Channels:get_safety_state()) and (odrive_status.axis_state == STATE_IDLE) and (not have_ever_had_error) and (not odrive_armed) then
       gcs:send_text(2, "Arming ODRIVE")
       set_odrive_state(true)
-   elseif (SRV_Channels:get_safety_state() and (odrive_status.axis_state ~= STATE_IDLE)) or odrive_status.axis_state == STATE_UNKOWN then
-      gcs:send_text(2, "Disarming ODRIVE")
-      set_odrive_state(false)
+      odrive_armed = true
    end
 
-   if have_ever_had_error then
+   -- see if we should send a disarm command to the odrive
+   if (SRV_Channels:get_safety_state() and (odrive_status.axis_state ~= STATE_IDLE)) or (odrive_status.axis_state == STATE_UNKOWN) then
+      gcs:send_text(2, "Disarming ODRIVE")
+      set_odrive_state(false)
+      odrive_armed = false
+   end
+
+   if have_ever_had_error and odrive_armed then
+      set_odrive_state(false)
+      odrive_armed = false
       gcs:send_text(2, "In Error State")
    end
 
