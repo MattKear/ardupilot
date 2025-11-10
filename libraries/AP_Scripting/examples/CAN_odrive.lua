@@ -171,11 +171,16 @@ function update_heartbeat(frame)
 end
 
 -- parse data from CMD_GET_BUS_VOLTAGE_CURRENT and stuff in ESC telem
+local esc_telem_data = ESCTelemetryData()
 function update_battmon_telem(frame)
    local bus_voltage = unpack_data(frame, 0, 3, "f") -- float
    local bus_current = unpack_data(frame, 4, 7, "f") -- float
 
-   gcs:send_named_float("ODVO", bus_voltage)
+   -- update esc telem data
+   esc_telem_data:voltage(bus_voltage)
+   esc_telem_data:current(bus_current)
+   -- 0x0C is mask for voltage and current data
+   esc_telem:update_telem_data(0, esc_telem_data, 0x0C)
 
 end
 
