@@ -13,6 +13,7 @@ local CMD_CLEAR_ERRORS = 0x18
 local CMD_RXSDO = 0x04
 local CMD_TXSDO = 0x05
 local CMD_GET_BUS_VOLTAGE_CURRENT = 0x17
+local CMD_GET_TEMPERATURE = 0x15
 
 local LOCAL_STATE_DISAMED = 0
 local LOCAL_STATE_ARMED = 1
@@ -142,7 +143,9 @@ function read_data()
       elseif (cmd_id == CMD_TXSDO) then
          read_TxSdo(frame)
       elseif (cmd_id == CMD_GET_BUS_VOLTAGE_CURRENT) then
-         update_battmon_telem(frame)
+         update_volt_curr_telem(frame)
+      elseif (cmd_id == CMD_GET_TEMPERATURE) then
+         update_temp_telem(frame)
       else
          gcs:send_text(0,string.format("cmd: " ..  tostring(cmd_id) .." from node " .. tostring(node_id) .. ": %i, %i, %i, %i, %i, %i, %i, %i", frame:data(0), frame:data(1), frame:data(2), frame:data(3), frame:data(4), frame:data(5), frame:data(6), frame:data(7)))
       end
@@ -172,7 +175,7 @@ end
 
 -- parse data from CMD_GET_BUS_VOLTAGE_CURRENT and stuff in ESC telem
 local esc_telem_data = ESCTelemetryData()
-function update_battmon_telem(frame)
+function update_volt_curr_telem(frame)
    local bus_voltage = unpack_data(frame, 0, 3, "f") -- float
    local bus_current = unpack_data(frame, 4, 7, "f") -- float
 
@@ -181,7 +184,22 @@ function update_battmon_telem(frame)
    esc_telem_data:current(bus_current)
    -- 0x0C is mask for voltage and current data
    esc_telem:update_telem_data(0, esc_telem_data, 0x0C)
+end
 
+-- parse data from CMD_GET_TEMPERATURE and stuff in esc telem
+function update_temp_telem(frame)
+   local fet_temp = unpack_data(frame, 0, 3, "f") -- float
+   local motor_temp = unpack_data(frame, 4, 7, "f") -- float
+
+   -- convert to cdeg
+   fet_temp = math.floor(fet_temp * 100)
+   motor_temp = math.floor(motor_temp * 100)
+
+   -- update esc telem data
+   esc_telem_data:temperature_cdeg(fet_temp)
+   esc_telem_data:motor_temp_cdeg(motor_temp)
+   -- 0x03 is mask for temperature and motor temperature
+   esc_telem:update_telem_data(0, esc_telem_data, 0x03)
 end
 
 -- Set control mode on odrive. This is needed before we can drive the motor.
@@ -318,6 +336,7 @@ function run_setup()
 
    -- set message rates for cyclic telem
    send_RxSdo(OPCODE_WRITE, axis0.config.can.bus_voltage_msg_rate_ms, 500)
+   send_RxSdo(OPCODE_WRITE, axis0.config.can.temperature_msg_rate_ms, 500)
 
    return true
 
