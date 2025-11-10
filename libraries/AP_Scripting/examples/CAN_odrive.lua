@@ -258,8 +258,6 @@ function send_RxSdo(opcode, endpoint, value)
 
    -- pack payload
    local format = "<BHB" .. endpoint.type
-   --gcs:send_text(3, format)
-   gcs:send_text(3, "DB id = " .. tostring(endpoint.id))
    local payload = string.pack(format, opcode, endpoint.id, 0, value)
    for i = 1, #payload do
       msg:data(i - 1, string.byte(payload, i))
@@ -303,7 +301,6 @@ function read_TxSdo(frame)
       -- No payload to read
       return nil
     end
-    gcs:send_text(3, "read DB " .. tostring(frame:dlc()))
 
     -- Read payload data bytes starting from byte 4, to number of bytes - 1
     local value = unpack_data(frame, 4, frame:dlc() - 1, endpoint.type)
@@ -378,13 +375,6 @@ function update()
       set_odrive_state(false)
       local_state = LOCAL_STATE_ERROR
       gcs:send_text(2, "In Error State")
-   end
-
-   gcs:send_named_float("Stat", local_state)
-   if had_error then
-      gcs:send_named_float("Err", 1)
-   else
-      gcs:send_named_float("Err", 0)
    end
 
    if arming:is_armed() and (odrive_status.axis_state == STATE_CLOSEDLOOP) then
