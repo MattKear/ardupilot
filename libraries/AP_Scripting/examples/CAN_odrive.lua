@@ -20,6 +20,7 @@ local odrive_status = {
 local target_node_id = 10
 
 local have_heartbeat = false
+local have_ever_had_error = false
 local last_heartbeat_ms = millis()
 local HEARTBEAT_TIMEOUT = 5000
 
@@ -84,26 +85,27 @@ function update_heartbeat(frame)
       have_heartbeat = false
    end
 
-   local node_id = (frame:id() & NODE_ID_MASK) >> NODE_ID_SHIFT
    odrive_status.axis_errors = frame:data(0) << 24 + frame:data(1) << 16 + frame:data(2) << 8 + frame:data(3)
    odrive_status.axis_state = frame:data(4)
    odrive_status.procedure_result = frame:data(5)
    odrive_status.trajectory_done_flag = frame:data(6)
+
+   -- local node_id = (frame:id() & NODE_ID_MASK) >> NODE_ID_SHIFT
    -- gcs:send_text(0,string.format("cmd: " ..  tostring(cmd_id) .." from node " .. tostring(node_id) .. ": %i, %i, %i, %i, %i, %i, %i, %i", frame:data(0), frame:data(1), frame:data(2), frame:data(3), frame:data(4), frame:data(5), frame:data(6), frame:data(7)))
    --gcs:send_text(4,string.format("Node: " .. tostring(node_id) .. ": Err: %i, State: %i, Res: %i, Done: %i,", odrive_status.axis_errors, odrive_status.axis_state, odrive_status.procedure_result, odrive_status.trajectory_done_flag))
 
    -- We have a valid heartbeat, update timer and state
    last_heartbeat_ms = now
    have_heartbeat = true
-
-   gcs:send_named_float("ODHB", odrive_status.axis_state)
+   if odrive_status.axis_errors then
+      have_ever_had_error = (not have_ever_had_error) and (odrive_status.axis_errors ~= 0)
+   end
 end
 
 -- Set control mode on odrive. This is needed before we can drive the motor.
 function set_odrive_state(arm)
    msg = CANFrame()
 
-   local target_id = get_id(CMD_SET_AXIS_STATE)
    msg:id(get_id(CMD_SET_AXIS_STATE))
 
    local state = STATE_IDLE
@@ -111,17 +113,17 @@ function set_odrive_state(arm)
       state = STATE_CLOSEDLOOP
    end
 
-   -- requested state is a uint32_t. I only want to send either 1 or 8 so i am being lazy and only packing the 1st bit
+   -- requested state is a uint32_t
     msg:data(0, state)
-   --  msg:data(1, 0)
-   --  msg:data(2, 0)
-   --  msg:data(3, 0)
+    msg:data(1, 0)
+    msg:data(2, 0)
+    msg:data(3, 0)
 
    -- sending 4 bytes of data
    msg:dlc(4)
 
-   -- timeout of 1000us
-   driver:write_frame(msg, 1000)
+   local timeout = 500
+   driver:write_frame(msg, timeout)
 end
 
 -- send position input commands to odrive
@@ -131,8 +133,7 @@ function send_position_command(pos)
 
    msg = CANFrame()
 
-   local target_id = get_id(CMD_SET_INPUT_POS)
-   msg:id(get_id(CMD_SET_AXIS_STATE))
+   msg:id(get_id(CMD_SET_INPUT_POS))
 
    local vel_ff = 0
    local torque_ff = 0
@@ -149,39 +150,11 @@ function send_position_command(pos)
    driver:write_frame(msg, 1000)
 end
 
--- function update_logging()
-
---    -- pack heartbeat state into bitmask
---    local heartbeat_state = 0
---    if seen_heartbeat then
---       heartbeat_state = heartbeat_state + 1
---    elseif have_heartbeat then
---       heartbeat_state = heartbeat_state + (1<<1)
---    end
-
---    -- Convert booleans to numbers for logger
---    local axis_state_num = odrive_status.axis_state or 0
---    local procedure_result_num = odrive_status.procedure_result or 0
---    local trajectory_done_num = odrive_status.trajectory_done_flag or 0
-
---    -- Logger write
---    logger:write(
---       "ODRI",
---       'HB,Err,OSta,Res,Traj,DPos',
---       'fIffff',  -- b=8-bit signed, I=32-bit unsigned, f=32-bit float
---       heartbeat_state,                  -- b: packed flags
---       odrive_status.axis_errors,        -- I: uint32 axis errors
---       axis_state_num,                   -- b: axis state
---       procedure_result_num,             -- b: procedure result
---       trajectory_done_num,              -- b: trajectory done flag
---       position_des                      -- f: float position
---    )
--- end
-
 
 local position_des = 0.0
 local position_inc = 0.01
-local pos_max = 1.0
+local pos_max = 20.0
+
 function update()
 
    -- read data sent from the ODrive
@@ -195,7 +168,7 @@ function update()
    end
 
    -- Tie odrive state to safety state of vehicle
-   if (not SRV_Channels:get_safety_state()) and (odrive_status.axis_state == STATE_IDLE) then
+   if (not SRV_Channels:get_safety_state()) and (odrive_status.axis_state == STATE_IDLE) and (not have_ever_had_error) then
       gcs:send_text(2, "Arming ODRIVE")
       set_odrive_state(true)
    elseif (SRV_Channels:get_safety_state() and (odrive_status.axis_state ~= STATE_IDLE)) or odrive_status.axis_state == STATE_UNKOWN then
@@ -203,22 +176,25 @@ function update()
       set_odrive_state(false)
    end
 
+   if have_ever_had_error then
+      gcs:send_text(2, "In Error State")
+   end
+
    if arming:is_armed() and (odrive_status.axis_state == STATE_CLOSEDLOOP) then
       -- move the motor
       send_position_command(position_des)
 
       -- update position for next call
-      -- position_des = position_des + position_inc
-      position_des = 1.0
+      position_des = position_des + position_inc
 
-      -- if position_des > pos_max then
-      --    position_inc = -math.abs(position_inc)
-      --    position_des = pos_max
-      -- end
-      -- if position_des < -pos_max then
-      --    position_inc = math.abs(position_inc)
-      --    position_des = -pos_max
-      -- end
+      if position_des > pos_max then
+         position_inc = -math.abs(position_inc)
+         position_des = pos_max
+      end
+      if position_des < -pos_max then
+         position_inc = math.abs(position_inc)
+         position_des = -pos_max
+      end
 
    end
 
