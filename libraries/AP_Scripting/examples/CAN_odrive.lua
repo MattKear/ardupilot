@@ -9,6 +9,12 @@ local STATE_CLOSEDLOOP = 8
 local CMD_HEARTBEAT = 0x1
 local CMD_SET_AXIS_STATE = 0x7
 local CMD_SET_INPUT_POS = 0x0C
+local CMD_CLEAR_ERRORS = 0x18
+
+local LOCAL_STATE_DISAMED = 0
+local LOCAL_STATE_ARMED = 1
+local LOCAL_STATE_ERROR = 10
+local local_state = LOCAL_STATE_DISAMED
 
 local odrive_status = {
    axis_errors = 0,
@@ -20,7 +26,7 @@ local odrive_status = {
 local target_node_id = 10
 
 local have_heartbeat = false
-local have_ever_had_error = false
+local had_error = false
 local last_heartbeat_ms = millis()
 local HEARTBEAT_TIMEOUT = uint32_t(5000)
 
@@ -89,8 +95,8 @@ function update_heartbeat(frame)
    -- We have a valid heartbeat, update timer and state
    last_heartbeat_ms = millis()
    have_heartbeat = true
-   if (odrive_status.axis_errors) and (not have_ever_had_error) then
-      have_ever_had_error = odrive_status.axis_errors > 0
+   if (odrive_status.axis_errors) and (not had_error) then
+      had_error = odrive_status.axis_errors > 0
    end
 end
 
@@ -142,11 +148,28 @@ function send_position_command(pos)
    driver:write_frame(msg, 1000)
 end
 
+-- send position input commands to odrive
+function send_clear_error()
+   -- For future reference, we will need to set the reference frame using this:
+   -- https://docs.odriverobotics.com/v/latest/manual/control.html#homed-reference-frame
+
+   msg = CANFrame()
+
+   msg:id(get_id(CMD_CLEAR_ERRORS))
+
+   -- pack payload - identify led blink = true
+   msg:data(0, 0)
+
+   msg:dlc(1)
+
+   -- timeout of 1000us
+   driver:write_frame(msg, 1000)
+end
+
 
 local position_des = 0.0
 local position_inc = 0.01
 local pos_max = 20.0
-local odrive_armed = false
 
 function update()
 
@@ -166,23 +189,39 @@ function update()
    end
 
    -- See if we should arm the odrive
-   if (not SRV_Channels:get_safety_state()) and (odrive_status.axis_state == STATE_IDLE) and (not have_ever_had_error) and (not odrive_armed) then
+   if (not SRV_Channels:get_safety_state()) and (odrive_status.axis_state == STATE_IDLE) and (not had_error) and (local_state == LOCAL_STATE_DISAMED) then
       gcs:send_text(2, "Arming ODRIVE")
       set_odrive_state(true)
-      odrive_armed = true
+      local_state = LOCAL_STATE_ARMED
    end
 
    -- see if we should send a disarm command to the odrive
-   if (SRV_Channels:get_safety_state() and (odrive_status.axis_state ~= STATE_IDLE)) or (odrive_status.axis_state == STATE_UNKOWN) then
+   if SRV_Channels:get_safety_state() and ((odrive_status.axis_state ~= STATE_IDLE) or local_state == LOCAL_STATE_ERROR or (odrive_status.axis_state == STATE_UNKOWN)) then
       gcs:send_text(2, "Disarming ODRIVE")
+
+      -- Send command to odrive
       set_odrive_state(false)
-      odrive_armed = false
+
+      -- Reset system, clearing errors, if we have safety on
+      if (local_state == LOCAL_STATE_ERROR) then
+         send_clear_error()
+         had_error = false
+      end
+
+      local_state = LOCAL_STATE_DISAMED
    end
 
-   if have_ever_had_error and odrive_armed then
+   if had_error and (local_state < LOCAL_STATE_ERROR) then
       set_odrive_state(false)
-      odrive_armed = false
+      local_state = LOCAL_STATE_ERROR
       gcs:send_text(2, "In Error State")
+   end
+
+   gcs:send_named_float("Stat", local_state)
+   if had_error then
+      gcs:send_named_float("Err", 1)
+   else
+      gcs:send_named_float("Err", 0)
    end
 
    if arming:is_armed() and (odrive_status.axis_state == STATE_CLOSEDLOOP) then
