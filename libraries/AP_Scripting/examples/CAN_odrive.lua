@@ -10,6 +10,9 @@ local CMD_HEARTBEAT = 0x1
 local CMD_SET_AXIS_STATE = 0x7
 local CMD_SET_INPUT_POS = 0x0C
 local CMD_CLEAR_ERRORS = 0x18
+local CMD_RXSDO = 0x04
+local CMD_TXSDO = 0x05
+local CMD_GET_BUS_VOLTAGE_CURRENT = 0x17
 
 local LOCAL_STATE_DISAMED = 0
 local LOCAL_STATE_ARMED = 1
@@ -27,12 +30,69 @@ local target_node_id = 10
 
 local have_heartbeat = false
 local had_error = false
+local configured = false
 local last_heartbeat_ms = millis()
 local HEARTBEAT_TIMEOUT = uint32_t(5000)
 
-local CAN_BUFFER_SIZE = 20
+local OPCODE_READ = 0x00
+local OPCODE_WRITE = 0x01
+
+
+-- format_lookup = {
+--     'bool': '?',
+--     'uint8': 'B', 'int8': 'b',
+--     'uint16': 'H', 'int16': 'h',
+--     'uint32': 'I', 'int32': 'i',
+--     'uint64': 'Q', 'int64': 'q',
+--     'float': 'f'
+-- }
+
+-- ODrive settings as found from: https://odrive-cdn.nyc3.digitaloceanspaces.com/releases/firmware/P5x-2epyHO8DXkyYEYQCpBsdw9skZ1GP04WKg4RVIjo/flat_endpoints.json
+local axis0 = {}
+axis0.config = {}
+axis0.config.can = {}
+
+axis0.config.can.encoder_msg_rate_ms = {
+    id = 275,
+    type = "I" -- uint32
+}
+axis0.config.can.iq_msg_rate_ms = {
+    id = 276,
+    type = "I" -- uint32
+}
+axis0.config.can.error_msg_rate_ms = {
+    id = 277,
+    type = "I" -- uint32
+}
+axis0.config.can.temperature_msg_rate_ms = {
+    id = 278,
+    type = "I" -- uint32
+}
+axis0.config.can.bus_voltage_msg_rate_ms = {
+    id = 279,
+    type = "I", -- uint32
+}
+axis0.config.can.torques_msg_rate_ms = {
+    id = 280,
+    type = "I", -- uint32
+}
+axis0.config.can.powers_msg_rate_ms = {
+    id = 281,
+    type = "I", -- uint32
+}
+axis0.config.can.input_vel_scale = {
+    id = 282,
+    type = "I", -- uint32
+}
+axis0.config.can.input_torque_scale = {
+    id = 283,
+    type = "I", -- uint32
+}
+
+
 
 -- Load CAN driver. The first will attach to a protocol of 10
+local CAN_BUFFER_SIZE = 20
 local driver = CAN:get_device(CAN_BUFFER_SIZE)
 
 if not driver then
@@ -43,6 +103,15 @@ end
 -- Helper to pack 11-bit ID format used by ODrive
 function get_id(cmd)
    return (target_node_id << NODE_ID_SHIFT) | cmd
+end
+
+-- Helper to parse data from can frames
+function unpack_data(frame, start_bit, end_bit, format_str)
+   local packed_str = ""
+   for i = start_bit, end_bit do
+      packed_str = packed_str .. string.char(frame:data(i))
+   end
+   return string.unpack("<" .. format_str, packed_str) -- Always little-endian for ODrive
 end
 
 -- Read data from can buffer
@@ -70,9 +139,10 @@ function read_data()
 
       if (cmd_id == CMD_HEARTBEAT) then
          update_heartbeat(frame)
-
-      -- elseif (cmd_id == CMD_SET_INPUT_POS) then
-      --    gcs:send_text(0,string.format("cmd: " ..  tostring(cmd_id) .." from node " .. tostring(node_id) .. ": %i, %i, %i, %i, %i, %i, %i, %i", frame:data(0), frame:data(1), frame:data(2), frame:data(3), frame:data(4), frame:data(5), frame:data(6), frame:data(7)))
+      elseif (cmd_id == CMD_TXSDO) then
+         read_TxSdo(frame)
+      elseif (cmd_id == CMD_GET_BUS_VOLTAGE_CURRENT) then
+         update_battmon_telem(frame)
       else
          gcs:send_text(0,string.format("cmd: " ..  tostring(cmd_id) .." from node " .. tostring(node_id) .. ": %i, %i, %i, %i, %i, %i, %i, %i", frame:data(0), frame:data(1), frame:data(2), frame:data(3), frame:data(4), frame:data(5), frame:data(6), frame:data(7)))
       end
@@ -98,6 +168,15 @@ function update_heartbeat(frame)
    if (odrive_status.axis_errors) and (not had_error) then
       had_error = odrive_status.axis_errors > 0
    end
+end
+
+-- parse data from CMD_GET_BUS_VOLTAGE_CURRENT and stuff in ESC telem
+function update_battmon_telem(frame)
+   local bus_voltage = unpack_data(frame, 0, 3, "f") -- float
+   local bus_current = unpack_data(frame, 4, 7, "f") -- float
+
+   gcs:send_named_float("ODVO", bus_voltage)
+
 end
 
 -- Set control mode on odrive. This is needed before we can drive the motor.
@@ -137,7 +216,7 @@ function send_position_command(pos)
    local torque_ff = 0
 
    -- pack payload
-   payload = string.pack("<fhh", pos, vel_ff, torque_ff)
+   local payload = string.pack("<fhh", pos, vel_ff, torque_ff)
    for i = 1, #payload do
       msg:data(i - 1, string.byte(payload, i))
    end
@@ -166,11 +245,86 @@ function send_clear_error()
    driver:write_frame(msg, 1000)
 end
 
+-- Read/Write an endpoint value
+function send_RxSdo(opcode, endpoint, value)
+   msg = CANFrame()
+
+   msg:id(get_id(CMD_RXSDO))
+
+   -- pack payload
+   local format = "<BHB" .. endpoint.type
+   --gcs:send_text(3, format)
+   gcs:send_text(3, "DB id = " .. tostring(endpoint.id))
+   local payload = string.pack(format, opcode, endpoint.id, 0, value)
+   for i = 1, #payload do
+      msg:data(i - 1, string.byte(payload, i))
+   end
+
+   msg:dlc(#payload)
+
+   -- timeout of 1000us
+   driver:write_frame(msg, 1000)
+end
+
+-- Function to recursively search for an endpoint by ID
+local function find_endpoint(tbl, id)
+    for k, v in pairs(tbl) do
+        if type(v) == "table" then
+            if v.id == id then
+                return v, k  -- return both the endpoint table and its name
+            else
+                local found, name = find_endpoint(v, id)
+                if found then return found, name end
+            end
+        end
+    end
+    return nil
+end
+
+-- Read the endpoint data sent by the odrive after we sent the RxSdo command
+function read_TxSdo(frame)
+
+    -- Extract endpoint ID (little endian)
+    local endpt_id = frame:data(1) | (frame:data(2) << 8)
+
+    -- Find endpoint metadata
+    local endpoint, name = find_endpoint(axis0, endpt_id)
+    if not endpoint then
+        gcs:send_text(0, string.format("Unknown endpoint ID: %d", endpt_id))
+        return
+    end
+
+    if (frame:dlc() <= 4) then
+      -- No payload to read
+      return nil
+    end
+    gcs:send_text(3, "read DB " .. tostring(frame:dlc()))
+
+    -- Read payload data bytes starting from byte 4, to number of bytes - 1
+    local value = unpack_data(frame, 4, frame:dlc() - 1, endpoint.type)
+
+    gcs:send_text(0, string.format(
+        "Endpoint %s (ID %d): %s = %d",
+        name, endpt_id, endpoint.type, value
+    ))
+end
+
+
+-- Send all required settings to odrive when we first start talking to it
+-- returns true when all setup has complete
+function run_setup()
+
+   -- set message rates for cyclic telem
+   send_RxSdo(OPCODE_WRITE, axis0.config.can.bus_voltage_msg_rate_ms, 500)
+
+   return true
+
+end
+
 
 local position_des = 0.0
 local position_inc = 0.01
 local pos_max = 20.0
-
 function update()
 
    -- read data sent from the ODrive
@@ -186,6 +340,10 @@ function update()
    if not have_heartbeat then
       -- we are not speaking to the odrive, no point in continuing
       return update, 10
+   end
+
+   if not configured then
+      configured = run_setup()
    end
 
    -- See if we should arm the odrive
