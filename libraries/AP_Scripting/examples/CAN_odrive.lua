@@ -2,9 +2,10 @@ local CMD_ID_MASK = 0x1F
 local NODE_ID_MASK = 0x7E0
 local NODE_ID_SHIFT = 5
 
-local STATE_UNKOWN = 0
-local STATE_IDLE = 1
-local STATE_CLOSEDLOOP = 8
+local STATE_UNKOWN = 0X00
+local STATE_IDLE = 0X01
+local STATE_CLOSEDLOOP = 0X08
+local STATE_HOMING = 0x0B
 
 local CMD_HEARTBEAT = 0x1
 local CMD_SET_AXIS_STATE = 0x7
@@ -31,6 +32,7 @@ local target_node_id = 10
 
 local have_heartbeat = false
 local had_error = false
+local odrive_homed = false
 local configured = false
 local last_heartbeat_ms = millis()
 local HEARTBEAT_TIMEOUT = uint32_t(5000)
@@ -50,9 +52,14 @@ local OPCODE_WRITE = 0x01
 
 -- ODrive settings as found from: https://odrive-cdn.nyc3.digitaloceanspaces.com/releases/firmware/P5x-2epyHO8DXkyYEYQCpBsdw9skZ1GP04WKg4RVIjo/flat_endpoints.json
 local axis0 = {}
+
+axis0.is_homed = {
+    id = 227,
+    type = "B" -- is actually a bool but sending a byte
+}
+
 axis0.config = {}
 axis0.config.can = {}
-
 axis0.config.can.encoder_msg_rate_ms = {
     id = 275,
     type = "I" -- uint32
@@ -88,6 +95,17 @@ axis0.config.can.input_vel_scale = {
 axis0.config.can.input_torque_scale = {
     id = 283,
     type = "I", -- uint32
+}
+
+axis0.controller = {}
+axis0.controller.config = {}
+axis0.controller.config.homing_speed = {
+    id = 395,
+    type = "f"
+}
+axis0.controller.config.vel_ramp_rate = {
+    id = 386,
+    type = "f"
 }
 
 
@@ -226,6 +244,13 @@ function set_odrive_state(arm)
    driver:write_frame(msg, timeout)
 end
 
+-- setup a fixed command for starting homing
+local set_state_homing = CANFrame()
+set_state_homing:id(get_id(CMD_SET_AXIS_STATE))
+set_state_homing:data(0, STATE_HOMING)
+set_state_homing:dlc(4) -- requested state is a uint32_t
+
+
 -- send position input commands to odrive
 function send_position_command(pos)
    -- For future reference, we will need to set the reference frame using this:
@@ -323,10 +348,17 @@ function read_TxSdo(frame)
     -- Read payload data bytes starting from byte 4, to number of bytes - 1
     local value = unpack_data(frame, 4, frame:dlc() - 1, endpoint.type)
 
-    gcs:send_text(0, string.format(
-        "Endpoint %s (ID %d): %s = %d",
-        name, endpt_id, endpoint.type, value
-    ))
+
+    if (endpt_id == axis0.is_homed.id) then
+      -- update ordrive homed state
+      odrive_homed = value > 0
+    else
+      -- generic print if we haven't handled it
+      gcs:send_text(0, string.format(
+         "Endpoint %s (ID %d): %s = %d",
+         name, endpt_id, endpoint.type, value
+      ))
+   end
 end
 
 
@@ -338,7 +370,16 @@ function run_setup()
    send_RxSdo(OPCODE_WRITE, axis0.config.can.bus_voltage_msg_rate_ms, 500)
    send_RxSdo(OPCODE_WRITE, axis0.config.can.temperature_msg_rate_ms, 500)
 
-   return true
+   -- set kinematic limits
+   send_RxSdo(OPCODE_WRITE, axis0.controller.config.homing_speed, -10.0) -- rev/s
+   send_RxSdo(OPCODE_WRITE, axis0.controller.config.vel_ramp_rate, 10.0) -- rev/s/s
+
+
+   -- run homing sequence
+   driver:write_frame(set_state_homing, 500)
+
+   -- poll for reading homed state
+   send_RxSdo(OPCODE_READ, axis0.is_homed, 0)
 
 end
 
@@ -363,8 +404,9 @@ function update()
       return update, 10
    end
 
-   if not configured then
-      configured = run_setup()
+   if not odrive_homed then
+      run_setup()
+      return update, 10
    end
 
    -- See if we should arm the odrive
