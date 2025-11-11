@@ -32,7 +32,7 @@ local target_node_id = 10
 
 local have_heartbeat = false
 local had_error = false
-local odrive_homed = false
+local odrive_configured = false
 local configured = false
 local last_heartbeat_ms = millis()
 local HEARTBEAT_TIMEOUT = uint32_t(5000)
@@ -348,17 +348,11 @@ function read_TxSdo(frame)
     -- Read payload data bytes starting from byte 4, to number of bytes - 1
     local value = unpack_data(frame, 4, frame:dlc() - 1, endpoint.type)
 
-
-    if (endpt_id == axis0.is_homed.id) then
-      -- update ordrive homed state
-      odrive_homed = value > 0
-    else
-      -- generic print if we haven't handled it
-      gcs:send_text(0, string.format(
-         "Endpoint %s (ID %d): %s = %d",
-         name, endpt_id, endpoint.type, value
-      ))
-   end
+   -- generic print if we haven't handled it
+   gcs:send_text(0, string.format(
+      "Endpoint %s (ID %d): %s = %d",
+      name, endpt_id, endpoint.type, value
+   ))
 end
 
 
@@ -374,12 +368,7 @@ function run_setup()
    send_RxSdo(OPCODE_WRITE, axis0.controller.config.homing_speed, -10.0) -- rev/s
    send_RxSdo(OPCODE_WRITE, axis0.controller.config.vel_ramp_rate, 10.0) -- rev/s/s
 
-
-   -- run homing sequence
-   driver:write_frame(set_state_homing, 500)
-
-   -- poll for reading homed state
-   send_RxSdo(OPCODE_READ, axis0.is_homed, 0)
+   return true
 
 end
 
@@ -404,8 +393,8 @@ function update()
       return update, 10
    end
 
-   if not odrive_homed then
-      run_setup()
+   if not odrive_configured then
+      odrive_configured = run_setup()
       return update, 10
    end
 
@@ -438,6 +427,7 @@ function update()
       gcs:send_text(2, "In Error State")
    end
 
+   -- When armed, output position commands
    if arming:is_armed() and (odrive_status.axis_state == STATE_CLOSEDLOOP) then
       -- move the motor
       send_position_command(position_des)
