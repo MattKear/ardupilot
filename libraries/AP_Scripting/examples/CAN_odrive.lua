@@ -109,6 +109,23 @@ axis0.controller.config.vel_ramp_rate = {
 }
 
 
+local PARAM_TABLE_KEY = 2
+local PARAM_TABLE_PREFIX = "OD_"
+
+-- add a parameter and bind it to a variable
+function bind_add_param(name, idx, default_value)
+    assert(param:add_param(PARAM_TABLE_KEY, idx, name, default_value), string.format('could not add param %s', name))
+    return Parameter(PARAM_TABLE_PREFIX .. name)
+end
+
+-- setup script specific parameters
+assert(param:add_table(PARAM_TABLE_KEY, PARAM_TABLE_PREFIX, 50), 'could not add param table')
+
+local POS_MAX = bind_add_param('POS_MAX', 1, 10) -- Max endpoint position, turns from centre
+local POS_MIN = bind_add_param('POS_MIN', 2, -10) -- Min endpoint position, turns from centre
+local POT_MAX_VOLT = bind_add_param('POT_MAX_VOLT', 3, 3.0) -- Potentiometer voltage reading corresponding to max position endpoint position
+local POT_MIN_VOLT = bind_add_param('POT_MIN_VOLT', 4, 0.3) -- Potentiometer voltage reading corresponding to min position endpoint position
+
 
 -- Load CAN driver. The first will attach to a protocol of 10
 local CAN_BUFFER_SIZE = 20
@@ -355,6 +372,17 @@ function read_TxSdo(frame)
    ))
 end
 
+local function constrain(v, vmin, vmax)
+   return math.max(math.min(v, vmax), vmin)
+end
+
+-- calculate the desired position from an input (-1 to 1)
+-- linear interpolation between min and max position
+function calc_des_position(srv_in)
+   local scaled_input = (srv_in + 1.0) * 0.5
+   local des_pos = (POS_MAX:get() - POS_MIN:get()) * scaled_input + POS_MIN:get()
+   return constrain(des_pos, POS_MIN:get(), POS_MAX:get())
+end
 
 -- Send all required settings to odrive when we first start talking to it
 -- returns true when all setup has complete
@@ -374,8 +402,8 @@ end
 
 
 local position_des = 0.0
-local position_inc = 0.01
-local pos_max = 20.0
+local position_inc = 0.005
+local pos_max = 1.0
 function update()
 
    -- read data sent from the ODrive
@@ -385,8 +413,6 @@ function update()
    if millis() - last_heartbeat_ms > HEARTBEAT_TIMEOUT then
       have_heartbeat = false
    end
-
-   -- update_logging()
 
    if not have_heartbeat then
       -- we are not speaking to the odrive, no point in continuing
@@ -429,8 +455,6 @@ function update()
 
    -- When armed, output position commands
    if arming:is_armed() and (odrive_status.axis_state == STATE_CLOSEDLOOP) then
-      -- move the motor
-      send_position_command(position_des)
 
       -- update position for next call
       position_des = position_des + position_inc
@@ -443,6 +467,11 @@ function update()
          position_inc = math.abs(position_inc)
          position_des = -pos_max
       end
+
+      local pos_cmd = calc_des_position(position_des)
+
+      -- send command to actuator
+      send_position_command(pos_cmd)
 
    end
 
