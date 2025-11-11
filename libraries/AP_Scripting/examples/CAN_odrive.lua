@@ -8,13 +8,14 @@ local STATE_CLOSEDLOOP = 0X08
 local STATE_HOMING = 0x0B
 
 local CMD_HEARTBEAT = 0x1
-local CMD_SET_AXIS_STATE = 0x7
-local CMD_SET_INPUT_POS = 0x0C
-local CMD_CLEAR_ERRORS = 0x18
 local CMD_RXSDO = 0x04
 local CMD_TXSDO = 0x05
-local CMD_GET_BUS_VOLTAGE_CURRENT = 0x17
+local CMD_SET_AXIS_STATE = 0x7
+local CMD_GET_ENCODER_ESTIMATES = 0x9
+local CMD_SET_INPUT_POS = 0x0C
 local CMD_GET_TEMPERATURE = 0x15
+local CMD_GET_BUS_VOLTAGE_CURRENT = 0x17
+local CMD_CLEAR_ERRORS = 0x18
 
 local LOCAL_STATE_DISAMED = 0
 local LOCAL_STATE_ARMED = 1
@@ -34,8 +35,12 @@ local have_heartbeat = false
 local had_error = false
 local odrive_configured = false
 local configured = false
+local hit_endstop = {}
+hit_endstop.max = false
+hit_endstop.min = false
 local last_heartbeat_ms = millis()
 local HEARTBEAT_TIMEOUT = uint32_t(5000)
+local position_est = 0
 
 local OPCODE_READ = 0x00
 local OPCODE_WRITE = 0x01
@@ -52,12 +57,6 @@ local OPCODE_WRITE = 0x01
 
 -- ODrive settings as found from: https://odrive-cdn.nyc3.digitaloceanspaces.com/releases/firmware/P5x-2epyHO8DXkyYEYQCpBsdw9skZ1GP04WKg4RVIjo/flat_endpoints.json
 local axis0 = {}
-
-axis0.is_homed = {
-    id = 227,
-    type = "B" -- is actually a bool but sending a byte
-}
-
 axis0.config = {}
 axis0.config.can = {}
 axis0.config.can.encoder_msg_rate_ms = {
@@ -101,11 +100,23 @@ axis0.controller = {}
 axis0.controller.config = {}
 axis0.controller.config.homing_speed = {
     id = 395,
-    type = "f"
+    type = "f" -- float
 }
 axis0.controller.config.vel_ramp_rate = {
     id = 386,
-    type = "f"
+    type = "f" -- float
+}
+
+axis0.min_endstop = {}
+axis0.min_endstop.state = {
+   id = 415,
+   type = "B" -- is actually a bool but sending a byte
+}
+
+axis0.max_endstop = {}
+axis0.max_endstop.state = {
+   id = 421,
+   type = "B" -- is actually a bool but sending a byte
 }
 
 
@@ -181,6 +192,8 @@ function read_data()
          update_volt_curr_telem(frame)
       elseif (cmd_id == CMD_GET_TEMPERATURE) then
          update_temp_telem(frame)
+      elseif (cmd_id == CMD_GET_ENCODER_ESTIMATES) then
+         update_position_est(frame)
       else
          gcs:send_text(0,string.format("cmd: " ..  tostring(cmd_id) .." from node " .. tostring(node_id) .. ": %i, %i, %i, %i, %i, %i, %i, %i", frame:data(0), frame:data(1), frame:data(2), frame:data(3), frame:data(4), frame:data(5), frame:data(6), frame:data(7)))
       end
@@ -197,8 +210,6 @@ function update_heartbeat(frame)
    odrive_status.axis_state = frame:data(4)
    odrive_status.procedure_result = frame:data(5)
    odrive_status.trajectory_done_flag = frame:data(6)
-
-   --gcs:send_named_float("AErr", odrive_status.axis_errors:toint())
 
    -- We have a valid heartbeat, update timer and state
    last_heartbeat_ms = millis()
@@ -237,6 +248,12 @@ function update_temp_telem(frame)
    esc_telem:update_telem_data(0, esc_telem_data, 0x03)
 end
 
+-- update the reported position from the odrive
+function update_position_est(frame)
+   position_est = unpack_data(frame, 0, 3, "f") -- float
+   -- Note: We also get vel estimate from this message but we just throw it away
+end
+
 -- Set control mode on odrive. This is needed before we can drive the motor.
 function set_odrive_state(arm)
    msg = CANFrame()
@@ -269,45 +286,54 @@ set_state_homing:dlc(4) -- requested state is a uint32_t
 
 
 -- send position input commands to odrive
-function send_position_command(pos)
+function send_position_command(input_pos)
    -- For future reference, we will need to set the reference frame using this:
    -- https://docs.odriverobotics.com/v/latest/manual/control.html#homed-reference-frame
 
-   msg = CANFrame()
+   -- calculate the desired position from an input (-1 to 1)
+   -- linear interpolation between min and max position
+   local scaled_input = (input_pos + 1.0) * 0.5
+   local des_pos = (POS_MAX:get() - POS_MIN:get()) * scaled_input + POS_MIN:get()
 
+   -- Do not allow position to push past end stops
+   if hit_endstop.min and (des_pos < position_est) then
+      des_pos = position_est
+   end
+   if hit_endstop.max and (des_pos > position_est) then
+      des_pos = position_est
+   end
+
+   des_pos = constrain(des_pos, POS_MIN:get(), POS_MAX:get())
+
+   -- send position command to odrive
+   msg = CANFrame()
    msg:id(get_id(CMD_SET_INPUT_POS))
 
+   -- pack payload
    local vel_ff = 0
    local torque_ff = 0
-
-   -- pack payload
-   local payload = string.pack("<fhh", pos, vel_ff, torque_ff)
+   local payload = string.pack("<fhh", des_pos, vel_ff, torque_ff)
    for i = 1, #payload do
       msg:data(i - 1, string.byte(payload, i))
    end
-
    msg:dlc(#payload)
 
    -- timeout of 1000us
    driver:write_frame(msg, 1000)
+
+   -- report on telem
+   gcs:send_named_float("DPos", pos_cmd) -- desired position
+   gcs:send_named_float("MPos", position_est) -- measured position
 end
 
 -- send position input commands to odrive
+local clear_err_msg = CANFrame()
+clear_err_msg:id(get_id(CMD_CLEAR_ERRORS))
+clear_err_msg:data(0, 0) -- pack payload - identify led blink = true
+clear_err_msg:dlc(1)
 function send_clear_error()
-   -- For future reference, we will need to set the reference frame using this:
-   -- https://docs.odriverobotics.com/v/latest/manual/control.html#homed-reference-frame
-
-   msg = CANFrame()
-
-   msg:id(get_id(CMD_CLEAR_ERRORS))
-
-   -- pack payload - identify led blink = true
-   msg:data(0, 0)
-
-   msg:dlc(1)
-
    -- timeout of 1000us
-   driver:write_frame(msg, 1000)
+   driver:write_frame(clear_err_msg, 1000)
 end
 
 -- Read/Write an endpoint value
@@ -365,11 +391,21 @@ function read_TxSdo(frame)
     -- Read payload data bytes starting from byte 4, to number of bytes - 1
     local value = unpack_data(frame, 4, frame:dlc() - 1, endpoint.type)
 
-   -- generic print if we haven't handled it
-   gcs:send_text(0, string.format(
-      "Endpoint %s (ID %d): %s = %d",
-      name, endpt_id, endpoint.type, value
-   ))
+    if endpt_id == axis0.min_endstop.state.id then
+      -- update min endstop state
+      hit_endstop.min = value > 0
+
+    elseif endpt_id == axis0.max_endstop.state.id then
+      -- update max endstop state
+      hit_endstop.max = value > 0
+
+    else
+      -- generic print if we haven't handled it
+      gcs:send_text(0, string.format(
+         "Endpoint %s (ID %d): %s = %d",
+         name, endpt_id, endpoint.type, value
+      ))
+   end
 end
 
 local function constrain(v, vmin, vmax)
@@ -381,6 +417,15 @@ end
 function calc_des_position(srv_in)
    local scaled_input = (srv_in + 1.0) * 0.5
    local des_pos = (POS_MAX:get() - POS_MIN:get()) * scaled_input + POS_MIN:get()
+
+   -- Do not allow position to push past end stops
+   if hit_endstop.min and (des_pos < position_est) then
+      des_pos = position_est
+   end
+   if hit_endstop.max and (des_pos > position_est) then
+      des_pos = position_est
+   end
+
    return constrain(des_pos, POS_MIN:get(), POS_MAX:get())
 end
 
@@ -391,14 +436,38 @@ function run_setup()
    -- set message rates for cyclic telem
    send_RxSdo(OPCODE_WRITE, axis0.config.can.bus_voltage_msg_rate_ms, 500)
    send_RxSdo(OPCODE_WRITE, axis0.config.can.temperature_msg_rate_ms, 500)
+   send_RxSdo(OPCODE_WRITE, axis0.config.can.encoder_msg_rate_ms, 250)
 
    -- set kinematic limits
    send_RxSdo(OPCODE_WRITE, axis0.controller.config.homing_speed, -10.0) -- rev/s
    send_RxSdo(OPCODE_WRITE, axis0.controller.config.vel_ramp_rate, 10.0) -- rev/s/s
 
+   -- For improved safety, it is also recommended to set <axis>.controller.config.absolute_setpoints to True.
+   -- This makes the ODrive reject position control commands after startup until <axis>.pos_estimate has been set.
+
    return true
 
 end
+
+
+-- What is needed for absolute position control: https://docs.odriverobotics.com/v/0.6.11/manual/control.html#absolute-encoder-reference-frame
+
+
+-- rate limited function for regularly requesting endpoint data
+local last_checked_endpoints_ms = millis()
+function request_endpoints(now)
+   -- Update at 4 Hz
+   if (now - last_checked_endpoints_ms) < 250 then
+      return
+   end
+
+   -- request endstop states
+   send_RxSdo(OPCODE_READ, axis0.min_endstop.state, 0)
+   send_RxSdo(OPCODE_READ, axis0.max_endstop.state, 0)
+
+   last_checked_endpoints_ms = now
+end
+
 
 
 local position_des = 0.0
@@ -406,11 +475,16 @@ local position_inc = 0.005
 local pos_max = 1.0
 function update()
 
+   now = millis()
+
+   -- request endpoint data that we will regularly want updating
+   request_endpoints(now)
+
    -- read data sent from the ODrive
    read_data()
 
    -- update timeout on heartbeat state
-   if millis() - last_heartbeat_ms > HEARTBEAT_TIMEOUT then
+   if now - last_heartbeat_ms > HEARTBEAT_TIMEOUT then
       have_heartbeat = false
    end
 
@@ -468,14 +542,9 @@ function update()
          position_des = -pos_max
       end
 
-      local pos_cmd = calc_des_position(position_des)
-
       -- send command to actuator
-      send_position_command(pos_cmd)
-
+      send_position_command(position_des)
    end
-
-   gcs:send_named_float("DPos", position_des)
 
    return update, 10
 
