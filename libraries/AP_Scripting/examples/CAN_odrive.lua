@@ -31,20 +31,19 @@ local odrive_status = {
 
 local target_node_id = 10
 
-local have_heartbeat = false
 local had_error = false
 local odrive_configured = false
-local configured = false
-local hit_endstop = {}
-hit_endstop.max = false
-hit_endstop.min = false
+local hit_endstop = {
+   max = false,
+   min = false
+}
+
 local last_heartbeat_ms = millis()
 local HEARTBEAT_TIMEOUT = uint32_t(5000)
 local position_est = 0
 
 local OPCODE_READ = 0x00
 local OPCODE_WRITE = 0x01
-
 
 -- format_lookup = {
 --     'bool': '?',
@@ -119,6 +118,9 @@ axis0.max_endstop.state = {
    type = "B" -- is actually a bool but sending a byte
 }
 
+-- make a type table from all of the info above that is a lookup of type from id once at boot.  Then we can remove the recursive search methods
+
+
 
 local PARAM_TABLE_KEY = 2
 local PARAM_TABLE_PREFIX = "OD_"
@@ -139,18 +141,15 @@ local POT_MIN_VOLT = bind_add_param('POT_MIN_VOLT', 4, 0.3) -- Potentiometer vol
 
 
 -- Load CAN driver. The first will attach to a protocol of 10
-local CAN_BUFFER_SIZE = 20
-local driver = CAN:get_device(CAN_BUFFER_SIZE)
-
-if not driver then
-   gcs:send_text(0,"No scripting CAN interfaces found")
-   return
-end
+local driver = assert(CAN:get_device(20), "No scripting CAN interfaces found")
 
 -- Helper to pack 11-bit ID format used by ODrive
 function get_id(cmd)
    return (target_node_id << NODE_ID_SHIFT) | cmd
 end
+
+-- Only accept data from the target node id
+driver:add_filter(uint32_t(0x3F) << NODE_ID_SHIFT, uint32_t(target_node_id) << NODE_ID_SHIFT)
 
 -- Helper to parse data from can frames
 function unpack_data(frame, start_bit, end_bit, format_str)
@@ -164,12 +163,7 @@ end
 -- Read data from can buffer
 function read_data()
 
-   if not driver then
-      gcs:send_text(0, "No Driver")
-      return
-   end
-
-   for _ = 1, CAN_BUFFER_SIZE do
+   for _ = 1, 40 do
       local frame = driver:read_frame()
 
       if not frame then
@@ -213,7 +207,6 @@ function update_heartbeat(frame)
 
    -- We have a valid heartbeat, update timer and state
    last_heartbeat_ms = millis()
-   have_heartbeat = true
    if (odrive_status.axis_errors) and (not had_error) then
       had_error = odrive_status.axis_errors > 0
    end
@@ -255,10 +248,10 @@ function update_position_est(frame)
 end
 
 -- Set control mode on odrive. This is needed before we can drive the motor.
+local state_msg = CANFrame()
+state_msg:id(get_id(CMD_SET_AXIS_STATE))
+state_msg:dlc(4)
 function set_odrive_state(arm)
-   msg = CANFrame()
-
-   msg:id(get_id(CMD_SET_AXIS_STATE))
 
    local state = STATE_IDLE
    if arm then 
@@ -266,13 +259,7 @@ function set_odrive_state(arm)
    end
 
    -- requested state is a uint32_t
-    msg:data(0, state)
-    msg:data(1, 0)
-    msg:data(2, 0)
-    msg:data(3, 0)
-
-   -- sending 4 bytes of data
-   msg:dlc(4)
+   state_msg:data(0, state)
 
    local timeout = 500
    driver:write_frame(msg, timeout)
@@ -306,7 +293,7 @@ function send_position_command(input_pos)
    des_pos = constrain(des_pos, POS_MIN:get(), POS_MAX:get())
 
    -- send position command to odrive
-   msg = CANFrame()
+   local msg = CANFrame()
    msg:id(get_id(CMD_SET_INPUT_POS))
 
    -- pack payload
@@ -318,11 +305,11 @@ function send_position_command(input_pos)
    end
    msg:dlc(#payload)
 
-   -- timeout of 1000us
-   driver:write_frame(msg, 1000)
+   -- timeout of 500us
+   driver:write_frame(msg, 500)
 
    -- report on telem
-   gcs:send_named_float("DPos", pos_cmd) -- desired position
+   gcs:send_named_float("DPos", des_pos) -- desired position
    gcs:send_named_float("MPos", position_est) -- measured position
 end
 
@@ -338,7 +325,7 @@ end
 
 -- Read/Write an endpoint value
 function send_RxSdo(opcode, endpoint, value)
-   msg = CANFrame()
+   local msg = CANFrame()
 
    msg:id(get_id(CMD_RXSDO))
 
@@ -412,23 +399,6 @@ local function constrain(v, vmin, vmax)
    return math.max(math.min(v, vmax), vmin)
 end
 
--- calculate the desired position from an input (-1 to 1)
--- linear interpolation between min and max position
-function calc_des_position(srv_in)
-   local scaled_input = (srv_in + 1.0) * 0.5
-   local des_pos = (POS_MAX:get() - POS_MIN:get()) * scaled_input + POS_MIN:get()
-
-   -- Do not allow position to push past end stops
-   if hit_endstop.min and (des_pos < position_est) then
-      des_pos = position_est
-   end
-   if hit_endstop.max and (des_pos > position_est) then
-      des_pos = position_est
-   end
-
-   return constrain(des_pos, POS_MIN:get(), POS_MAX:get())
-end
-
 -- Send all required settings to odrive when we first start talking to it
 -- returns true when all setup has complete
 function run_setup()
@@ -468,14 +438,12 @@ function request_endpoints(now)
    last_checked_endpoints_ms = now
 end
 
-
-
 local position_des = 0.0
 local position_inc = 0.005
 local pos_max = 1.0
 function update()
 
-   now = millis()
+   local now = millis()
 
    -- request endpoint data that we will regularly want updating
    request_endpoints(now)
@@ -485,10 +453,6 @@ function update()
 
    -- update timeout on heartbeat state
    if now - last_heartbeat_ms > HEARTBEAT_TIMEOUT then
-      have_heartbeat = false
-   end
-
-   if not have_heartbeat then
       -- we are not speaking to the odrive, no point in continuing
       return update, 10
    end
