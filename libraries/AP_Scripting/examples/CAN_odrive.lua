@@ -118,8 +118,26 @@ axis0.max_endstop.state = {
    type = "B" -- is actually a bool but sending a byte
 }
 
--- make a type table from all of the info above that is a lookup of type from id once at boot.  Then we can remove the recursive search methods
+-- Make a type table from all of the info above that is a lookup of type from id once at boot
+function build_lookup_table(tbl, lookup)
+    -- if no lookup table passed, create a new one
+    lookup = lookup or {}
 
+    for k, v in pairs(tbl) do
+        if type(v) == "table" then
+            if v.id and v.type then
+                -- add entry
+                lookup[v.id] = v.type
+            else
+                -- recurse into nested tables
+                build_lookup_table(v, lookup)
+            end
+        end
+    end
+
+    return lookup
+end
+local endpoint_types = build_lookup_table(axis0)
 
 
 local PARAM_TABLE_KEY = 2
@@ -342,41 +360,25 @@ function send_RxSdo(opcode, endpoint, value)
    driver:write_frame(msg, 1000)
 end
 
--- Function to recursively search for an endpoint by ID
-local function find_endpoint(tbl, id)
-    for k, v in pairs(tbl) do
-        if type(v) == "table" then
-            if v.id == id then
-                return v, k  -- return both the endpoint table and its name
-            else
-                local found, name = find_endpoint(v, id)
-                if found then return found, name end
-            end
-        end
-    end
-    return nil
-end
-
 -- Read the endpoint data sent by the odrive after we sent the RxSdo command
 function read_TxSdo(frame)
 
-    -- Extract endpoint ID (little endian)
+    -- Extract endpoint ID
     local endpt_id = frame:data(1) | (frame:data(2) << 8)
 
-    -- Find endpoint metadata
-    local endpoint, name = find_endpoint(axis0, endpt_id)
+    local endpoint_type = endpoint_types[endpt_id]
     if not endpoint then
-        gcs:send_text(0, string.format("Unknown endpoint ID: %d", endpt_id))
+        -- we have somehow managed to receive an id we didn't ask for and don't know about
         return
     end
 
     if (frame:dlc() <= 4) then
       -- No payload to read
-      return nil
+      return
     end
 
     -- Read payload data bytes starting from byte 4, to number of bytes - 1
-    local value = unpack_data(frame, 4, frame:dlc() - 1, endpoint.type)
+    local value = unpack_data(frame, 4, frame:dlc() - 1, endpoint_type)
 
     if endpt_id == axis0.min_endstop.state.id then
       -- update min endstop state
@@ -390,7 +392,7 @@ function read_TxSdo(frame)
       -- generic print if we haven't handled it
       gcs:send_text(0, string.format(
          "Endpoint %s (ID %d): %s = %d",
-         name, endpt_id, endpoint.type, value
+         name, endpt_id, endpoint_type, value
       ))
    end
 end
@@ -409,7 +411,6 @@ function run_setup()
    send_RxSdo(OPCODE_WRITE, axis0.config.can.encoder_msg_rate_ms, 250)
 
    -- set kinematic limits
-   send_RxSdo(OPCODE_WRITE, axis0.controller.config.homing_speed, -10.0) -- rev/s
    send_RxSdo(OPCODE_WRITE, axis0.controller.config.vel_ramp_rate, 10.0) -- rev/s/s
 
    -- For improved safety, it is also recommended to set <axis>.controller.config.absolute_setpoints to True.
