@@ -13,16 +13,18 @@ class AP_RangeFinder_AcconeerA121 : public AP_RangeFinder_Backend
 {
 
 public:
+    // I2C default address
+    static constexpr uint8_t default_i2c_add = 0x52;
 
     // constructor
     AP_RangeFinder_AcconeerA121(RangeFinder::RangeFinder_State &_state,
                                 AP_RangeFinder_Params &_params,
-                                AP_HAL::I2CDevice &_dev);
+                                AP_HAL::I2CDevice *dev_ptr);
 
     // static detection function
     static AP_RangeFinder_Backend *detect(RangeFinder::RangeFinder_State &_state,
                                           AP_RangeFinder_Params &_params,
-                                          AP_HAL::I2CDevice *dev);
+                                          AP_HAL::I2CDevice *dev_ptr);
 
     // update state
     void update(void) override;
@@ -218,16 +220,13 @@ private:
     // Return the full error bit mask
     uint32_t get_error();
 
-    void send_command(Command cmd);
+    bool send_command(Command cmd);
 
     bool write_register(Register reg, uint32_t data);
 
     bool read_register(Register reg, uint32_t& data);
 
-    AP_HAL::I2CDevice &dev;
-
-    // I2C default address
-    const uint8_t i2cAddress = 0x52;
+    AP_HAL::I2CDevice *dev;
 
     static constexpr uint8_t MAX_PEAKS = 3;
     uint32_t dist_measurement_mm[MAX_PEAKS];
@@ -237,6 +236,9 @@ private:
     uint32_t reset_time_ms;   // track timeout for reseting device if it gets stuck in setup
     uint8_t health;           // bitmask of reasons that we could be unhealthy
     uint32_t last_update_ms;  // last time we succesfully updated the measurment
+
+    // dirty hacks:
+    uint32_t time_init_ms;
 };
 
 #endif  // AP_RANGEFINDER_A121_RADAR_ENABLED

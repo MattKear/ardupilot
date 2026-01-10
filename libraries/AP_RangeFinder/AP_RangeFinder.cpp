@@ -64,6 +64,7 @@
 #include "AP_RangeFinder_Ainstein_LR_D1.h"
 #include "AP_RangeFinder_RDS02UF.h"
 #include "AP_RangeFinder_LightWare_GRF.h"
+#include "AP_RangeFinder_AcconeerA121.h"
 
 #include <AP_BoardConfig/AP_BoardConfig.h>
 #include <AP_Logger/AP_Logger.h>
@@ -345,6 +346,19 @@ __INITFUNC__ void RangeFinder::detect_instance(uint8_t instance, uint8_t& serial
         }
         break;
 #endif  // AP_RANGEFINDER_LWI2C_ENABLED
+
+#if AP_RANGEFINDER_A121_RADAR_ENABLED
+    case Type::AcconeerA121:
+        FOREACH_I2C(i) {
+            auto *device_ptr = hal.i2c_mgr->get_device_ptr(i, AP_RangeFinder_AcconeerA121::default_i2c_add);
+            if (_add_backend(AP_RangeFinder_AcconeerA121::detect(state[instance], params[instance], device_ptr), instance)) {
+                break;
+            }
+            delete device_ptr;
+        }
+    break;
+#endif
+
 #if AP_RANGEFINDER_TRI2C_ENABLED
     case Type::TRI2C:
         if (params[instance].address) {

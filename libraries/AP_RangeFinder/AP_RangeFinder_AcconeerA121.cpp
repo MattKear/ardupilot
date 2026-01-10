@@ -18,6 +18,7 @@
 
 #include <AP_HAL/AP_HAL.h>
 #include <AP_HAL/utility/sparse-endian.h>
+#include <GCS_MAVLink/GCS.h>
 
 #define INSTALLED_OFFSET 43
 
@@ -41,9 +42,9 @@ extern const AP_HAL::HAL& hal;
 
 AP_RangeFinder_AcconeerA121::AP_RangeFinder_AcconeerA121(RangeFinder::RangeFinder_State &_state,
         AP_RangeFinder_Params &_params,
-         AP_HAL::I2CDevice &_dev)
+         AP_HAL::I2CDevice *dev_ptr)
     : AP_RangeFinder_Backend(_state, _params)
-    , dev(_dev)
+    , dev(dev_ptr)
     {}
 
 /*
@@ -55,25 +56,40 @@ AP_RangeFinder_Backend *AP_RangeFinder_AcconeerA121::detect(RangeFinder::RangeFi
         AP_RangeFinder_Params &_params,
         AP_HAL::I2CDevice *dev_ptr)
 {
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "A121 Detect");
+
     if (!dev_ptr) {
         return nullptr;
     }
 
-    AP_RangeFinder_AcconeerA121 *sensor = NEW_NOTHROW AP_RangeFinder_AcconeerA121(_state, _params, *dev_ptr);
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "A121 Detect 2");
+
+    AP_RangeFinder_AcconeerA121 *sensor = NEW_NOTHROW AP_RangeFinder_AcconeerA121(_state, _params, dev_ptr);
 
     if (!sensor) {
         return nullptr;
     }
 
-    WITH_SEMAPHORE(sensor->dev.get_semaphore());
     sensor->init();
     return sensor;
 }
 
 bool AP_RangeFinder_AcconeerA121::init()
 {
+    dev->get_semaphore()->take_blocking();
+
+    dev->set_retries(10);
+
+    // could try and talk to the radar here and return false if we can't
+    dev->get_semaphore()->give();
+
     // Init setup state
     setup_stage = SetupStage::NEEDS_RESET;
+
+    time_init_ms = AP_HAL::millis();
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Acconeer A121 Init");
+
 
     return true;
 }
@@ -82,6 +98,8 @@ bool AP_RangeFinder_AcconeerA121::init()
 // update the state of the sensor
 void AP_RangeFinder_AcconeerA121::update(void)
 {
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Acconeer A121 update");
+
     if (setup_stage != SetupStage::COMPLETE) {
         setup_radar();
         return;
@@ -91,8 +109,10 @@ void AP_RangeFinder_AcconeerA121::update(void)
     update_measurement();
 
     // Update the rangefinder with the strongest return
-    state.distance_m = dist_measurement_mm[0];
+    state.distance_m = dist_measurement_mm[0] * 1e-3;
     state.last_reading_ms = last_update_ms;
+
+    state.status = RangeFinder::Status::Good;
 
 
     // update_logging();
@@ -103,13 +123,27 @@ void AP_RangeFinder_AcconeerA121::update(void)
 // Setup the radar - Progress through states in a switch case tree to setup the device
 void AP_RangeFinder_AcconeerA121::setup_radar(void)
 {
+
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "A121 Setup");
+
+    // delay boot config for debug messages
+    if (AP_HAL::millis() - time_init_ms < 5000) {
+        return;
+    }
+
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "A121 After Timer");
+
     // First thing we always need to do is reset the device to ensure we can apply a config
     if (setup_stage == SetupStage::NEEDS_RESET) {
-        send_command(Command::RESET_MODULE);
+        if (!send_command(Command::RESET_MODULE)) {
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "A121 reset command failed");
+        }
         setup_stage = SetupStage::CONFIRMING_RESET;
         reset_time_ms = AP_HAL::millis();
         return;
     }
+
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "A121 debug 1");
 
     // Update status
     bool received_status = update_detector_status();
@@ -121,8 +155,12 @@ void AP_RangeFinder_AcconeerA121::setup_radar(void)
             setup_stage = SetupStage::NEEDS_RESET;
         }
 
+        // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "A121 debug 2");
+
         return;
     }
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "A121: Setup: %i", uint8_t(setup_stage));
 
     switch (setup_stage) {
         case SetupStage::CONFIRMING_RESET:
@@ -382,31 +420,41 @@ bool AP_RangeFinder_AcconeerA121::update_detector_status(void)
     return true;
 }
 
-void AP_RangeFinder_AcconeerA121::send_command(Command cmd)
+bool AP_RangeFinder_AcconeerA121::send_command(Command cmd)
 {
     uint32_t command = uint32_t(cmd);
-    write_register(Register::COMMAND, command);
+    return write_register(Register::COMMAND, command);
 }
 
 // Helper for writting to registers
 bool AP_RangeFinder_AcconeerA121::write_register(Register reg, uint32_t data)
 {
-    const uint16_t regAddress = uint16_t(reg);
 
-    constexpr uint8_t len = 6;
-    uint8_t payload[len];
+    if (!dev) {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "A121 No Dev");
+        return false;
+    }
+
+    dev->get_semaphore()->take_blocking();
+
+    const uint16_t regAddress = uint16_t(reg);
+    uint8_t payload[6];
 
     // Register address (2 bytes, MSB first)
-    payload[0] = (regAddress >> 8) & 0xFF; // Address [15:8]
-    payload[1] = regAddress & 0xFF;        // Address [7:0]
+    payload[0] = uint8_t((regAddress >> 8) & 0xFF); // Address [15:8]
+    payload[1] = uint8_t(regAddress & 0xFF);        // Address [7:0]
 
     // Data (4 bytes, MSB first)
-    payload[2] = (data >> 24) & 0xFF; // Data [31:24]
-    payload[3] = (data >> 16) & 0xFF; // Data [23:16]
-    payload[4] = (data >> 8) & 0xFF;  // Data [15:8]
-    payload[5] = data & 0xFF;         // Data [7:0]
+    payload[2] = uint8_t((data >> 24) & 0xFF); // Data [31:24]
+    payload[3] = uint8_t((data >> 16) & 0xFF); // Data [23:16]
+    payload[4] = uint8_t((data >> 8) & 0xFF);  // Data [15:8]
+    payload[5] = uint8_t(data & 0xFF);         // Data [7:0]
 
-    return dev.transfer(payload, len, NULL, 0);
+    bool result = dev->transfer(payload, sizeof(payload), nullptr, 0);
+
+    dev->get_semaphore()->give();
+
+    return result;
 }
 
 // Helper for writting to registers
@@ -415,6 +463,8 @@ bool AP_RangeFinder_AcconeerA121::read_register(Register reg, uint32_t& data)
     // reset data variable
     data = 0;
 
+    dev->get_semaphore()->take_blocking();
+
     // Register address (2 bytes, MSB first)
     uint8_t reg_add[2];
     reg_add[0] = (uint16_t(reg) >> 8) & 0xFF; // Address [15:8]
@@ -422,9 +472,12 @@ bool AP_RangeFinder_AcconeerA121::read_register(Register reg, uint32_t& data)
 
     // read data from register
     uint8_t buf[4] = {};
-    if (!dev.transfer(reg_add, sizeof(reg_add), buf, sizeof(buf))) {
+    if (!dev->transfer(reg_add, sizeof(reg_add), buf, sizeof(buf))) {
+        dev->get_semaphore()->give();
         return false;
     }
+
+    dev->get_semaphore()->give();
 
     data |= uint32_t(buf[0]) << 24; // Data [31:24]
     data |= uint32_t(buf[1]) << 16; // Data [23:16]
