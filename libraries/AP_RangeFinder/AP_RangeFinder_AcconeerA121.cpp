@@ -20,10 +20,10 @@
 #include <AP_HAL/utility/sparse-endian.h>
 #include <GCS_MAVLink/GCS.h>
 
-#define INSTALLED_OFFSET 43
+#define INSTALLED_OFFSET 0//43
 
 // Settings to be applied 
-#define MY_XM125_RANGE_START 43 // (mm)
+#define MY_XM125_RANGE_START 0//43 // (mm)
 #define MY_XM125_RANGE_END 250 // (mm)
 #define MY_XM125_PROFILE 2
 
@@ -47,22 +47,14 @@ AP_RangeFinder_AcconeerA121::AP_RangeFinder_AcconeerA121(RangeFinder::RangeFinde
     , dev(dev_ptr)
     {}
 
-/*
-   Detects if a Lightware rangefinder is connected. We'll detect by
-   trying to take a reading on I2C. If we get a result the sensor is
-   there.
-*/
+
 AP_RangeFinder_Backend *AP_RangeFinder_AcconeerA121::detect(RangeFinder::RangeFinder_State &_state,
         AP_RangeFinder_Params &_params,
         AP_HAL::I2CDevice *dev_ptr)
 {
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "A121 Detect");
-
     if (!dev_ptr) {
         return nullptr;
     }
-
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "A121 Detect 2");
 
     AP_RangeFinder_AcconeerA121 *sensor = NEW_NOTHROW AP_RangeFinder_AcconeerA121(_state, _params, dev_ptr);
 
@@ -87,9 +79,6 @@ bool AP_RangeFinder_AcconeerA121::init()
     setup_stage = SetupStage::NEEDS_RESET;
 
     time_init_ms = AP_HAL::millis();
-
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Acconeer A121 Init");
-
 
     return true;
 }
@@ -123,27 +112,12 @@ void AP_RangeFinder_AcconeerA121::update(void)
 // Setup the radar - Progress through states in a switch case tree to setup the device
 void AP_RangeFinder_AcconeerA121::setup_radar(void)
 {
-
-    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "A121 Setup");
-
-    // delay boot config for debug messages
-    if (AP_HAL::millis() - time_init_ms < 5000) {
-        return;
-    }
-
-    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "A121 After Timer");
-
     // First thing we always need to do is reset the device to ensure we can apply a config
-    if (setup_stage == SetupStage::NEEDS_RESET) {
-        if (!send_command(Command::RESET_MODULE)) {
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "A121 reset command failed");
-        }
+    if (setup_stage == SetupStage::NEEDS_RESET && send_command(Command::RESET_MODULE)) {
         setup_stage = SetupStage::CONFIRMING_RESET;
         reset_time_ms = AP_HAL::millis();
         return;
     }
-
-    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "A121 debug 1");
 
     // Update status
     bool received_status = update_detector_status();
@@ -154,9 +128,6 @@ void AP_RangeFinder_AcconeerA121::setup_radar(void)
         if ((setup_stage == SetupStage::CONFIRMING_RESET) && (AP_HAL::millis() - reset_time_ms > 2000)) {
             setup_stage = SetupStage::NEEDS_RESET;
         }
-
-        // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "A121 debug 2");
-
         return;
     }
 
@@ -346,36 +317,6 @@ void AP_RangeFinder_AcconeerA121::update_measurement(void)
     send_command(Command::MEASURE_DISTANCE);
 }
 
-// Print to serial for logging
-// void AP_RangeFinder_AcconeerA121::update_logging(void)
-// {
-//     Serial.print(millis());
-//     Serial.print(",");
-
-//     // Output distances and strength
-//     for (uint8_t i=0; i<MAX_PEAKS; i++) {
-//         Serial.print(dist_measurement_mm[i]);
-//         Serial.print(",");
-//         Serial.print(strength_measurement[i]);
-//         Serial.print(",");
-//     }
-
-//     // Output last update time
-//     Serial.print(dt);
-//     Serial.print(",");
-
-//     // Log the reported temperature
-//     Serial.print(temp_deg_c);
-//     Serial.print(",");
-
-//     // update the error and config ok bitmasks in the log
-//     Serial.print(get_config_mask());
-//     Serial.print(",");
-//     Serial.print(get_error());
-//     Serial.print(",");
-//     Serial.println(health);
-// }
-
 // Check if all of the config bits are true
 bool AP_RangeFinder_AcconeerA121::config_ok(void)
 {
@@ -429,9 +370,7 @@ bool AP_RangeFinder_AcconeerA121::send_command(Command cmd)
 // Helper for writting to registers
 bool AP_RangeFinder_AcconeerA121::write_register(Register reg, uint32_t data)
 {
-
     if (!dev) {
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "A121 No Dev");
         return false;
     }
 
@@ -460,15 +399,19 @@ bool AP_RangeFinder_AcconeerA121::write_register(Register reg, uint32_t data)
 // Helper for writting to registers
 bool AP_RangeFinder_AcconeerA121::read_register(Register reg, uint32_t& data)
 {
+    if (!dev) {
+        return false;
+    }
+
     // reset data variable
     data = 0;
-
-    dev->get_semaphore()->take_blocking();
 
     // Register address (2 bytes, MSB first)
     uint8_t reg_add[2];
     reg_add[0] = (uint16_t(reg) >> 8) & 0xFF; // Address [15:8]
     reg_add[1] = (uint16_t(reg) & 0xFF);      // Address [7:0]
+
+    dev->get_semaphore()->take_blocking();
 
     // read data from register
     uint8_t buf[4] = {};
@@ -479,6 +422,7 @@ bool AP_RangeFinder_AcconeerA121::read_register(Register reg, uint32_t& data)
 
     dev->get_semaphore()->give();
 
+    // Unpack the data from the buffer into a uint32_t
     data |= uint32_t(buf[0]) << 24; // Data [31:24]
     data |= uint32_t(buf[1]) << 16; // Data [23:16]
     data |= uint32_t(buf[2]) << 8;  // Data [15:8]
