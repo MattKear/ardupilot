@@ -155,6 +155,46 @@ const AP_Param::GroupInfo AP_RangeFinder_Params::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("ADDR", 23, AP_RangeFinder_Params, address, 0),
 
+    // @Param: PROFILE
+    // @DisplayName: XM125 Profile
+    // @Description: Profile setting
+    // @Range: 1 5
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("PROFILE", 24, AP_RangeFinder_Params, xm125_profile, 2),
+
+    // @Param: SHAPE
+    // @DisplayName: XM125 Shape
+    // @Description: Shape setting, 1 = Generic Shape, 2 = Planar Shape
+    // @Range: 1 2
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("SHAPE", 25, AP_RangeFinder_Params, xm125_shape, 2),
+
+    // @Param: THRESH
+    // @DisplayName: XM125 Threshold method
+    // @Description: Shape setting, 1 = Fixed Amplitude, 2 = Recorded, 3 = CFAR, 4 = Fixed Strength
+    // @Range: 1 4
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("THRESH", 26, AP_RangeFinder_Params, xm125_threshold_method, 3),
+
+    // @Param: QUALITY
+    // @DisplayName: XM125 QUALITY
+    // @Description: High signal quality results in a better SNR (because of higher HWAAS and longer measurement time) and higher power consumption
+    // @Range: 1000 35000
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("QUALITY", 27, AP_RangeFinder_Params, xm125_signal_quality, 15000),
+
+    // @Param: FRAMES
+    // @DisplayName: XM125 number of frames
+    // @Description: The number frames to use for recorded threshold, This filters out: random noise peaks, one-off reflections, transient multipath artifacts
+    // @Range: 1 1000
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("THRESH", 28, AP_RangeFinder_Params, xm125_num_frames, 100),
+
     // @Param: POS_X
     // @DisplayName:  X position offset
     // @Description: X position of the rangefinder in body frame. Positive X is forward of the origin. Use the zero range datum point if supplied.

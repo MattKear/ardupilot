@@ -25,16 +25,6 @@
 // Settings to be applied 
 #define MY_XM125_RANGE_START 0//43 // (mm)
 #define MY_XM125_RANGE_END 250 // (mm)
-#define MY_XM125_PROFILE 2
-
-#define MY_XM125_GENERIC_SHAPE 1
-#define MY_XM125_PLANER_SHAPE 2
-
-#define THRESHOLD_METHOD_CFAR 3
-
-#define MY_XM125_SIGNAL_QUALITY 15000 // (Default = 15000) High signal quality results in a better SNR (because of higher HWAAS and longer measurement time) and higher power consumption
-
-#define MY_XM125_NUM_FRAMES 300 // (Default = 100) The number frames to use for recorded threshold, This filters out: random noise peaks, one-off reflections, transient multipath artifacts
 
 #define XM125_ENABLE_CLOSE_LEAKAGE_CALIBRATION 0
 
@@ -159,31 +149,31 @@ void AP_RangeFinder_AcconeerA121::setup_radar(void)
 
         case SetupStage::SET_PROFILE:
             // Set profile, which configures a group of settings in the device 
-            write_register(Register::MAX_PROFILE, MY_XM125_PROFILE);
+            write_register(Register::MAX_PROFILE, params.xm125_profile.get());
             setup_stage = SetupStage::SET_REFLECTOR_SHAPE;
             break;
 
         case SetupStage::SET_REFLECTOR_SHAPE:
             // Set profile, which configures a group of settings in the device 
-            write_register(Register::REFLECTOR_SHAPE, MY_XM125_PLANER_SHAPE);
+            write_register(Register::REFLECTOR_SHAPE, params.xm125_shape.get());
             setup_stage = SetupStage::SET_SIGNAL_QAULITY;
             break;
 
         case SetupStage::SET_SIGNAL_QAULITY:
             // Set profile, which configures a group of settings in the device 
-            write_register(Register::SIGNAL_QUALITY, MY_XM125_SIGNAL_QUALITY);
+            write_register(Register::SIGNAL_QUALITY, params.xm125_signal_quality.get());
             setup_stage = SetupStage::SET_THRESHOLD_METHOD;
             break;
 
         case SetupStage::SET_THRESHOLD_METHOD:
             // Set profile, which configures a group of settings in the device 
-            write_register(Register::THRESHOLD_METHOD, THRESHOLD_METHOD_CFAR);
+            write_register(Register::THRESHOLD_METHOD, params.xm125_threshold_method.get());
             setup_stage = SetupStage::SET_NUM_FRAMES_THRESHOLD;
             break;
 
         case SetupStage::SET_NUM_FRAMES_THRESHOLD:
             // Set profile, which configures a group of settings in the device 
-            write_register(Register::NUM_FRAMES_RECORDED_THRESHOLD, MY_XM125_NUM_FRAMES);
+            write_register(Register::NUM_FRAMES_RECORDED_THRESHOLD, params.xm125_num_frames.get());
             setup_stage = SetupStage::ENABLE_CLOSE_RANGE_LEAKAGE;
             break;
 
