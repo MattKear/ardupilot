@@ -199,6 +199,9 @@ private:
 
     bool init();
 
+    // Function that is called in the I2C thread for keeping the sensor state up to date
+    void timer(void);
+
     // Setup the radar - Progress through states in a switch case tree to setup the device
     void setup_radar(void);
 
@@ -237,8 +240,6 @@ private:
     uint8_t health;           // bitmask of reasons that we could be unhealthy
     uint32_t last_update_ms;  // last time we succesfully updated the measurment
 
-    // dirty hacks:
-    uint32_t time_init_ms;
 };
 
 #endif  // AP_RANGEFINDER_A121_RADAR_ENABLED

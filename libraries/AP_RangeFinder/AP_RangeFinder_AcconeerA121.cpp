@@ -50,17 +50,14 @@ AP_RangeFinder_Backend *AP_RangeFinder_AcconeerA121::detect(RangeFinder::RangeFi
 
 bool AP_RangeFinder_AcconeerA121::init()
 {
-    dev->get_semaphore()->take_blocking();
-
-    dev->set_retries(10);
-
-    // could try and talk to the radar here and return false if we can't
-    dev->get_semaphore()->give();
 
     // Init setup state
     setup_stage = SetupStage::NEEDS_RESET;
 
-    time_init_ms = AP_HAL::millis();
+    dev->set_retries(1);
+
+    // register for 20 Hz update of sensor state
+    dev->register_periodic_callback(5000, FUNCTOR_BIND_MEMBER(&AP_RangeFinder_AcconeerA121::timer, void));
 
     return true;
 }
@@ -69,15 +66,8 @@ bool AP_RangeFinder_AcconeerA121::init()
 // update the state of the sensor
 void AP_RangeFinder_AcconeerA121::update(void)
 {
-    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Acconeer A121 update");
-
-    if (setup_stage != SetupStage::COMPLETE) {
-        setup_radar();
-        return;
-    }
-
-    // Get the latest data from the radar
-    update_measurement();
+    // Prevent the race conditions when fetching the distance_measurement_mm state
+    dev->get_semaphore()->take_blocking();
 
     // Update the rangefinder with the strongest return
     state.distance_m = dist_measurement_mm[0] * 1e-3;
@@ -85,11 +75,20 @@ void AP_RangeFinder_AcconeerA121::update(void)
 
     state.status = RangeFinder::Status::Good;
 
-
-    // update_logging();
+    dev->get_semaphore()->give();
 }
 
+// update the state of the sensor
+void AP_RangeFinder_AcconeerA121::timer(void)
+{
+    if (setup_stage != SetupStage::COMPLETE) {
+        setup_radar();
+        return;
+    }
 
+    // Get the latest data from the radar
+    update_measurement();
+}
 
 // Setup the radar - Progress through states in a switch case tree to setup the device
 void AP_RangeFinder_AcconeerA121::setup_radar(void)
@@ -252,7 +251,7 @@ void AP_RangeFinder_AcconeerA121::update_measurement(void)
         return;
     }
 
-    // Note: uint32_t(DistanceResult::DISTANCE_RESULT_NEAR_START_EDGE) this is not an error but a warning that there is potentially a result closer than the minimum configured measurement range 
+    // Note: DistanceResult::DISTANCE_RESULT_NEAR_START_EDGE this is not an error but a warning that there is potentially a result closer than the minimum configured measurement range 
 
     // Update the temperature measurement
     temp_deg_c = uint16_t((distance_result & uint32_t(DistanceResult::TEMPERATURE_MASK)) >> TEMPERATURE_SHIFT);
