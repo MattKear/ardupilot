@@ -103,7 +103,7 @@ const AP_Param::GroupInfo AP_RangeFinder_Params::var_info[] = {
     // @Units: m
     // @Increment: 0.01
     // @User: Standard
-    AP_GROUPINFO("MIN",  6, AP_RangeFinder_Params, min_distance, 0.20),
+    AP_GROUPINFO("MIN",  6, AP_RangeFinder_Params, min_distance, 0.009),
 
     // @Param: MAX
     // @DisplayName: Rangefinder maximum distance
@@ -111,7 +111,7 @@ const AP_Param::GroupInfo AP_RangeFinder_Params::var_info[] = {
     // @Units: m
     // @Increment: 0.01
     // @User: Standard
-    AP_GROUPINFO("MAX",  7, AP_RangeFinder_Params, max_distance, 7.00),
+    AP_GROUPINFO("MAX",  7, AP_RangeFinder_Params, max_distance, 0.25),
 
     // @Param: STOP_PIN
     // @DisplayName: Rangefinder stop pin
@@ -145,7 +145,7 @@ const AP_Param::GroupInfo AP_RangeFinder_Params::var_info[] = {
     // @Range: 0.05 1.5
     // @Increment: 0.01
     // @User: Standard
-    AP_GROUPINFO("GNDCLR", 12, AP_RangeFinder_Params, ground_clearance, RANGEFINDER_GROUND_CLEARANCE_DEFAULT),
+    AP_GROUPINFO("GNDCLR", 12, AP_RangeFinder_Params, ground_clearance, 0.0),
 
     // @Param: ADDR
     // @DisplayName: Bus address of sensor
@@ -165,8 +165,8 @@ const AP_Param::GroupInfo AP_RangeFinder_Params::var_info[] = {
 
     // @Param: SHAPE
     // @DisplayName: XM125 Shape
-    // @Description: Shape setting, 1 = Generic Shape, 2 = Planar Shape
-    // @Range: 1 2
+    // @Description: Shape setting
+    // @Values: 1:Generic Shape, 2:Planar Shape
     // @Increment: 1
     // @User: Standard
     AP_GROUPINFO("SHAPE", 25, AP_RangeFinder_Params, xm125_shape, 2),
@@ -194,6 +194,13 @@ const AP_Param::GroupInfo AP_RangeFinder_Params::var_info[] = {
     // @Increment: 1
     // @User: Standard
     AP_GROUPINFO("THRESH", 28, AP_RangeFinder_Params, xm125_num_frames, 100),
+
+    // @Param: CLOSE_EN
+    // @DisplayName: XM125 Close Range Calibration Enabled
+    // @Description: Enable/Disable the close range leakage calibration
+    // @Values: 0:Disabled, 1:Enabled
+    // @User: Standard
+    AP_GROUPINFO("CLOSE_EN", 29, AP_RangeFinder_Params, xm125_close_range_leakage, 0),
 
     // @Param: POS_X
     // @DisplayName:  X position offset

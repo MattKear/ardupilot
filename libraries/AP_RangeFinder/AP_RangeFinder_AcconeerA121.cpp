@@ -20,14 +20,6 @@
 #include <AP_HAL/utility/sparse-endian.h>
 #include <GCS_MAVLink/GCS.h>
 
-#define INSTALLED_OFFSET 0//43
-
-// Settings to be applied 
-#define MY_XM125_RANGE_START 0//43 // (mm)
-#define MY_XM125_RANGE_END 250 // (mm)
-
-#define XM125_ENABLE_CLOSE_LEAKAGE_CALIBRATION 0
-
 extern const AP_HAL::HAL& hal;
 
 AP_RangeFinder_AcconeerA121::AP_RangeFinder_AcconeerA121(RangeFinder::RangeFinder_State &_state,
@@ -137,13 +129,13 @@ void AP_RangeFinder_AcconeerA121::setup_radar(void)
 
         case SetupStage::SET_START:
             // Set closest distance for measurement range
-            write_register(Register::START, MY_XM125_RANGE_START);
+            write_register(Register::START, uint32_t(params.min_distance.get()*1000.0));
             setup_stage = SetupStage::SET_END;
             break;
 
         case SetupStage::SET_END:
             // Set furthest distance for measurement range
-            write_register(Register::END, MY_XM125_RANGE_END);
+            write_register(Register::END, uint32_t(params.max_distance.get()*1000.0));
             setup_stage = SetupStage::SET_PROFILE;
             break;
 
@@ -156,10 +148,10 @@ void AP_RangeFinder_AcconeerA121::setup_radar(void)
         case SetupStage::SET_REFLECTOR_SHAPE:
             // Set profile, which configures a group of settings in the device 
             write_register(Register::REFLECTOR_SHAPE, params.xm125_shape.get());
-            setup_stage = SetupStage::SET_SIGNAL_QAULITY;
+            setup_stage = SetupStage::SET_SIGNAL_QUALITY;
             break;
 
-        case SetupStage::SET_SIGNAL_QAULITY:
+        case SetupStage::SET_SIGNAL_QUALITY:
             // Set profile, which configures a group of settings in the device 
             write_register(Register::SIGNAL_QUALITY, params.xm125_signal_quality.get());
             setup_stage = SetupStage::SET_THRESHOLD_METHOD;
@@ -179,7 +171,7 @@ void AP_RangeFinder_AcconeerA121::setup_radar(void)
 
         case SetupStage::ENABLE_CLOSE_RANGE_LEAKAGE:
            // Set profile, which configures a group of settings in the device 
-           write_register(Register::CLOSE_RANGE_LEAKAGE_CANCELLATION, XM125_ENABLE_CLOSE_LEAKAGE_CALIBRATION);
+           write_register(Register::CLOSE_RANGE_LEAKAGE_CANCELLATION, params.xm125_close_range_leakage.get());
            setup_stage = SetupStage::APPLY_AND_CAL;
            break;
 
@@ -285,7 +277,7 @@ void AP_RangeFinder_AcconeerA121::update_measurement(void)
         }
 
         // Apply fixed offset
-        distance_mm -= INSTALLED_OFFSET;
+        distance_mm -= uint32_t(params.ground_clearance.get() * 1000);
 
         uint32_t peak_strength;
         if (!read_register(Register(strength_reg[i]), peak_strength)) {
