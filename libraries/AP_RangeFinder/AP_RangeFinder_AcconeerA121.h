@@ -6,6 +6,7 @@
 
 #include "AP_RangeFinder.h"
 #include "AP_RangeFinder_Backend.h"
+#include <Filter/LowPassFilter.h>
 
 #include <AP_HAL/I2CDevice.h>
 
@@ -197,7 +198,7 @@ private:
     };
 
 
-    bool init();
+    void init(void);
 
     // Function that is called in the I2C thread for keeping the sensor state up to date
     void timer(void);
@@ -229,17 +230,25 @@ private:
 
     bool read_register(Register reg, uint32_t& data);
 
+    // Helper function since we do not have abs function for uint32_t
+    uint32_t calc_dist_delta(uint32_t new_dist) const;
+
     AP_HAL::I2CDevice *dev;
 
     static constexpr uint8_t MAX_PEAKS = 3;
+    static constexpr uint32_t INIT_DISTANCE = UINT32_MAX;  // Give an initial distance that is improbable so that we can tell the first time we are committing a real life value to the reported distance
+    static constexpr uint32_t CALLBACK_TIME_US = 2500;     // 40 Hz update
+
     uint32_t dist_measurement_mm[MAX_PEAKS];
-    uint32_t strength_measurement[MAX_PEAKS];
+    uint32_t reported_distance_mm;
+    LowPassFilterFloat filtered_distance_mm;
+    uint8_t num_distances;
     uint16_t temp_deg_c;
     uint32_t detector_status;
-    uint32_t reset_time_ms;   // track timeout for reseting device if it gets stuck in setup
-    uint8_t health;           // bitmask of reasons that we could be unhealthy
-    uint32_t last_update_ms;  // last time we succesfully updated the measurment
-
+    uint32_t reset_time_ms;        // track timeout for reseting device if it gets stuck in setup
+    uint8_t health;                // bitmask of reasons that we could be unhealthy
+    uint32_t last_update_ms;       // last time we successfully updated the measurement
+    uint32_t last_debug_print_ms;  // last time we sent a debug message, used for rate limiting debugs
 };
 
 #endif  // AP_RANGEFINDER_A121_RADAR_ENABLED

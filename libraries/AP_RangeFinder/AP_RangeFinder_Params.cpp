@@ -103,7 +103,7 @@ const AP_Param::GroupInfo AP_RangeFinder_Params::var_info[] = {
     // @Units: m
     // @Increment: 0.01
     // @User: Standard
-    AP_GROUPINFO("MIN",  6, AP_RangeFinder_Params, min_distance, 0.009),
+    AP_GROUPINFO("MIN",  6, AP_RangeFinder_Params, min_distance, 0.012),
 
     // @Param: MAX
     // @DisplayName: Rangefinder maximum distance
@@ -145,7 +145,7 @@ const AP_Param::GroupInfo AP_RangeFinder_Params::var_info[] = {
     // @Range: 0.05 1.5
     // @Increment: 0.01
     // @User: Standard
-    AP_GROUPINFO("GNDCLR", 12, AP_RangeFinder_Params, ground_clearance, 0.0),
+    AP_GROUPINFO("GNDCLR", 12, AP_RangeFinder_Params, ground_clearance, 0.012),
 
     // @Param: ADDR
     // @DisplayName: Bus address of sensor
@@ -193,7 +193,7 @@ const AP_Param::GroupInfo AP_RangeFinder_Params::var_info[] = {
     // @Range: 1 1000
     // @Increment: 1
     // @User: Standard
-    AP_GROUPINFO("THRESH", 28, AP_RangeFinder_Params, xm125_num_frames, 100),
+    AP_GROUPINFO("FRAMES", 28, AP_RangeFinder_Params, xm125_num_frames, 100),
 
     // @Param: CLOSE_EN
     // @DisplayName: XM125 Close Range Calibration Enabled
@@ -201,6 +201,20 @@ const AP_Param::GroupInfo AP_RangeFinder_Params::var_info[] = {
     // @Values: 0:Disabled, 1:Enabled
     // @User: Standard
     AP_GROUPINFO("CLOSE_EN", 29, AP_RangeFinder_Params, xm125_close_range_leakage, 0),
+
+    // @Param: DEBUG
+    // @DisplayName: XM125 Debug
+    // @Description: Enable/Disable debug messages
+    // @Values: 0:Disabled, 1:Enabled
+    // @User: Standard
+    AP_GROUPINFO("DEBUG", 30, AP_RangeFinder_Params, xm125_debug, 0),
+
+    // @Param: FILT_HZ
+    // @DisplayName: XM125 Data Low Pass Filter
+    // @Description: Low pass filter applied to XM125 state, run at a faster rate in the I2C thread than the rangefinder thread. 0 is disabled.
+    // @Range: 0 40
+    // @User: Standard
+    AP_GROUPINFO("FILT_HZ", 31, AP_RangeFinder_Params, xm125_lpf_cutoff_hz, 0),
 
     // @Param: POS_X
     // @DisplayName:  X position offset

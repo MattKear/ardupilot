@@ -48,18 +48,19 @@ AP_RangeFinder_Backend *AP_RangeFinder_AcconeerA121::detect(RangeFinder::RangeFi
     return sensor;
 }
 
-bool AP_RangeFinder_AcconeerA121::init()
+void AP_RangeFinder_AcconeerA121::init()
 {
-
     // Init setup state
     setup_stage = SetupStage::NEEDS_RESET;
 
     dev->set_retries(1);
 
-    // register for 20 Hz update of sensor state
-    dev->register_periodic_callback(5000, FUNCTOR_BIND_MEMBER(&AP_RangeFinder_AcconeerA121::timer, void));
+    // register for update of sensor state in I2C thread
+    dev->register_periodic_callback(CALLBACK_TIME_US, FUNCTOR_BIND_MEMBER(&AP_RangeFinder_AcconeerA121::timer, void));
 
-    return true;
+    reported_distance_mm = INIT_DISTANCE;
+
+    filtered_distance_mm.set_cutoff_frequency(params.xm125_lpf_cutoff_hz.get());
 }
 
 
@@ -69,25 +70,49 @@ void AP_RangeFinder_AcconeerA121::update(void)
     // Prevent the race conditions when fetching the distance_measurement_mm state
     dev->get_semaphore()->take_blocking();
 
-    // Update the rangefinder with the strongest return
-    state.distance_m = dist_measurement_mm[0] * 1e-3;
+    uint32_t now = AP_HAL::millis();
+
+    // Update the rangefinder state
+    state.distance_m = filtered_distance_mm.get() * 1e-3;
     state.last_reading_ms = last_update_ms;
 
-    state.status = RangeFinder::Status::Good;
+    // Update rangefinder status
+    if (setup_stage == SetupStage::NEEDS_RESET) {
+        // setup has not advanced so we assume that the device is not connected
+        state.status = RangeFinder::Status::NotConnected;
+
+    } else if ((health != 0) || (setup_stage != SetupStage::COMPLETE) || (reported_distance_mm == INIT_DISTANCE)) {
+        // XM125 health is marked as unhealthy
+        state.status = RangeFinder::Status::NoData;
+
+    } else {
+        state.status = RangeFinder::Status::Good;
+    }
 
     dev->get_semaphore()->give();
+
+    // Send rate limited debug messages if param is enabled
+    if ((params.xm125_debug.get() != 0) && (now - last_debug_print_ms > 1000)) {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "XM125: Health:%i NumDist:%i D0=%i D1=%i D2=%i T=%i", health, num_distances, dist_measurement_mm[0], dist_measurement_mm[1], dist_measurement_mm[2], temp_deg_c);
+        last_debug_print_ms = now;
+    }
 }
 
 // update the state of the sensor
 void AP_RangeFinder_AcconeerA121::timer(void)
 {
+    dev->get_semaphore()->take_blocking();
+
     if (setup_stage != SetupStage::COMPLETE) {
         setup_radar();
+        dev->get_semaphore()->give();
         return;
     }
 
     // Get the latest data from the radar
     update_measurement();
+
+    dev->get_semaphore()->give();
 }
 
 // Setup the radar - Progress through states in a switch case tree to setup the device
@@ -112,7 +137,9 @@ void AP_RangeFinder_AcconeerA121::setup_radar(void)
         return;
     }
 
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "A121: Setup: %i", uint8_t(setup_stage));
+    if (params.xm125_debug.get() != 0) {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "XM125: Setup: %i", uint8_t(setup_stage));
+    }
 
     switch (setup_stage) {
         case SetupStage::CONFIRMING_RESET:
@@ -254,42 +281,75 @@ void AP_RangeFinder_AcconeerA121::update_measurement(void)
     // Note: DistanceResult::DISTANCE_RESULT_NEAR_START_EDGE this is not an error but a warning that there is potentially a result closer than the minimum configured measurement range 
 
     // Update the temperature measurement
-    temp_deg_c = uint16_t((distance_result & uint32_t(DistanceResult::TEMPERATURE_MASK)) >> TEMPERATURE_SHIFT);
+    if (params.xm125_debug.get() != 0) {
+        temp_deg_c = uint16_t((distance_result & uint32_t(DistanceResult::TEMPERATURE_MASK)) >> TEMPERATURE_SHIFT);
+    }
 
     // Loop over the number of returns to get the distances and powers
-    uint8_t num_distances = uint8_t(distance_result) & uint8_t(DistanceResult::NUM_DISTANCE_MASK);
+    num_distances = uint8_t(distance_result) & uint8_t(DistanceResult::NUM_DISTANCE_MASK);
+
+    // If zero distances have been reported then request a new measurement and comeback later
+    if (num_distances == 0) {
+        send_command(Command::MEASURE_DISTANCE);
+        return;
+    }
 
     for (uint8_t i=0; i<MAX_PEAKS; i++) {
         // Reset measurement values to 0 if we have not received data for this peak
         if (i >= num_distances) {
             dist_measurement_mm[i] = 0;
-            strength_measurement[i] = 0;
             continue;
         }
 
+        // Get the ith distance from the device
         uint32_t distance_mm;
         if (!read_register(Register(dist_reg[i]), distance_mm)) {
+            // If we got here then we failed to read the register, mark unhealthy and move on
             health |= uint8_t(Health::FAILED_DEVICE_COMS);
             dist_measurement_mm[i] = 0;
-            strength_measurement[i] = 0;
             continue;
         }
 
-        // Apply fixed offset
-        distance_mm -= uint32_t(params.ground_clearance.get() * 1000);
-
-        uint32_t peak_strength;
-        if (!read_register(Register(strength_reg[i]), peak_strength)) {
-            health |= uint8_t(Health::FAILED_DEVICE_COMS);
-            dist_measurement_mm[i] = 0;
-            strength_measurement[i] = 0;
-            continue;
-        }
-
-        // If we got this far then we can commit the measurements to memory
+        // If we got this far then we can store the measurement for later processing
         dist_measurement_mm[i] = distance_mm;
-        strength_measurement[i] = peak_strength;
     }
+
+    // Determine the distance value to be reported
+    if (reported_distance_mm == INIT_DISTANCE) {
+        // If the reported value is the init value, just take the strongest return, i.e. the first index (default peak sorting is used for the strongest return being reported first)
+        reported_distance_mm = dist_measurement_mm[0];
+        filtered_distance_mm.reset(float(reported_distance_mm));
+
+    } else if (num_distances > 1) {
+        // If we have had multiple returns report the closest distance to the last one received in an attempt to "track" the surface
+        uint32_t closest_delta = UINT32_MAX;
+        uint32_t closest_distance = UINT32_MAX;
+
+        for (uint8_t i=0; i<num_distances; i++) {
+            uint32_t delta = calc_dist_delta(dist_measurement_mm[i]);
+            if (delta < closest_delta) {
+                closest_distance = dist_measurement_mm[i];
+            }
+        }
+
+        reported_distance_mm = closest_distance;
+
+    } else {
+        // If we got here then one one distance has been reported
+        reported_distance_mm = dist_measurement_mm[0];
+    }
+
+    // Apply fixed offset from ground clearance parameter so that the rangefinder reports from the outside of an enclosure for example
+    reported_distance_mm -= uint32_t(params.ground_clearance.get() * 1000);
+
+    // Apply filtering
+    const float dt = (now - last_update_ms) * 1e-3;
+    if (dt > 2.0 || !is_positive(params.xm125_lpf_cutoff_hz.get())) {
+        // It has been a while since we had an update, just reset the filter
+        // or the cuttoff is zero so constantly reset
+        filtered_distance_mm.reset(float(reported_distance_mm));
+    }
+    filtered_distance_mm.apply(float(reported_distance_mm), dt);
 
     // Update the measurement timer
     last_update_ms = now;
@@ -409,6 +469,12 @@ bool AP_RangeFinder_AcconeerA121::read_register(Register reg, uint32_t& data)
     data |= uint32_t(buf[2]) << 8;  // Data [15:8]
     data |= uint32_t(buf[3]);       // Data [7:0]
     return true;
+}
+
+// Helper function since we do not have abs function for uint32_t
+uint32_t AP_RangeFinder_AcconeerA121::calc_dist_delta(uint32_t new_dist) const
+{
+    return (reported_distance_mm < new_dist) ? (new_dist - reported_distance_mm) : (reported_distance_mm - new_dist);
 }
 
 #endif  // AP_RANGEFINDER_A121_RADAR_ENABLED

@@ -37,6 +37,8 @@ public:
     AP_Int32 xm125_signal_quality;
     AP_Int32 xm125_num_frames;
     AP_Int32 xm125_close_range_leakage;
+    AP_Int8 xm125_debug;
+    AP_Float xm125_lpf_cutoff_hz;
 
 };
 
