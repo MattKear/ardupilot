@@ -285,7 +285,7 @@ void AP_RangeFinder_AcconeerA121::update_measurement(void)
         temp_deg_c = uint16_t((distance_result & uint32_t(DistanceResult::TEMPERATURE_MASK)) >> TEMPERATURE_SHIFT);
     }
 
-    // Loop over the number of returns to get the distances and powers
+    // Loop over the number of returns to get the distances
     num_distances = uint8_t(distance_result) & uint8_t(DistanceResult::NUM_DISTANCE_MASK);
 
     // If zero distances have been reported then request a new measurement and comeback later
@@ -314,42 +314,25 @@ void AP_RangeFinder_AcconeerA121::update_measurement(void)
         dist_measurement_mm[i] = distance_mm;
     }
 
-    // Determine the distance value to be reported
-    if (reported_distance_mm == INIT_DISTANCE) {
-        // If the reported value is the init value, just take the strongest return, i.e. the first index (default peak sorting is used for the strongest return being reported first)
-        reported_distance_mm = dist_measurement_mm[0];
-        filtered_distance_mm.reset(float(reported_distance_mm));
 
-    } else if (num_distances > 1) {
-        // If we have had multiple returns report the closest distance to the last one received in an attempt to "track" the surface
-        uint32_t closest_delta = UINT32_MAX;
-        uint32_t closest_distance = UINT32_MAX;
+    // Check for long valid measurement times and reset the filter as appropriate
+    const float dt = (now - last_update_ms) * 1e-3;
 
-        for (uint8_t i=0; i<num_distances; i++) {
-            uint32_t delta = calc_dist_delta(dist_measurement_mm[i]);
-            if (delta < closest_delta) {
-                closest_distance = dist_measurement_mm[i];
-            }
-        }
+    // Note: Always using the strongest return, which is the first index
 
-        reported_distance_mm = closest_distance;
+    // Cut off is set to zero so keep reseting the filter to effectively disable it
+    if (!is_positive(params.xm125_lpf_cutoff_hz.get())) {
+        filtered_distance_mm.reset(float(dist_measurement_mm[0]));
+
+    } else if ((health & uint8_t(Health::MEASUREMENT_TIMEOUT)) != 0) {
+        // reset filter to current measurement if we have had a time out
+        filtered_distance_mm.reset(float(dist_measurement_mm[0]));
 
     } else {
-        // If we got here then one one distance has been reported
-        reported_distance_mm = dist_measurement_mm[0];
+        // Apply low pass filter at the higher call back rate.
+        // Just report the strongest return, which is the first value.
+        filtered_distance_mm.apply(float(dist_measurement_mm[0]), dt);
     }
-
-    // Apply fixed offset from ground clearance parameter so that the rangefinder reports from the outside of an enclosure for example
-    reported_distance_mm -= uint32_t(params.ground_clearance.get() * 1000);
-
-    // Apply filtering
-    const float dt = (now - last_update_ms) * 1e-3;
-    if (dt > 2.0 || !is_positive(params.xm125_lpf_cutoff_hz.get())) {
-        // It has been a while since we had an update, just reset the filter
-        // or the cuttoff is zero so constantly reset
-        filtered_distance_mm.reset(float(reported_distance_mm));
-    }
-    filtered_distance_mm.apply(float(reported_distance_mm), dt);
 
     // Update the measurement timer
     last_update_ms = now;
@@ -469,12 +452,6 @@ bool AP_RangeFinder_AcconeerA121::read_register(Register reg, uint32_t& data)
     data |= uint32_t(buf[2]) << 8;  // Data [15:8]
     data |= uint32_t(buf[3]);       // Data [7:0]
     return true;
-}
-
-// Helper function since we do not have abs function for uint32_t
-uint32_t AP_RangeFinder_AcconeerA121::calc_dist_delta(uint32_t new_dist) const
-{
-    return (reported_distance_mm < new_dist) ? (new_dist - reported_distance_mm) : (reported_distance_mm - new_dist);
 }
 
 #endif  // AP_RANGEFINDER_A121_RADAR_ENABLED

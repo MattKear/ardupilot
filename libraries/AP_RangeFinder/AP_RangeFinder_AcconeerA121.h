@@ -230,9 +230,6 @@ private:
 
     bool read_register(Register reg, uint32_t& data);
 
-    // Helper function since we do not have abs function for uint32_t
-    uint32_t calc_dist_delta(uint32_t new_dist) const;
-
     AP_HAL::I2CDevice *dev;
 
     static constexpr uint8_t MAX_PEAKS = 3;
