@@ -58,8 +58,6 @@ void AP_RangeFinder_AcconeerA121::init()
     // register for update of sensor state in I2C thread
     dev->register_periodic_callback(CALLBACK_TIME_US, FUNCTOR_BIND_MEMBER(&AP_RangeFinder_AcconeerA121::timer, void));
 
-    reported_distance_mm = INIT_DISTANCE;
-
     filtered_distance_mm.set_cutoff_frequency(params.xm125_lpf_cutoff_hz.get());
 }
 
@@ -81,7 +79,7 @@ void AP_RangeFinder_AcconeerA121::update(void)
         // setup has not advanced so we assume that the device is not connected
         state.status = RangeFinder::Status::NotConnected;
 
-    } else if ((health != 0) || (setup_stage != SetupStage::COMPLETE) || (reported_distance_mm == INIT_DISTANCE)) {
+    } else if ((health != 0) || (setup_stage != SetupStage::COMPLETE)) {
         // XM125 health is marked as unhealthy
         state.status = RangeFinder::Status::NoData;
 
@@ -93,7 +91,7 @@ void AP_RangeFinder_AcconeerA121::update(void)
 
     // Send rate limited debug messages if param is enabled
     if ((params.xm125_debug.get() != 0) && (now - last_debug_print_ms > 1000)) {
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "XM125: Health:%i NumDist:%i D0=%i D1=%i D2=%i T=%i", health, num_distances, dist_measurement_mm[0], dist_measurement_mm[1], dist_measurement_mm[2], temp_deg_c);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "XM125: Health:%i NumDist:%i D0=%i Setup=%u T=%i", health, num_distances, dist_measurement_mm[0], uint8_t(setup_stage), temp_deg_c);
         last_debug_print_ms = now;
     }
 }
@@ -224,6 +222,9 @@ void AP_RangeFinder_AcconeerA121::update_measurement(void)
 {
     // Reset health
     health = 0;
+    dist_measurement_mm[0] = 0;
+    dist_measurement_mm[1] = 0;
+    dist_measurement_mm[2] = 0;
 
     uint32_t now = AP_HAL::millis();
 
@@ -247,12 +248,14 @@ void AP_RangeFinder_AcconeerA121::update_measurement(void)
     if (!config_ok()) {
         // Don't proceed if we have a bad device config
         health |= uint8_t(Health::BAD_CONFIG);
+        setup_stage = SetupStage::NEEDS_RESET;
         return;
     }
 
     if (has_error()) {
         // Don't proceed if we have an error
         health |= uint8_t(Health::DEVICE_ERROR);
+        setup_stage = SetupStage::NEEDS_RESET;
         return;
     }
 
@@ -261,12 +264,14 @@ void AP_RangeFinder_AcconeerA121::update_measurement(void)
     if (!read_register(Register::DISTANCE_RESULT, distance_result)) {
         // Try again next loop
         health |= uint8_t(Health::FAILED_DEVICE_COMS);
+        send_command(Command::MEASURE_DISTANCE);
         return;
     }
 
     // Check for errors in distance result
     if ((distance_result & uint32_t(DistanceResult::DISTANCE_RESULT_MEASUREMENT_ERROR)) != 0) {
         health |= uint8_t(Health::MEASUREMENT_ERROR);
+        send_command(Command::MEASURE_DISTANCE);
         return;
     }
 
@@ -294,19 +299,12 @@ void AP_RangeFinder_AcconeerA121::update_measurement(void)
         return;
     }
 
-    for (uint8_t i=0; i<MAX_PEAKS; i++) {
-        // Reset measurement values to 0 if we have not received data for this peak
-        if (i >= num_distances) {
-            dist_measurement_mm[i] = 0;
-            continue;
-        }
-
+    for (uint8_t i=0; i<MIN(MAX_PEAKS,num_distances); i++) {
         // Get the ith distance from the device
         uint32_t distance_mm;
         if (!read_register(Register(dist_reg[i]), distance_mm)) {
             // If we got here then we failed to read the register, mark unhealthy and move on
             health |= uint8_t(Health::FAILED_DEVICE_COMS);
-            dist_measurement_mm[i] = 0;
             continue;
         }
 
@@ -316,7 +314,7 @@ void AP_RangeFinder_AcconeerA121::update_measurement(void)
 
 
     // Check for long valid measurement times and reset the filter as appropriate
-    const float dt = (now - last_update_ms) * 1e-3;
+    const float dt = (now - last_update_ms) * 1.0e-3;
 
     // Note: Always using the strongest return, which is the first index
 
