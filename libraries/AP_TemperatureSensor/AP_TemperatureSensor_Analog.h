@@ -40,6 +40,8 @@ private:
     // Polynomial coefficients to calculate temperature from voltage
     AP_Float _a[6];
 
+    // uint32_t _last_sent;
+
 };
 
 #endif // AP_TEMPERATURE_SENSOR_ANALOG_ENABLED

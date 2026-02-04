@@ -14,6 +14,7 @@
  */
 
 #include "AP_TemperatureSensor_config.h"
+#include <GCS_MAVLink/GCS.h>
 
 #if AP_TEMPERATURE_SENSOR_ANALOG_ENABLED
 
@@ -99,6 +100,12 @@ void AP_TemperatureSensor_Analog::update()
 
     // update state
     set_temperature(temp);
+
+    // uint32_t const now = AP_HAL::millis();
+    // if (now - _last_sent > 1000) {
+    //     GCS_SEND_TEXT(0,"Volt=%.2f", voltage);
+    //     _last_sent = now;
+    // }
 }
 
 #endif // AP_TEMPERATURE_SENSOR_ANALOG_ENABLED
