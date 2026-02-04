@@ -101,3 +101,6 @@ env BUILD_ABIN True
 define HAL_INS_HIGHRES_SAMPLE 6
 
 define AP_NETWORKING_BACKEND_PPP 1
+
+# Add AP_Temperature for external temp sensors
+define AP_TEMPERATURE_SENSOR_ENABLED 1
