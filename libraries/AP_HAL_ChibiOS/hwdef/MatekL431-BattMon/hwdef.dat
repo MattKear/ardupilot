@@ -9,9 +9,6 @@ define AP_PERIPH_BATTERY_MODEL_NAME "MatekL431-BattMon"
 
 SPIDEV INA23X SPI1 DEVID1 SPARE_CS MODE1 10*MHZ 10*MHZ
 
-# no ADC pins
-define HAL_USE_ADC FALSE
-
 # disable unnecessary threads
 define HAL_NO_RCOUT_THREAD
 define HAL_NO_TIMER_THREAD
@@ -19,3 +16,11 @@ define HAL_NO_TIMER_THREAD
 undef HAL_RCIN_THREAD_ENABLED
 define HAL_RCIN_THREAD_ENABLED 0
 USE_BOOTLOADER_FROM_BOARD MatekL431
+
+# Add AP_Temperature for external temp sensors
+define AP_TEMPERATURE_SENSOR_ENABLED 1
+
+# Allocate ADC pins on the first Current pin 
+define HAL_USE_ADC TRUE
+define STM32_ADC_USE_ADC1 TRUE
+PA1 BATT_CURRENT_SENS  ADC1 SCALE(1) # Pin 6

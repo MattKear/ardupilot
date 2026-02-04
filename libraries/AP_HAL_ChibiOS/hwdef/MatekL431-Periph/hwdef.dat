@@ -85,3 +85,8 @@ define AP_SERIALLED_ENABLED 1
 
 define HAL_SERIAL_ESC_COMM_ENABLED 1
 USE_BOOTLOADER_FROM_BOARD MatekL431
+
+# -------------------- Temperature Sensors --------------------
+# Add AP_Temperature for external temp sensors
+define AP_TEMPERATURE_SENSOR_ENABLED 1
+define AP_PERIPH_DEVICE_TEMPERATURE_ENABLED 1
