@@ -234,7 +234,6 @@ private:
 
     static constexpr uint8_t MAX_PEAKS = 3;
     static constexpr uint32_t INIT_DISTANCE = UINT32_MAX;  // Give an initial distance that is improbable so that we can tell the first time we are committing a real life value to the reported distance
-    static constexpr uint32_t CALLBACK_TIME_US = 25000;     // 40 Hz update
 
     uint32_t dist_measurement_mm[MAX_PEAKS];
     uint32_t reported_distance_mm;

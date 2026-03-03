@@ -55,9 +55,6 @@ void AP_RangeFinder_AcconeerA121::init()
 
     dev->set_retries(1);
 
-    // register for update of sensor state in I2C thread
-    dev->register_periodic_callback(CALLBACK_TIME_US, FUNCTOR_BIND_MEMBER(&AP_RangeFinder_AcconeerA121::timer, void));
-
     filtered_distance_mm.set_cutoff_frequency(params.xm125_lpf_cutoff_hz.get());
 }
 
@@ -68,7 +65,15 @@ void AP_RangeFinder_AcconeerA121::update(void)
     // Prevent the race conditions when fetching the distance_measurement_mm state
     dev->get_semaphore()->take_blocking();
 
-    uint32_t now = AP_HAL::millis();
+    if (setup_stage != SetupStage::COMPLETE) {
+        setup_radar();
+        state.status = RangeFinder::Status::NoData;
+        dev->get_semaphore()->give();
+        return;
+    }
+
+    // Get the latest data from the radar
+    update_measurement();
 
     // Update the rangefinder state
     state.distance_m = filtered_distance_mm.get() * 1e-3;
@@ -87,31 +92,16 @@ void AP_RangeFinder_AcconeerA121::update(void)
         state.status = RangeFinder::Status::Good;
     }
 
-    dev->get_semaphore()->give();
-
     // Send rate limited debug messages if param is enabled
+    const uint32_t now = AP_HAL::millis();
     if ((params.xm125_debug.get() != 0) && (now - last_debug_print_ms > 1000)) {
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "XM125: Health:%i NumDist:%i D0=%i Setup=%u T=%i", health, num_distances, dist_measurement_mm[0], uint8_t(setup_stage), temp_deg_c);
         last_debug_print_ms = now;
     }
-}
-
-// update the state of the sensor
-void AP_RangeFinder_AcconeerA121::timer(void)
-{
-    dev->get_semaphore()->take_blocking();
-
-    if (setup_stage != SetupStage::COMPLETE) {
-        setup_radar();
-        dev->get_semaphore()->give();
-        return;
-    }
-
-    // Get the latest data from the radar
-    update_measurement();
 
     dev->get_semaphore()->give();
 }
+
 
 // Setup the radar - Progress through states in a switch case tree to setup the device
 void AP_RangeFinder_AcconeerA121::setup_radar(void)
