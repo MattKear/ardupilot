@@ -59,9 +59,17 @@ void AP_RangeFinder_AcconeerA121::init()
 }
 
 
-// update the state of the sensor
+// update rangefinder state and perform post-processing on the data retrieved from the device
 void AP_RangeFinder_AcconeerA121::update(void)
 {
+
+    const uint32_t now = AP_HAL::millis();
+
+    // check for filter change
+    if (!is_equal(filtered_distance_mm.get_cutoff_freq(), params.xm125_lpf_cutoff_hz.get())) {
+        filtered_distance_mm.set_cutoff_frequency(params.xm125_lpf_cutoff_hz.get());
+    }
+
     // Prevent the race conditions when fetching the distance_measurement_mm state
     dev->get_semaphore()->take_blocking();
 
@@ -72,19 +80,44 @@ void AP_RangeFinder_AcconeerA121::update(void)
         return;
     }
 
+    // Reset health
+    health = 0;
+
     // Get the latest data from the radar
     update_measurement();
 
-    // Update the rangefinder state
-    state.distance_m = filtered_distance_mm.get() * 1e-3;
-    state.last_reading_ms = last_update_ms;
+    // Check if we have exceeded the stale data threshold
+    const uint32_t dt_ms = (now - last_update_ms);
 
+    // Loop through the reported distances and accept the highest power return that is greater than the minimum threshold distance
+    for (uint8_t i=0; i<MIN(MAX_PEAKS, num_distances); i++) {
+        if (dist_measurement_mm[i] >= params.min_threshold_dist_mm.get()) {
+            // We have a valid result but we may have exceeded the stale data timeout
+            if (dt_ms > TIMEOUT_MS) {
+                // we have previously had stale data so reset the filter
+                filtered_distance_mm.reset(float(dist_measurement_mm[i]));
+            } else {
+                filtered_distance_mm.apply(float(dist_measurement_mm[i]), float(dt_ms) * 1e-3);
+            }
+
+            // We have had a valid result so we can update the timer
+            last_update_ms = now;
+            break;
+        }
+    }
+
+    // Update health with stale data check
+    if (now - last_update_ms > TIMEOUT_MS) {
+        health |= uint8_t(Health::MEASUREMENT_TIMEOUT);
+    }
+
+    const bool bad_health = ((health & BAD_HEALTH_MASK) != 0);
     // Update rangefinder status
     if (setup_stage == SetupStage::NEEDS_RESET) {
         // setup has not advanced so we assume that the device is not connected
         state.status = RangeFinder::Status::NotConnected;
 
-    } else if ((health != 0) || (setup_stage != SetupStage::COMPLETE)) {
+    } else if (bad_health || (setup_stage != SetupStage::COMPLETE)) {
         // XM125 health is marked as unhealthy
         state.status = RangeFinder::Status::NoData;
 
@@ -92,10 +125,13 @@ void AP_RangeFinder_AcconeerA121::update(void)
         state.status = RangeFinder::Status::Good;
     }
 
+    // Update the rangefinder state
+    state.distance_m = filtered_distance_mm.get() * 1e-3;
+    state.last_reading_ms = last_update_ms;
+
     // Send rate limited debug messages if param is enabled
-    const uint32_t now = AP_HAL::millis();
     if ((params.xm125_debug.get() != 0) && (now - last_debug_print_ms > 1000)) {
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "XM125: Health:%i NumDist:%i D0=%i Setup=%u T=%i", health, num_distances, dist_measurement_mm[0], uint8_t(setup_stage), temp_deg_c);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "XM125: Health:%i Bad Health=%i NumDist:%i D0=%i D1=%i Setup=%u T=%i dt=%i", health, bad_health, num_distances, dist_measurement_mm[0], dist_measurement_mm[1], uint8_t(setup_stage), temp_deg_c, (AP_HAL::millis() - now));
         last_debug_print_ms = now;
     }
 
@@ -210,18 +246,11 @@ void AP_RangeFinder_AcconeerA121::setup_radar(void)
 
 void AP_RangeFinder_AcconeerA121::update_measurement(void)
 {
-    // Reset health
-    health = 0;
+
     dist_measurement_mm[0] = 0;
     dist_measurement_mm[1] = 0;
     dist_measurement_mm[2] = 0;
-
-    uint32_t now = AP_HAL::millis();
-
-    // update time out health bit
-    if (now - last_update_ms > 500) {
-        health |= uint8_t(Health::MEASUREMENT_TIMEOUT);
-    }
+    num_distances = 0;
 
     // Update errors
     if (!update_detector_status()) {
@@ -232,6 +261,7 @@ void AP_RangeFinder_AcconeerA121::update_measurement(void)
 
     // Check if device is busy
     if (is_busy()) {
+        health |= uint8_t(Health::BUSY);
         return;
     }
 
@@ -301,29 +331,6 @@ void AP_RangeFinder_AcconeerA121::update_measurement(void)
         // If we got this far then we can store the measurement for later processing
         dist_measurement_mm[i] = distance_mm;
     }
-
-
-    // Check for long valid measurement times and reset the filter as appropriate
-    const float dt = (now - last_update_ms) * 1.0e-3;
-
-    // Note: Always using the strongest return, which is the first index
-
-    // Cut off is set to zero so keep reseting the filter to effectively disable it
-    if (!is_positive(params.xm125_lpf_cutoff_hz.get())) {
-        filtered_distance_mm.reset(float(dist_measurement_mm[0]));
-
-    } else if ((health & uint8_t(Health::MEASUREMENT_TIMEOUT)) != 0) {
-        // reset filter to current measurement if we have had a time out
-        filtered_distance_mm.reset(float(dist_measurement_mm[0]));
-
-    } else {
-        // Apply low pass filter at the higher call back rate.
-        // Just report the strongest return, which is the first value.
-        filtered_distance_mm.apply(float(dist_measurement_mm[0]), dt);
-    }
-
-    // Update the measurement timer
-    last_update_ms = now;
 
     // Send the measurement command to the sensor and hope that it has completed when we come back for the next update
     send_command(Command::MEASURE_DISTANCE);

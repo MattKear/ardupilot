@@ -216,6 +216,14 @@ const AP_Param::GroupInfo AP_RangeFinder_Params::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("FILT_HZ", 31, AP_RangeFinder_Params, xm125_lpf_cutoff_hz, 0),
 
+    // @Param: MIN_THR
+    // @DisplayName: Minimum distance threshold filter
+    // @Description: Distances below this value are rejected and lower power returns will be considered
+    // @Range: 0 500
+    // @User: Standard
+    AP_GROUPINFO("MIN_THR", 32, AP_RangeFinder_Params, min_threshold_dist_mm, 0),
+
+
     // @Param: POS_X
     // @DisplayName:  X position offset
     // @Description: X position of the rangefinder in body frame. Positive X is forward of the origin. Use the zero range datum point if supplied.

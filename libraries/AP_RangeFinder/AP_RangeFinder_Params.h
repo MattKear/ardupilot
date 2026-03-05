@@ -39,6 +39,7 @@ public:
     AP_Int32 xm125_close_range_leakage;
     AP_Int8 xm125_debug;
     AP_Float xm125_lpf_cutoff_hz;
+    AP_Int32 min_threshold_dist_mm;
 
 };
 

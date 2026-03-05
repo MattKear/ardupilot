@@ -27,7 +27,7 @@ public:
                                           AP_RangeFinder_Params &_params,
                                           AP_HAL::I2CDevice *dev_ptr);
 
-    // update state
+    // update rangefinder state and perform post-processing on the data retrieved from the device
     void update(void) override;
 
 protected:
@@ -195,17 +195,23 @@ private:
         RECALIBRATION_REQUIRED   = 1 << 3,
         MEASUREMENT_ERROR        = 1 << 4,
         MEASUREMENT_TIMEOUT      = 1 << 5,
+        BUSY                     = 1 << 6,
+        DIST_RESULT_NEAR_START   = 1 << 7,
     };
+    const uint8_t BAD_HEALTH_MASK = uint8_t(Health::FAILED_DEVICE_COMS) |
+                                    uint8_t(Health::BAD_CONFIG) |
+                                    uint8_t(Health::DEVICE_ERROR) |
+                                    uint8_t(Health::RECALIBRATION_REQUIRED) |
+                                    uint8_t(Health::MEASUREMENT_ERROR) |
+                                    uint8_t(Health::MEASUREMENT_TIMEOUT);
 
 
     void init(void);
 
-    // Function that is called in the I2C thread for keeping the sensor state up to date
-    void timer(void);
-
     // Setup the radar - Progress through states in a switch case tree to setup the device
     void setup_radar(void);
 
+    // get the array of measurements from the radar device
     void update_measurement(void);
 
     bool update_detector_status(void);
@@ -232,8 +238,9 @@ private:
 
     AP_HAL::I2CDevice *dev;
 
-    static constexpr uint8_t MAX_PEAKS = 3;
+    static constexpr uint8_t MAX_PEAKS = 5;
     static constexpr uint32_t INIT_DISTANCE = UINT32_MAX;  // Give an initial distance that is improbable so that we can tell the first time we are committing a real life value to the reported distance
+    static constexpr uint32_t TIMEOUT_MS = 500;
 
     uint32_t dist_measurement_mm[MAX_PEAKS];
     uint32_t reported_distance_mm;
