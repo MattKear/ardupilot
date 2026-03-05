@@ -34,6 +34,7 @@ public:
     AP_Int32 xm125_profile;
     AP_Int32 xm125_shape;
     AP_Int32 xm125_threshold_method;
+    AP_Int32 xm125_threshold_level;
     AP_Int32 xm125_signal_quality;
     AP_Int32 xm125_num_frames;
     AP_Int32 xm125_close_range_leakage;

@@ -123,8 +123,9 @@ private:
         SET_PROFILE,
         SET_REFLECTOR_SHAPE,
         SET_SIGNAL_QUALITY,
-        SET_NUM_FRAMES_THRESHOLD,
         SET_THRESHOLD_METHOD,
+        SET_THRESHOLD_LEVEL,
+        SET_NUM_FRAMES_THRESHOLD,
         ENABLE_CLOSE_RANGE_LEAKAGE,
         APPLY_AND_CAL,
         CHECK_CONFIG,
@@ -187,6 +188,13 @@ private:
     };
     const uint32_t TEMPERATURE_SHIFT = 16;
     const uint32_t DISTANCE_RESULT_ERRORS_MASK = uint32_t(DistanceResult::DISTANCE_RESULT_NEAR_START_EDGE) | uint32_t(DistanceResult::DISTANCE_RESULT_CALIBRATION_NEEDED) | uint32_t(DistanceResult::DISTANCE_RESULT_MEASUREMENT_ERROR);
+
+    enum class ThresholdMethod : uint8_t {
+        FIXED_AMPLITUDE  = 1,
+        RECORDED         = 2,
+        CFAR             = 3,
+        FIXED_STRENGTH   = 4,
+    };
 
     enum class Health : uint8_t {
         FAILED_DEVICE_COMS       = 1 << 0,

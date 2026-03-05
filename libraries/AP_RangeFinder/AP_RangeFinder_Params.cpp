@@ -223,6 +223,12 @@ const AP_Param::GroupInfo AP_RangeFinder_Params::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("MIN_THR", 32, AP_RangeFinder_Params, min_threshold_dist_mm, 0),
 
+    // @Param: THR_LVL
+    // @DisplayName: Threshold level
+    // @Description: Value assigned to threshold level for the given threshold method. Note that this one param is used for setting the threshold level for all of the methods. Each method uses different registers and has different definitions.  Fixed Amplitude = 0-100,000.  Recorded = 0-1000 + Num of Frames for the record.  CFAR = 0-1000. Fixed Strength = 0 dB (default)
+    // @Range: 0 1000
+    // @User: Standard
+    AP_GROUPINFO("THR_LVL", 33, AP_RangeFinder_Params, xm125_threshold_level, 500),
 
     // @Param: POS_X
     // @DisplayName:  X position offset

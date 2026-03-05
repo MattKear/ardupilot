@@ -196,31 +196,56 @@ void AP_RangeFinder_AcconeerA121::setup_radar(void)
             break;
 
         case SetupStage::SET_REFLECTOR_SHAPE:
-            // Set profile, which configures a group of settings in the device 
             write_register(Register::REFLECTOR_SHAPE, params.xm125_shape.get());
             setup_stage = SetupStage::SET_SIGNAL_QUALITY;
             break;
 
         case SetupStage::SET_SIGNAL_QUALITY:
-            // Set profile, which configures a group of settings in the device 
             write_register(Register::SIGNAL_QUALITY, params.xm125_signal_quality.get());
             setup_stage = SetupStage::SET_THRESHOLD_METHOD;
             break;
 
-        case SetupStage::SET_THRESHOLD_METHOD:
-            // Set profile, which configures a group of settings in the device 
-            write_register(Register::THRESHOLD_METHOD, params.xm125_threshold_method.get());
-            setup_stage = SetupStage::SET_NUM_FRAMES_THRESHOLD;
+        case SetupStage::SET_THRESHOLD_METHOD: {
+            const uint32_t method = constrain_uint32(params.xm125_threshold_method.get(), uint32_t(ThresholdMethod::FIXED_AMPLITUDE), uint32_t(ThresholdMethod::FIXED_STRENGTH));
+            write_register(Register::THRESHOLD_METHOD, method);
+            setup_stage = SetupStage::SET_THRESHOLD_LEVEL;
+            break;
+        }
+
+        case SetupStage::SET_THRESHOLD_LEVEL:
+            // Different registers are used for setting the threshold level depending on which threshold method we are using
+            if (params.xm125_threshold_method.get() == uint32_t(ThresholdMethod::FIXED_AMPLITUDE)) {
+                // Default value for this is 100,000
+                write_register(Register::FIXED_AMPLITUDE_THRESHOLD_VALUE, params.xm125_threshold_level.get());
+                setup_stage = SetupStage::ENABLE_CLOSE_RANGE_LEAKAGE;
+
+            } else if (params.xm125_threshold_method.get() == uint32_t(ThresholdMethod::RECORDED)) {
+                // Default value = 500
+                const uint32_t level = constrain_uint32(params.xm125_threshold_level.get(), 0, 1000);
+                write_register(Register::THRESHOLD_SENSITIVITY, level);
+                // Next we need to set the number of frames to use in the recording
+                setup_stage = SetupStage::SET_NUM_FRAMES_THRESHOLD;
+
+            } else if (params.xm125_threshold_method.get() == uint32_t(ThresholdMethod::CFAR)) {
+                // Default value = 500
+                const uint32_t level = constrain_uint32(params.xm125_threshold_level.get(), 0, 1000);
+                write_register(Register::THRESHOLD_SENSITIVITY, level);
+                setup_stage = SetupStage::ENABLE_CLOSE_RANGE_LEAKAGE;
+
+            } else { // FIXED_STRENGTH method
+                // Default value = 0
+                write_register(Register::FIXED_STRENGTH_THRESHOLD_VALUE, params.xm125_threshold_level.get());
+                setup_stage = SetupStage::ENABLE_CLOSE_RANGE_LEAKAGE;
+            }
             break;
 
         case SetupStage::SET_NUM_FRAMES_THRESHOLD:
-            // Set profile, which configures a group of settings in the device 
+            // Set the number of frames to be used for the recorded if using the recorded threshold method
             write_register(Register::NUM_FRAMES_RECORDED_THRESHOLD, params.xm125_num_frames.get());
             setup_stage = SetupStage::ENABLE_CLOSE_RANGE_LEAKAGE;
             break;
 
         case SetupStage::ENABLE_CLOSE_RANGE_LEAKAGE:
-           // Set profile, which configures a group of settings in the device 
            write_register(Register::CLOSE_RANGE_LEAKAGE_CANCELLATION, params.xm125_close_range_leakage.get());
            setup_stage = SetupStage::APPLY_AND_CAL;
            break;
@@ -319,7 +344,7 @@ void AP_RangeFinder_AcconeerA121::update_measurement(void)
         return;
     }
 
-    for (uint8_t i=0; i<MIN(MAX_PEAKS,num_distances); i++) {
+    for (uint8_t i=0; i<MIN(MAX_PEAKS, num_distances); i++) {
         // Get the ith distance from the device
         uint32_t distance_mm;
         if (!read_register(Register(dist_reg[i]), distance_mm)) {
