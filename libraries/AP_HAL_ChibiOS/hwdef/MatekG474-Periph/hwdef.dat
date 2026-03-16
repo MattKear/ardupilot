@@ -65,4 +65,5 @@ define HAL_PROXIMITY_ENABLED 1
 
 # ----------- rangefinder
 define AP_PERIPH_RANGEFINDER_ENABLED 1
+define RANGEFINDER_MAX_INSTANCES 2
 
